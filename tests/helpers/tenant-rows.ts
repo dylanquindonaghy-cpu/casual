@@ -7,6 +7,7 @@ import { uniqueSlug } from "./db";
 // entry here fails those tests by name, so a new table can't be left untested.
 
 export const EXPECTED_TABLES = [
+  "answers",
   "api_keys",
   "assignments",
   "auth_throttle",
@@ -382,6 +383,14 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, $2, $3, 'Called about the licence')`,
     [firmId, rosterWorkerId, noteAuthorId],
   );
+  // One of the firm's library answers (Phase 35), last changed by the planner key's maker (the
+  // isolation tests delete rows.office_users, and its link to them has no ON DELETE action).
+  const answerId = await one(
+    su,
+    `insert into answers (firm_id, name, examples, body, is_on, updated_by)
+     values ($1, 'Parking', E'where do i park\nis there parking', 'Park at the back.', true, $2)`,
+    [firmId, noteAuthorId],
+  );
   // A WhatsApp from the rota worker (no ON DELETE action on its worker link either); the reply
   // link is tested in FK_CASES.
   const messageId = await one(
@@ -459,6 +468,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       inbound_emails: inboundEmailId,
       email_replies: emailReplyId,
       webhook_status: webhookStatusId,
+      answers: answerId,
     },
   };
 }
@@ -576,6 +586,10 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: `insert into sheet_name_problems (firm_id, source_id, kind, tab, row, outside_name, seen_at)
            values ($1, $2, 'unreadable', 'shifts', $3, 'Door Supervisor (NLW)', now())`,
     values: [firmId, p.rows.roster_sources, 10 + next()],
+  }),
+  answers: (firmId) => ({
+    text: `insert into answers (firm_id, name, examples, body) values ($1, $2, 'is anyone in', 'Yes.')`,
+    values: [firmId, `Probe answer ${next()}`],
   }),
   // One per firm: a probe firm of its own each time (the row's firm is the one being tested).
   webhook_status: (firmId) => ({
@@ -950,6 +964,27 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, body, shift_id)
            values ($1, 'in', 'app', $2, $3, 'Running late', $4)`,
     values: [firmId, `app:${randomUUID()}`, own.rosterWorkerId, other.rows.shifts],
+  }),
+  // The answer library (Phase 35): who last changed an answer, and the answer a message or an
+  // email got.
+  answers_updated_by_fk: (firmId, _own, other) => ({
+    text: "insert into answers (firm_id, name, body, updated_by) values ($1, $2, 'Yes.', $3)",
+    values: [firmId, `Probe answer ${next()}`, other.officeUserId],
+  }),
+  messages_answer_fk: (firmId, own, other) => ({
+    text: `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, body, intent, answer_id)
+           values ($1, 'in', 'app', $2, $3, 'where do i park', 'answer', $4)`,
+    values: [firmId, `app:${randomUUID()}`, own.rosterWorkerId, other.rows.answers],
+  }),
+  inbound_emails_answer_fk: (firmId, own, other) => ({
+    text: `insert into inbound_emails (firm_id, provider_message_id, worker_id, from_address, to_address, intent, answer_id)
+           values ($1, $2, $3, 'someone@example.com', 'staffing@inbound.example.test', 'answer', $4)`,
+    values: [
+      firmId,
+      `<${randomBytes(8).toString("hex")}@mail.example.test>`,
+      own.rosterWorkerId,
+      other.rows.answers,
+    ],
   }),
   messages_reply_to_fk: (firmId, _own, other) => ({
     text: `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164, reply_to)

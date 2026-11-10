@@ -89,6 +89,11 @@ const NOT_EVENTS = new Set<string>([
   "session.changed",
   "staff.changed",
   "roster_source.connector",
+  // The answer library's three switches (Phase 35), changed only through app_set_firm_setting()
+  // and in src/lib/onboarding/settings.ts.
+  "answers.app",
+  "answers.texts",
+  "answers.email",
   // The webhook's keys, changed only through app_set_firm_setting() (12J.2).
   "webhook.url",
   "webhook.rotate",

@@ -1006,6 +1006,8 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
 
   // The shifts line: Zoe asks for shifts, Ben about his pay, Kieran to cancel, just before the seed
   // ran. The job worker answers them with the app's own replies when it runs (seed-story-load.ts).
+  // Ben's asks where to see his pay, not when it comes: the demo's "Pay day" answer (Phase 35) would
+  // take "when will I get paid", and his story is the built-in pay link.
   const messages: StoryMessage[] = [
     {
       id: id("message/zoe"),
@@ -1016,7 +1018,7 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
     {
       id: id("message/ben"),
       workerKey: "ben",
-      body: "When will I get paid for the food festival?",
+      body: "Where do I see my pay for the food festival?",
       receivedAt: new Date(now.getTime() - 2 * 60_000),
     },
     {

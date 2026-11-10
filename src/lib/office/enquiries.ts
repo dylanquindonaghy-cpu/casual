@@ -55,11 +55,11 @@ export type EnquiryView = (typeof ENQUIRY_VIEWS)[number];
 type Channel = "whatsapp" | "sms" | "voice" | "app";
 type ListChannel = Channel | "email";
 type HandledAs = "keyword" | "ai" | "office" | "unknown" | "opt_out";
-type Intent = "shifts" | "cancel" | "pay" | "office";
+type Intent = "shifts" | "cancel" | "pay" | "office" | "answer";
 
 // What a held message was sorted as (`sortedAs`), when it was one of the shifts line's own
 // answers: one sorted as the office's would have gone to a person anyway.
-const HELD_INTENTS = ["shifts", "cancel", "pay"] as const;
+const HELD_INTENTS = ["shifts", "cancel", "pay", "answer"] as const;
 const heldIntent = (v: unknown): Exclude<Intent, "office"> | null =>
   HELD_INTENTS.find((i) => i === v) ?? null;
 
@@ -323,6 +323,8 @@ export interface EnquiryTimeline {
       }
     // The shifts line's last try failed (13.2): the error's code, as logged.
     | { how: "person"; why: "answer_failed"; code: string }
+    // One of the firm's answers matched, but a fill-in had no value for them (Phase 35.2).
+    | { how: "person"; why: "answer_missing" }
     | { how: "unknown"; repeat: boolean }
     | { how: "opt_out" }
     | { how: "not_yet" }
@@ -691,29 +693,31 @@ export async function loadEnquiry(
               ? { how: "held", by: handledAs, intent: sortedAs }
               : answerFailed !== null && handledAs === "office"
                 ? { how: "person", why: "answer_failed", code: answerFailed }
-                : handledAs === "keyword" && intent
-                  ? intent === "office"
-                    ? { how: "person", why: "asked" }
-                    : { how: "keyword", intent }
-                  : handledAs === "ai" && intent
+                : Array.isArray(received?.data.answerMissing) && intent === "office"
+                  ? { how: "person", why: "answer_missing" }
+                  : handledAs === "keyword" && intent
                     ? intent === "office"
-                      ? { how: "person", why: "ai_asked" }
-                      : { how: "ai", intent }
-                    : handledAs === "unknown"
-                      ? { how: "unknown", repeat: received?.data.repeat === true }
-                      : handledAs === "opt_out"
-                        ? { how: "opt_out" }
-                        : m.channel === "voice"
-                          ? { how: "person", why: "voicemail" }
-                          : m.body === null
-                            ? { how: "person", why: "no_text" }
-                            : {
-                                how: "person",
-                                why: "not_sorted",
-                                ...(aiReason(received?.data.aiFallback)
-                                  ? { ai: aiReason(received?.data.aiFallback) }
-                                  : {}),
-                              };
+                      ? { how: "person", why: "asked" }
+                      : { how: "keyword", intent }
+                    : handledAs === "ai" && intent
+                      ? intent === "office"
+                        ? { how: "person", why: "ai_asked" }
+                        : { how: "ai", intent }
+                      : handledAs === "unknown"
+                        ? { how: "unknown", repeat: received?.data.repeat === true }
+                        : handledAs === "opt_out"
+                          ? { how: "opt_out" }
+                          : m.channel === "voice"
+                            ? { how: "person", why: "voicemail" }
+                            : m.body === null
+                              ? { how: "person", why: "no_text" }
+                              : {
+                                  how: "person",
+                                  why: "not_sorted",
+                                  ...(aiReason(received?.data.aiFallback)
+                                    ? { ai: aiReason(received?.data.aiFallback) }
+                                    : {}),
+                                };
   // Sent about her pay from Pay's "Message the office" (the guardrails review of 28.10); since
   // Phase 29.1 a pay query for payroll, named on its `message.received` (`payQueryId`).
   const payQueryId = str(received?.data.payQueryId);
@@ -842,7 +846,9 @@ export interface EmailEnquiryDetail {
     received: { at: Date; who: Who };
     sorted: EmailSorted;
     reply:
-      { how: "automatic"; answer: "shifts" | "cancel" | "pay" } | { how: "held" } | { how: "none" };
+      | { how: "automatic"; answer: "shifts" | "cancel" | "pay" | "answer" }
+      | { how: "held" }
+      | { how: "none" };
     sent:
       | { how: "sent"; at: Date }
       | { how: "failed"; code: string; at: Date }
@@ -855,7 +861,7 @@ export interface EmailEnquiryDetail {
   firm: { name: string; signOff: string };
 }
 
-const ANSWERS = ["shifts", "cancel", "pay"] as const;
+const ANSWERS = ["shifts", "cancel", "pay", "answer"] as const;
 const answerOf = (v: unknown) => ANSWERS.find((a) => a === v) ?? null;
 
 export async function loadEmailEnquiry(
@@ -1007,23 +1013,25 @@ export async function loadEmailEnquiry(
             ? { how: "stale" }
             : typeof d.answerFailed === "string"
               ? { how: "failed", code: d.answerFailed }
-              : by && sortedAs && d.replyHeld === true
-                ? { how: "held", by, intent: sortedAs }
-                : by && sortedAs && d.replyLimit === true
-                  ? { how: "limit", by, intent: sortedAs }
-                  : by && sortedAs && d.nothingOnFile === true
-                    ? { how: "no_address", by, intent: sortedAs }
-                    : by && sortedIntent
-                      ? sortedIntent === "office"
-                        ? { how: "person", why: by === "keyword" ? "asked" : "ai_asked" }
-                        : { how: by, intent: sortedIntent }
-                      : d.aiFallback === "no_text"
-                        ? { how: "person", why: "no_text" }
-                        : {
-                            how: "person",
-                            why: "not_sorted",
-                            ...(aiReason(d.aiFallback) ? { ai: aiReason(d.aiFallback) } : {}),
-                          };
+              : Array.isArray(d.answerMissing) && intent === "office"
+                ? { how: "person", why: "answer_missing" }
+                : by && sortedAs && d.replyHeld === true
+                  ? { how: "held", by, intent: sortedAs }
+                  : by && sortedAs && d.replyLimit === true
+                    ? { how: "limit", by, intent: sortedAs }
+                    : by && sortedAs && d.nothingOnFile === true
+                      ? { how: "no_address", by, intent: sortedAs }
+                      : by && sortedIntent
+                        ? sortedIntent === "office"
+                          ? { how: "person", why: by === "keyword" ? "asked" : "ai_asked" }
+                          : { how: by, intent: sortedIntent }
+                        : d.aiFallback === "no_text"
+                          ? { how: "person", why: "no_text" }
+                          : {
+                              how: "person",
+                              why: "not_sorted",
+                              ...(aiReason(d.aiFallback) ? { ai: aiReason(d.aiFallback) } : {}),
+                            };
   const automatic = sent.find((r) => r.kind === "automatic");
   const answer = answerOf(automatic?.template);
   const auto = automatic ? replies.find((r) => r.id === automatic.id) : undefined;

@@ -1,5 +1,6 @@
 import { and, eq, gt, inArray, lt, notInArray, sql } from "drizzle-orm";
 import { Client, Pool } from "pg";
+import { addStarterAnswers, DEMO_STARTERS_ON } from "../../answers/starters";
 import { applyCredentialPack } from "../../credentials/apply-pack";
 import { createWithFirm, type FirmTx } from "../scoped";
 import { automaticEventId } from "../../roster/shift-events";
@@ -172,6 +173,10 @@ async function loadFirm(tx: FirmTx, firm: SeedFirm, log: SeedLog): Promise<void>
   // The sector's credential types and default role rules first; existing ones stay as they are.
   // Its entry, if any, in the seed's log at the seed's now (Phase 26.10, fix-8).
   await applyCredentialPack(tx, firm.sector, { type: "system" }, async (_tx, event) =>
+    log.add(event),
+  );
+  // The five starter answers (Phase 35), switched on here but Parking; ones already there stay.
+  await addStarterAnswers(tx, { switchedOn: DEMO_STARTERS_ON }, async (_tx, event) =>
     log.add(event),
   );
   // Each made-up ZZ postcode with the fake geocoder's point for it (12G.1), as Settings would save.

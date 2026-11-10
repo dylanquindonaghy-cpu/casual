@@ -209,6 +209,16 @@ describe("AI never answers a dispute", () => {
     const classify = readFileSync(join(SRC, "lib/ai/classify-message.ts"), "utf8");
     expect(classify).toMatch(/Promise<Intent \| null>/);
     expect(classify).toMatch(/Promise<\{ label: Intent \} \| \{ label: null; why: AiFallback \}>/);
+    // The answer library (Phase 35.2): the AI may also pick one of the firm's switched-on answers,
+    // by its label's index, never its words (code fills the answer in: src/lib/answers/).
+    expect(classify).toMatch(
+      /Promise<\{ label: Intent; answer: number \| null \} \| \{ label: null; why: AiFallback \}>/,
+    );
+    // And the answer library itself never reaches the AI code (the casual's and the office's
+    // screens use it).
+    const library = files.filter((f) => rel(f).startsWith("src/lib/answers/"));
+    expect(library.length).toBeGreaterThan(5);
+    for (const f of library) expect(aiChain(f)).toBeNull();
   });
 
   it("STOP and START get only the app's fixed confirmation texts", () => {

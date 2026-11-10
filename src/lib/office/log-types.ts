@@ -275,6 +275,10 @@ export const LOG_TYPES = {
       "office_user.role_changed",
       "office_user.signed_out",
       "firm.settings_changed",
+      // The answer library (Phase 35): an answer added, changed, switched on or off (ids only).
+      "answer.created",
+      "answer.changed",
+      "answer.switched",
       "firm.strikes_email_link",
       "firm.strikes_email_link_sent",
       "firm.strikes_email_link_failed",

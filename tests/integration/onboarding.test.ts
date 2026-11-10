@@ -75,10 +75,26 @@ describe("creating a firm", () => {
     expect(events.map((e) => e.action)).toEqual([
       "firm.created",
       "credential_pack.applied",
+      // The five starter answers, switched off (Phase 35), by the system.
+      "answer.created",
+      "answer.created",
+      "answer.created",
+      "answer.created",
+      "answer.created",
       "office_user.added",
     ]);
     expect(events[0]?.data).toEqual({ sector: "security" });
-    expect(events[2]?.data).toEqual({ role: "admin" });
+    expect(events[7]?.data).toEqual({ role: "admin" });
+    const { rows: starters } = await su.query<{ starter_key: string; is_on: boolean }>(
+      "select starter_key, is_on from answers where firm_id = $1 order by starter_key",
+      [f.firmId],
+    );
+    expect(starters).toEqual(
+      ["office_hours", "parking", "pay_day", "renewing_licence", "what_to_wear"].map((k) => ({
+        starter_key: k,
+        is_on: false,
+      })),
+    );
   });
 
   it("refuses a bad slug, name, sector, email or admin name, and a slug already taken", async () => {
@@ -206,6 +222,10 @@ describe("a firm's settings", () => {
       "quiet_hours.urgent_override": [true, "default"],
       // The shifts line's automatic replies: off until the owner switches them on (P4.7).
       auto_replies: [false, "default"],
+      // Where the firm's answer library answers (Phase 35): off until an admin switches it on.
+      "answers.app": [false, "default"],
+      "answers.texts": [false, "default"],
+      "answers.email": [false, "default"],
       // Who sends what: ShiftDesk reminds every booking until the owner says the firm's own system
       // reminds its own (P2.3).
       firm_system_sends: [false, "default"],

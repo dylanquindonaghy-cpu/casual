@@ -25,6 +25,7 @@ export const OUTCOMES = [
   "payroll", // Pay: sent to payroll (a pay question from Messages about her pay: Phase 29.1)
   "in_app", // They sorted it in the app
   "inbox", // Left for your inbox (an email not from a casual: Phase 25.5)
+  "answer", // Answered automatically with one of the firm's own answers (Phase 35)
 ] as const;
 export type Outcome = (typeof OUTCOMES)[number];
 
@@ -32,7 +33,7 @@ export type Outcome = (typeof OUTCOMES)[number];
 export interface OutcomeFacts {
   handled: boolean; // the shifts line's job has sorted it (handled_at)
   handledAs: "keyword" | "ai" | "office" | "unknown" | "opt_out" | null;
-  intent: "shifts" | "cancel" | "pay" | "office" | null;
+  intent: "shifts" | "cancel" | "pay" | "office" | "answer" | null;
   waiting: boolean; // Need a person (enquiries.ts NEEDS_PERSON)
   doneInApp: boolean; // the casual booked or cancelled in the app within a day of the reply
   email?: boolean; // an email to the staffing inbox (Phase 25.5), not a message to the shifts line
@@ -51,6 +52,8 @@ export function enquiryOutcome(f: OutcomeFacts): Outcome {
   // One sent from Messages about her pay went to payroll's digest as a pay query instead (Phase
   // 29.1; src/lib/inbound/app.ts stores only those as handled by "office" with intent "pay").
   if (f.intent === "pay") return f.handledAs === "office" ? "payroll" : "pay";
+  // One of the firm's own answers went (Phase 35; intent "answer" only when it did).
+  if (f.intent === "answer") return "answer";
   if (forAPerson(f)) return f.waiting ? "person_waiting" : "person_answered";
   if (f.doneInApp) return "in_app";
   if (f.handledAs === "ai") return "ai";

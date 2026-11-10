@@ -251,6 +251,8 @@ function acme(today: Date): SeedFirm {
       // The made-up firms answer on the shifts line, to show it (docs/walkthrough.md); a real firm
       // starts with automatic replies off (P4.7, src/lib/inbound/limits.ts).
       auto_replies: true,
+      // The answer library answers on every channel (Phase 35); a real firm starts with it off.
+      answers: { app: true, texts: true, email: true },
       sign_off: "Acme Events Shift Team",
       // The strikes team, already confirmed (the demo story, 12I.1).
       strikes: storyStrikesSettings(today),
@@ -323,6 +325,7 @@ function northline(today: Date): SeedFirm {
       credential_applied_allowance_pct: 0,
       approve_mode: true,
       auto_replies: true, // as Acme's
+      answers: { app: true, texts: true, email: true }, // as Acme's
       sign_off: "Northline Rail Labour Shift Team",
     },
     sites: [

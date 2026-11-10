@@ -3837,3 +3837,90 @@ Checked against the app (the mock-up's words, changed where they weren't true):
 `/start/login?out=1` shows "You're logged out." under its intro, in the office login's slip. `/login`
 and `/office/login` opened by address still show on the demo (the walkthrough and the magic links
 use them); only `out=1` or `again=1`, which a redirect adds, sends them on.
+
+## Phase 35
+
+**The answer library** (Dylan, 2026-11-10; `PLAN.md` Phase 35; the approved mock-up:
+https://claude.ai/artifact/LKSpXGPp5XEUHnodmJEcC6). The firm's own automatic answers to common
+questions, which an admin writes and switches on; everything else is flagged for a person, as
+today. The office's page (Settings → Automatic answers), Enquiries' words and the casual's words come
+with 35.3 and 35.4; this part is the match, the fill-ins, the safeguards and the switches (35.1,
+35.2; `src/lib/answers/`; the reply words are in `docs/messaging-templates.md` "The answer library").
+
+### The match
+
+On each channel, in this order (`src/lib/inbound/reply.ts`, `src/lib/email/sort.ts`):
+
+1. STOP and START on a text, as before.
+2. **An example phrase**, in code (`matchByExample()`): one of a switched-on answer's example
+   phrases appears in the message as whole words, whatever the case and punctuation ("Where do I
+   park?" matches "where do i park"; "park" never matches inside "parking"). The longest matching
+   phrase wins; two answers tied for longest: none. Works with the AI off, and on the demo.
+3. The built-in keywords, as before (cancel, pay, shifts, office).
+4. **The AI**, shown the four built-in labels and the switched-on answers' names and example phrases
+   (never a fill-in's value, never anything about the casual), picks one label or none
+   (`sortMessageOrAnswer()`). None, unsure, slow, down, or a label it wasn't shown: the office, as
+   today.
+
+Only switched-on answers, only where that channel's switch is on, and never for a message about pay
+going wrong (step 2 and the AI's answers are skipped; it goes on to the built-in pay reply or the
+office). A voicemail is always the office's.
+
+### Fill-ins
+
+An answer's words may hold these, written `{key}`; any other `{word}` is refused when the answer is
+saved. Each is filled in by code from the casual's own facts at the moment of the reply
+(`factsFor()`); the office's preview uses the made-up examples.
+
+| Fill-in (the office's name) | Key | What goes in | Example |
+|---|---|---|---|
+| First name | `first_name` | Their first name, as held | Zoe |
+| Next pay day | `next_pay_day` | The pay day for this pay period's shifts (the firm's pay calendar, or payroll's own date for exactly this period), in the firm's time zone | Friday 20 November |
+| That pay cycle | `pay_cycle` | The days that pay day covers | Mon 9 to Sun 15 Nov |
+| Next shift | `next_shift` | Their next booked shift: role (and event), day and times, venue | Steward, Sat 14 Nov, 14:00 to 22:00 at Riverside Arena |
+| Its instructions | `next_shift_instructions` | That shift's uniform, meeting point and instructions, at most 300 characters | Uniform: black trousers, hi-vis. Meet at gate B at 13:30. |
+| Licence expiry | `licence_expiry` | Their qualification with a date that runs out soonest: "{its name} runs to {date}" ("ran out on" once past). Names are the firm's data, never fixed to SIA | SIA door supervisor licence runs to 1 December 2026 |
+| Link to Pay | `pay_link` | Their pay page | https://acme.…/pay |
+| Link to Profile | `profile_link` | Their profile | https://acme.…/profile |
+| Link to Shifts | `shifts_link` | Their shifts | https://acme.…/shifts |
+
+A fill-in with no value for this casual (no shift booked, nothing on it, no qualification with a
+date): the answer isn't sent. The office gets the question as today, and the log says which fill-ins
+were missing.
+
+### Safeguards
+
+- The AI never writes a word a casual sees: it only picks one switched-on answer or none (golden
+  rule 1). Its purpose and size stay as the built-in sorting's (`classify_message`, 5 tokens).
+- A message about pay going wrong never gets a library answer (golden rule 9): words such as wrong,
+  missing, short, underpaid, owed, not paid, haven't been paid, didn't get, hasn't come, mistake,
+  incorrect, dispute (`PAY_TROUBLE`, over the message with apostrophes dropped). A wide net: a word
+  too many only means the built-in reply or the office answers instead.
+- Every reply is marked automatic and signed "[Firm name] Shift Team"; a text says "Send OFFICE to
+  reach a person", an email "reply to this email".
+- The channels' own limits hold: the app's 5 automatic answers an hour to a casual, the staffing
+  email's 3 a day, and nothing by text or email while `auto_replies` is off.
+- Answers are never deleted, only switched off: every message and email names the answer it got.
+- Every change is logged, ids only: `answer.created`, `answer.changed` {answerId, keys},
+  `answer.switched` {answerId, on}, `firm.settings_changed` {by: "firm", keys, on}; and on each
+  message `message.received` / `email.received` {…, answerId, matchedBy: example / ai,
+  answerMissing} and `message.replied` / `email.replied` {…, answerId}.
+- The library code never reaches the AI code (`tests/unit/ai.boundary.test.ts`).
+
+### The switches
+
+Three, each off unless set, admins only (the `answers` area): **App messages**, **Texts** (and
+WhatsApps), **Email** (the staffing inbox). Stored in `firms.settings.answers` and written only
+through `app_set_firm_setting()` (`answers.app`, `answers.texts`, `answers.email`). The owner's
+`auto_replies` stays the master switch for texts and emails (P4.7): with it off nothing goes by text
+or email, and a message a library answer would have answered waits for a person, logged as sorted to
+that answer. The app answers whatever `auto_replies` says (decision 11). The demo firms have all
+three on, and the starters on but Parking. Each answer has its own switch too; the five starters
+come switched off for every firm, until someone has read them.
+
+| Firm's answer | Channel's switch | `auto_replies` | What happens |
+|---|---|---|---|
+| Matched, switched on | on | on | The answer goes, by the channel it came in on |
+| Matched, switched on | on | off | Texts and email: held for a person (`sortedAs` answer). The app: the answer goes |
+| Matched, switched on | off | any | As before Phase 35: keywords, the AI's built-in labels, the office |
+| Switched off | any | any | Never matched, never shown to the AI |

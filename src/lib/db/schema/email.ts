@@ -10,6 +10,7 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+import { answers } from "./answers";
 import { createdAt, firmIsolation, timestamptz } from "./helpers";
 import { MESSAGE_HANDLING, MESSAGE_INTENTS } from "./messages";
 import { officeUsers, workers } from "./people";
@@ -47,6 +48,8 @@ export const inboundEmails = pgTable(
     // The AI's draft of the office's reply (P7.5), from a known casual's words only; the office
     // checks and changes it before anything goes. Null: none (AI off, pay, or it gave none).
     draftReply: text("draft_reply"),
+    // The library answer that went by email (Phase 35), with intent 'answer'; null otherwise.
+    answerId: uuid("answer_id"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -56,6 +59,11 @@ export const inboundEmails = pgTable(
       name: "inbound_emails_worker_fk",
       columns: [t.firmId, t.workerId],
       foreignColumns: [workers.firmId, workers.id],
+    }),
+    foreignKey({
+      name: "inbound_emails_answer_fk",
+      columns: [t.firmId, t.answerId],
+      foreignColumns: [answers.firmId, answers.id],
     }),
     index("inbound_emails_firm_id_created_at_idx").on(t.firmId, t.createdAt),
     index("inbound_emails_firm_id_worker_id_idx").on(t.firmId, t.workerId),
@@ -86,6 +94,11 @@ export const inboundEmails = pgTable(
       "inbound_emails_intent_check",
       sql`${t.intent} in (${sql.raw(MESSAGE_INTENTS.map((i) => `'${i}'`).join(", "))})`,
     ),
+    // A library answer names which one, and only a library answer does (Phase 35).
+    check(
+      "inbound_emails_answer_intent",
+      sql`(${t.answerId} is not null) = (${t.intent} is not distinct from 'answer')`,
+    ),
     // Handled: when, and how.
     check("inbound_emails_handled_when", sql`(${t.handledAt} is null) = (${t.handledAs} is null)`),
     // A draft only for a known casual's email, once handled, and never for pay (golden rule 9).
@@ -103,7 +116,8 @@ export const inboundEmails = pgTable(
 ).enableRLS();
 
 export const EMAIL_REPLY_KINDS = ["automatic", "office"] as const;
-export const EMAIL_REPLY_TEMPLATES = ["shifts", "cancel", "pay"] as const;
+// answer: one of the firm's library answers (Phase 35).
+export const EMAIL_REPLY_TEMPLATES = ["shifts", "cancel", "pay", "answer"] as const;
 
 // What went back to a casual about their email to the staffing inbox (P7.5): the automatic link
 // email (src/lib/email/sort.ts) or the office's reply (src/lib/office/enquiry-actions.ts), as it

@@ -484,7 +484,12 @@ export function credentialExpiredEmailSubject(credential: string): string {
 // "shifts" and "cancel" get the personal reply instead (src/lib/inbound/personal-reply.ts, 12D.2).
 // The pay reply is automatic, so it says how to reach a person (WhatsApp's escalation rule); the
 // office's reply already goes to one.
-export type ShiftsLineReply = { intent: "pay"; link: string } | { intent: "office"; ref: string };
+// answer: one of the firm's library answers (Phase 35), its words already filled in by code from
+// the firm's data (src/lib/answers/), never by the AI.
+export type ShiftsLineReply =
+  | { intent: "pay"; link: string }
+  | { intent: "office"; ref: string }
+  | { intent: "answer"; words: string };
 
 // Before the sign-off of every automatic reply on the shifts line (docs/office-v2.md 5.7 item 3:
 // WhatsApp's rule that people can reach a person; "office" is a keyword).
@@ -506,7 +511,9 @@ export function shiftsLineReply(firm: FirmVoice, reply: ShiftsLineReply): string
       ? // Golden rule 9: a pay question never gets an AI answer, and a dispute goes to payroll by a
         // pay query (the guardrails review of 27.2, H1), as the inbox's pay answer says too.
         `Your hours, rates and pay dates: ${reply.link} (you'll get a code to log in). ${PAY_QUERY_HINT}`
-      : `The office will see this and get back to you. Ref ${reply.ref}.`;
+      : reply.intent === "answer"
+        ? reply.words
+        : `The office will see this and get back to you. Ref ${reply.ref}.`;
   return `${text} ${AUTOMATIC_REPLY} — ${firm.signOff}`;
 }
 
@@ -961,15 +968,28 @@ export function inboxReplySubject(firm: FirmVoice, subject: string | null): stri
 export const INBOX_AUTOMATIC_LINE =
   "This is an automatic reply. To reach a person, reply to this email.";
 
-export type InboxAnswer = "shifts" | "cancel" | "pay";
+export type InboxAnswer = "shifts" | "cancel" | "pay" | "answer";
 
 // email_answer_shifts / _cancel / _pay: a casual's email sorted as one of these, with the firm's
 // automatic replies on. Its link only, never an answer in words; each link last on its line.
+// email_answer (Phase 35): one of the firm's library answers, its words (`words`) filled in by code
+// from the firm's data (src/lib/answers/), never by the AI; no link of its own (`link` unused).
 export function inboxAnswerEmail(
   firm: FirmVoice,
   answer: InboxAnswer,
-  e: { firstName: string; subject: string | null; link: string },
+  e: { firstName: string; subject: string | null; link: string; words?: string },
 ): { subject: string; body: string } {
+  if (answer === "answer") {
+    return {
+      subject: inboxReplySubject(firm, e.subject),
+      body: [
+        `Hi ${e.firstName},`,
+        (e.words ?? "").trim(),
+        INBOX_AUTOMATIC_LINE,
+        `— ${firm.signOff}`,
+      ].join("\n\n"),
+    };
+  }
   const lines = {
     shifts: ["The shifts you can take are here:", e.link, "You'll get a code to log in."],
     cancel: [

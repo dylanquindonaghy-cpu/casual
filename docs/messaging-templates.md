@@ -424,6 +424,39 @@ app has its own way to the office: `forTheApp()`). Nothing goes by WhatsApp, tex
   are only put in her box: she can change them before she sends, and nothing is sent until she
   taps Send.
 
+## The answer library (Phase 35)
+
+Built in 35.2 (`src/lib/answers/`; the reply jobs `src/lib/inbound/reply.ts` and
+`src/lib/email/sort.ts`; the order, fill-ins and safeguards are in `docs/screens.md` "## Phase 35").
+The firm's own answers, written and switched on by an admin. The words are the answer's, with each
+fill-in done by code from the casual's own facts; the AI only ever picks one switched-on answer or
+none, and never writes a word the casual sees (golden rules 1 and 9). An answer whose fill-in has no
+value for this casual isn't sent: the office gets the question, as today. Each reply is signed
+"[Firm name] Shift Team" (golden rule 8) and marked automatic.
+
+| Channel | What goes |
+|---|---|
+| Text or WhatsApp (`answer`, `shiftsLineReply()`; only while `auto_replies` is on) | "{the answer's words} Automatic reply. Send OFFICE to reach a person. — {firm} Shift Team" |
+| The app (`forTheApp()`; whatever `auto_replies` says, within the app's 5 an hour) | "{the answer's words} Automatic reply. — {firm} Shift Team" |
+| Email (`email_answer`, `inboxAnswerEmail(…, "answer", …)`; within 3 a day, to the address on file) | Subject "Re: {their subject}". Body: "Hi {first name}," / "{the answer's words}" / "This is an automatic reply. To reach a person, reply to this email." / "— {firm} Shift Team" |
+
+**The five starters** (`src/lib/answers/starters.ts`; added for every firm switched off, until
+someone has read them; on for the demo firms, but Parking):
+
+| Starter | Example questions | The words |
+|---|---|---|
+| Pay day | when do we get paid · when will i get paid · is pay this friday · when is payday | "Your next pay day is {next_pay_day}, for shifts {pay_cycle}. Your hours and rates: {pay_link}" |
+| What to wear | what do i wear · what uniform · do i need my hi vis | "For {next_shift}: {next_shift_instructions}" |
+| Renewing a licence | my licence runs out · my badge runs out · new licence | "Your {licence_expiry}. When you have the new one, add it on Profile: {profile_link}. The office checks it." |
+| Parking | where do i park · is there parking | "Each shift says where to park in its instructions. If it doesn't, staff parking isn't provided: please use public transport or a nearby car park." |
+| Office hours | is anyone in · what time is the office open | "The office is open Monday to Friday, 9:00 to 17:00. Out of hours, questions about your shifts, cancelling and pay are answered here straight away." |
+
+For example, Zoe's "when will I get paid?" with Pay day on: "Your next pay day is Friday 20
+November, for shifts Mon 9 to Sun 15 Nov. Your hours and rates: https://acme.…/pay Automatic reply.
+Send OFFICE to reach a person. — Acme Events Shift Team". A message about pay going wrong ("my pay is
+wrong", "I haven't been paid") never gets a library answer: it gets the built-in pay reply above, or
+the office.
+
 ## Push (title / body)
 
 - Offer: "Shift available" / "{date} {start} at {site}. Tap to take it." (built: `offerPush()`, with

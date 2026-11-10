@@ -112,6 +112,10 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // The planner's webhook status (Phase 25.3): one row per firm, its times changed
   // (COLUMN_UPDATES), never whose it is; never deleted (an address added again starts it again).
   webhook_status: ["SELECT", "INSERT"],
+  // The answer library (Phase 35): added (the starters, an admin's own), then edited and switched
+  // on or off (COLUMN_UPDATES: the words and who changed them, never whose it is, which firm's or
+  // which starter); never deleted (messages and emails name the answer that went).
+  answers: ["SELECT", "INSERT"],
 };
 
 // Columns the app role may update on a table it can't update as a whole (a column-level grant).
@@ -153,7 +157,8 @@ export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
   ],
   travel_estimates: ["minutes", "metres", "provider", "computed_at", "expires_at"],
   uploads: ["status", "checked_by", "checked_at", "reject_reason"],
-  inbound_emails: ["handled_at", "handled_as", "intent", "draft_reply"],
+  inbound_emails: ["handled_at", "handled_as", "intent", "draft_reply", "answer_id"],
+  answers: ["name", "examples", "body", "is_on", "updated_by", "updated_at"],
 };
 
 export function schemaTableNames(): string[] {

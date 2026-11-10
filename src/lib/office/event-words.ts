@@ -35,6 +35,11 @@ export interface Names {
 // A message the shifts line didn't answer by itself, and an alert left for the hour's one email
 // (Phase 25.3; docs/screens.md "The office for a big firm").
 export const HELD_REPLY_LOG = "No automatic reply (they're off): it's waiting for a person.";
+// One of the firm's answers matched, but a fill-in had no value for them (Phase 35.2).
+export const ANSWER_MISSING_LOG =
+  "One of your answers matched, but it needs a fact we don't have for them: it's waiting for a person.";
+const missingNote = (d: Record<string, unknown>) =>
+  Array.isArray(d.answerMissing) ? ` ${ANSWER_MISSING_LOG}` : "";
 export const HELD_ALERT_LOG =
   "No email about it yet: 5 already went this hour, so it'll be in one email for the rest.";
 
@@ -136,6 +141,7 @@ const INBOX_ANSWER_WORDS: Record<string, string> = {
   shifts: "open shifts",
   cancel: "cancel",
   pay: "pay",
+  answer: "answer", // one of the firm's own answers (Phase 35)
 };
 
 const INTENT_WORDS: Record<string, string> = {
@@ -143,6 +149,14 @@ const INTENT_WORDS: Record<string, string> = {
   cancel: "cancelling",
   pay: "pay",
   office: "for the office",
+  answer: "one of your answers",
+};
+
+// Where the answer library answers (Phase 35): the setting key's channel.
+const ANSWER_SWITCH_WORDS: Record<string, string> = {
+  "answers.app": "app messages",
+  "answers.texts": "texts",
+  "answers.email": "the staffing email",
 };
 
 // A casual's message in the app (P8; Phase 25.6; docs/screens.md "Messages: the in-app chat"):
@@ -160,7 +174,11 @@ function appReceivedWords(d: Record<string, unknown>, worker: string): string {
   }
   const about = d.replyLimit === true ? String(d.sortedAs) : String(d.intent);
   const note =
-    d.replyLimit === true ? ` ${APP_LIMIT_LOG}` : d.echo === true ? ` ${APP_ECHO_LOG}` : "";
+    d.replyLimit === true
+      ? ` ${APP_LIMIT_LOG}`
+      : d.echo === true
+        ? ` ${APP_ECHO_LOG}`
+        : missingNote(d);
   return `${worker} sent a message in the app (${INTENT_WORDS[about] ?? "a message"}${d.handledAs === "ai" ? ", sorted by AI" : ""}).${note}`;
 }
 
@@ -543,7 +561,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       const about = d.replyHeld === true ? String(d.sortedAs) : String(d.intent);
       return voicemail
         ? `${who} left a voicemail on the shifts line (for the office).${heldReply}`
-        : `${who} sent a ${kind} to the shifts line (${INTENT_WORDS[about] ?? "a message"}${d.handledAs === "ai" ? ", sorted by AI" : ""}).${heldReply}`;
+        : `${who} sent a ${kind} to the shifts line (${INTENT_WORDS[about] ?? "a message"}${d.handledAs === "ai" ? ", sorted by AI" : ""}).${heldReply}${missingNote(d)}`;
     }
     case "call.received":
       return d.withheld
@@ -673,7 +691,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
           ? String(d.sortedAs)
           : null;
       if (held === null && d.intent === "office") {
-        return `${worker} emailed the staffing inbox (for the office${ai}). It's waiting for a person.`;
+        return Array.isArray(d.answerMissing)
+          ? `${worker} emailed the staffing inbox.${missingNote(d)}`
+          : `${worker} emailed the staffing inbox (for the office${ai}). It's waiting for a person.`;
       }
       const about = INTENT_WORDS[held ?? String(d.intent)] ?? "an email";
       const why =
@@ -844,6 +864,15 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         : "The firm's agreement and data processing agreement were recorded as signed.";
     case "firm.settings_changed": {
       const keys = Array.isArray(d.keys) ? d.keys.map(String) : [];
+      // Where the answer library answers (Phase 35): one switch at a time.
+      if (keys.length === 1 && ANSWER_SWITCH_WORDS[keys[0] ?? ""]) {
+        const where = ANSWER_SWITCH_WORDS[keys[0] ?? ""];
+        return d.on === true
+          ? `${officeName} switched your answers on for ${where}.`
+          : d.on === false
+            ? `${officeName} switched your answers off for ${where}.`
+            : `${officeName} changed whether your answers go for ${where}.`;
+      }
       // The strikes team's email (Settings, 12B.7): the keys only, never the address.
       if (keys.length > 0 && keys.every((k) => k.startsWith("strikes.email"))) {
         if (d.by === "link") return "The strikes team's email was confirmed, by its link.";
@@ -870,6 +899,24 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       const n = keys.length;
       return `The firm's settings changed (${n === 1 ? "1 setting" : `${n} settings`}).`;
     }
+    // The answer library (Phase 35): ids only; the answer's name and words are on its page.
+    case "answer.created":
+      return typeof d.starter === "string"
+        ? "A starter answer was added to your answers, switched off."
+        : `${officeName} added an answer.`;
+    case "answer.changed": {
+      const keys = Array.isArray(d.keys) ? d.keys.map(String) : [];
+      const parts = keys
+        .map((k) => ({ name: "name", examples: "example questions", body: "words" })[k])
+        .filter((w): w is string => typeof w === "string");
+      return parts.length > 0
+        ? `${officeName} changed an answer's ${parts.join(" and ")}.`
+        : `${officeName} changed an answer.`;
+    }
+    case "answer.switched":
+      return d.on === true
+        ? `${e.actorType === "office" ? officeName : "The system"} switched an answer on: it can go to casuals.`
+        : `${officeName} switched an answer off: it won't go to casuals.`;
     case "firm.strikes_email_link":
       return "Sending a link to confirm the strikes team's email (it works for 7 days).";
     case "firm.strikes_email_link_sent":

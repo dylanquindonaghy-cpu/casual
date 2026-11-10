@@ -4,6 +4,7 @@ import { answers, firms, officeUsers } from "../db/schema";
 import { withFirm, type FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { officeUserMay, type OfficeContext } from "../office/office-context";
+import { libraryAllowed } from "../inbound/keywords";
 import { aboutPayTrouble } from "./match";
 import {
   ANSWER_SETTING_KEYS,
@@ -307,7 +308,9 @@ export const UNANSWERED_DAYS = 30;
 // person in the last 30 days (sorted as the office's: no answer, a keyword asking for a person, or
 // an answer that couldn't be filled in), newest first. Not one about a session or her pay (a
 // person's by design), nor one about pay going wrong (never a library answer: golden rule 9), nor a
-// voicemail. For "Make this an answer"; the words are the casual's own, shown to admins only.
+// voicemail, nor one no answer could ever take (it asks to cancel or for a person, or says they
+// can't make it: libraryAllowed(), the guardrails review's H1). For "Make this an answer"; the
+// words are the casual's own, shown to admins only.
 export async function questionsWithNoAnswer(
   tx: FirmTx,
   opts: { limit?: number; now?: Date } = {},
@@ -338,7 +341,7 @@ export async function questionsWithNoAnswer(
     limit ${limit * 3}
   `);
   return rows
-    .filter((r) => !aboutPayTrouble(r.text))
+    .filter((r) => !aboutPayTrouble(r.text) && libraryAllowed(r.text))
     .slice(0, limit)
     .map((r) => ({ ...r, at: new Date(r.at) }));
 }

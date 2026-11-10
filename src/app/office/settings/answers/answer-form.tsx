@@ -6,9 +6,9 @@ import { btn, field, hint, labelStack, meta } from "@/app/ui/classes";
 import { Icon } from "@/app/ui/icons";
 import { useHydrated } from "@/app/use-hydrated";
 import { FILL_INS } from "@/lib/answers/fill-ins";
-import { ANSWER_BODY_MAX, ANSWER_NAME_MAX } from "@/lib/answers/limits";
+import { ANSWER_BODY_MAX, ANSWER_NAME_MAX, ANSWER_TEXT_PARTS_AT } from "@/lib/answers/limits";
 import { previewAnswer } from "@/lib/answers/render";
-import { ANSWER_ERRORS } from "@/lib/answers/validate";
+import { ANSWER_ERRORS, ANSWER_NOTES, looksSignedByPerson } from "@/lib/answers/validate";
 import { FORM, saveResultText, type SaveResult } from "@/lib/office/answers-copy";
 import { resultBox } from "../../shifts/shift-tones";
 import { saveAnswerAction } from "./actions";
@@ -23,7 +23,10 @@ type Field = "name" | "examples" | "body";
 // casual would get, filled in with made-up examples (previewAnswer(): never a real casual's data).
 // Saved with "Save and switch on" or "Save, keep off" (on Edit, the answer's current state can be
 // kept: "Save, keep on" or "Save, keep off"); a problem shows under its field (ANSWER_ERRORS, the
-// server's check). Saved, the list says so. Waits for the page (docs/ui-design.md).
+// server's check). Under the words, two notes that never block a save (ANSWER_NOTES; the guardrails
+// review, L1 and L3): words a text sends in several parts (over 300 characters as a casual would
+// get them), and words that look signed by a person (golden rule 8). Saved, the list says so.
+// Waits for the page (docs/ui-design.md).
 export function AnswerForm({
   answer,
   example,
@@ -79,6 +82,12 @@ export function AnswerForm({
     });
 
   const shown = body.trim() ? previewAnswer(body) : null;
+  // As a casual would get them (fill-ins with their examples, the pay hint), else as written.
+  const length = shown && "text" in shown ? shown.text.length : body.trim().length;
+  const notes = [
+    ...(length > ANSWER_TEXT_PARTS_AT ? [{ key: "long", text: ANSWER_NOTES.longText }] : []),
+    ...(looksSignedByPerson(body) ? [{ key: "signed", text: ANSWER_NOTES.personSignOff }] : []),
+  ];
   const on = answer?.isOn ?? false;
   const [mainLabel, mainSwitch, otherLabel, otherSwitch] = !answer
     ? [FORM.saveOn, "on", FORM.saveOff, "off"]
@@ -160,6 +169,13 @@ export function AnswerForm({
           {FORM.bodyHint}
         </p>
         {problem("body")}
+        <div aria-live="polite" className="flex flex-col gap-1">
+          {notes.map((n) => (
+            <p key={n.key} className={`${hint} font-semibold`} data-answer-note={n.key}>
+              {n.text}
+            </p>
+          ))}
+        </div>
         <div role="group" aria-labelledby={ids.fillIns} className="mt-2 flex flex-col gap-2">
           <p id={ids.fillIns} className={meta}>
             {FORM.fillIns}

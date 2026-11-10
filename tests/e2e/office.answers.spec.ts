@@ -21,8 +21,8 @@ import { loginLinkSentTo, sentTo } from "./outbox";
 
 const acme = "http://acme.localhost:3100";
 const RUN = Date.now().toString(36);
-// Not its example question: words naming it would match it again (askOfficeWords() leaves the name
-// out then: tests/unit/answers.screens.test.ts).
+// Not its example question (since the guardrails review's H1, "Ask the office" always names the
+// answer and always reaches a person anyway: tests/unit/answers.screens.test.ts).
 const NAME = `Torch and badge ${RUN}`;
 const EXAMPLE = `kit list ${RUN}`;
 const ADMIN = `answers.admin.${RUN}@example.com`;

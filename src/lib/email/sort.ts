@@ -17,7 +17,16 @@ import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { INBOUND_EMAIL_RETRY_LIMIT, inboundEmailJob, type InboundEmailPayload } from "./job";
 import { queueInboxSummary } from "./summary";
-import { answersFor, matchByExample, prepareAnswer, type LibraryAnswer } from "../answers/library";
+import {
+  answerFacts,
+  answersFor,
+  matchByExample,
+  recheckAnswer,
+  wordsFor,
+  type LibraryAnswer,
+} from "../answers/library";
+import type { Facts } from "../answers/render";
+import { systemClock, type Clock } from "../auth/clock";
 
 // Sorting an email to the firm's staffing inbox (P7.4 and P7.5; docs/api-and-jobs.md
 // `inbound-email`; docs/messaging-templates.md "The staffing inbox's emails"). One job per stored
@@ -63,6 +72,7 @@ export interface InboundEmailDeps {
   baseDomain: string;
   aiTimeoutMs?: number; // tests pass a short one
   draftTimeoutMs?: number;
+  clock?: Clock; // tests pass a fixed one (a library answer's "now": its next pay day, next shift)
 }
 
 export type InboundEmailResult =
@@ -231,6 +241,21 @@ async function claimPlain(
   });
 }
 
+// The casual's facts a picked answer's words need, read before the claim, at the deps' clock (as
+// the shifts line's and the app's: src/lib/inbound/reply.ts).
+function answerFactsOf(
+  run: WithFirm,
+  firmId: string,
+  c: { firm: Firm; workerId: string },
+  deps: InboundEmailDeps,
+  body: string,
+): Promise<Facts> {
+  const now = (deps.clock ?? systemClock).now();
+  return run(firmId, (tx) =>
+    answerFacts(tx, { firm: c.firm, baseDomain: deps.baseDomain, now }, c.workerId, body),
+  );
+}
+
 // A library answer (Phase 35) carries no link of its own: its fill-ins hold any it needs.
 const LINKS: Record<InboxAnswer, string> = {
   shifts: "/shifts/open",
@@ -329,35 +354,40 @@ export async function runInboundEmail(
             ? "no_address"
             : null;
   if (held) intent = "office";
-  // A library answer's words, filled in by code before the claim (src/lib/answers/facts.ts); one
-  // with no value for this casual: the office's, and no email.
-  let words: string | null = null;
-  let answerMissing: string[] | null = null;
-  if (answer === "answer" && !held && picked) {
-    const pick = picked;
-    const prepared = await run(payload.firmId, (tx) =>
-      prepareAnswer(
-        tx,
-        { firm: c.firm, baseDomain: deps.baseDomain, now: new Date() },
-        c.workerId,
-        pick.answer,
-      ),
-    );
-    if (prepared.ok) words = prepared.text;
-    else {
-      answerMissing = prepared.missing;
-      intent = "office";
-    }
-  }
-  const goes = answer !== null && !held && (answer !== "answer" || words !== null);
-  const link = goes && answer ? `${portalUrl(c.firm.slug, deps.baseDomain)}${LINKS[answer]}` : null;
+  // A library answer's facts, read by code before the claim (src/lib/answers/facts.ts); its words
+  // are filled in inside the claim, from the answer as it is then.
+  const facts: Facts | null =
+    answer === "answer" && !held && picked
+      ? await answerFactsOf(run, payload.firmId, c, deps, picked.answer.body)
+      : null;
   const voice = { name: c.firm.name, signOff: c.firm.signOff };
-  const answerId = intent === "answer" && picked ? picked.answer.id : null;
+  const before = intent;
 
-  // Step 3: the claim, the link email's row, the event and the summary, together.
+  // Step 3: the claim, the link email's row, the event and the summary, together. A library answer
+  // is settled first (the guardrails review, M2): the answer, the email switch and `auto_replies`
+  // re-read; switched off meanwhile (`answerSwitchedOff`) or a fill-in with no value
+  // (`answerMissing`): the office's, and no email.
   const claimed = await run(payload.firmId, async (tx) => {
     const came = await lockUnhandled(tx, payload.emailId);
     if (!came) return null;
+    let intent = before;
+    let words: string | null = null;
+    let answerMissing: string[] | null = null;
+    let switchedOff = false;
+    if (answer === "answer" && !held && picked) {
+      const now = await recheckAnswer(tx, picked.answer.id, "email");
+      if (!now.on) switchedOff = true;
+      else {
+        const filled = wordsFor(now.body, facts ?? {});
+        if (filled.ok) words = filled.text;
+        else answerMissing = filled.missing;
+      }
+      if (words === null) intent = "office";
+    }
+    const goes = answer !== null && !held && (answer !== "answer" || words !== null);
+    const link =
+      goes && answer ? `${portalUrl(c.firm.slug, deps.baseDomain)}${LINKS[answer]}` : null;
+    const answerId = intent === "answer" && picked ? picked.answer.id : null;
     await tx
       .update(inboundEmails)
       .set({ handledAt: new Date(), handledAs, intent, answerId })
@@ -398,6 +428,7 @@ export async function runInboundEmail(
         ...(aiFallback ? { aiFallback } : {}),
         ...(picked ? { answerId: picked.answer.id, matchedBy: picked.by } : {}),
         ...(answerMissing ? { answerMissing } : {}),
+        ...(switchedOff ? { answerSwitchedOff: true } : {}),
         ...(held === "held" ? { replyHeld: true, sortedAs } : {}),
         ...(held === "limit" ? { replyLimit: true, sortedAs } : {}),
         ...(held === "no_address" ? { nothingOnFile: true, sortedAs } : {}),
@@ -405,12 +436,12 @@ export async function runInboundEmail(
       },
     });
     await queueInboxSummary(tx, came, c.firm.timezone);
-    return { reply };
+    return { reply, answerId };
   });
   if (claimed === null) return { status: "already" };
 
   // Step 4: the link email, outside any transaction, then what came of it.
-  const reply = claimed.reply;
+  const { reply, answerId } = claimed;
   if (answer && reply) {
     // Their reply comes back to the firm's staffing inbox, so to Enquiries.
     const replyTo = c.firm.inbox ? { replyTo: c.firm.inbox } : {};

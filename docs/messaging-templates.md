@@ -142,10 +142,11 @@ the words are always these.
 
 | Worker types | Reply |
 |---|---|
+| "office", "talk" (asking for a person by name: first since Phase 35's guardrails review, so "Send OFFICE to reach a person" always does, whatever else the message says: "office, when do we get paid" is the office's) | "The office will see this and get back to you. Ref {ref}. Automatic reply. Send OFFICE to reach a person." + a request for the office (a question, the message as its note) |
 | "cancel" | The personal cancel reply (below, 12D.2: their next booking, with its link) |
 | "pay", "paid", "wages", "payslip" | "Your hours, rates and pay dates: {link} (you'll get a code to log in). If something looks wrong, tap 'Raise a pay query' there, so payroll sees it. Automatic reply. Send OFFICE to reach a person." ({link} is the pay page; never a list or an answer about pay) |
 | "shifts", "work", "available" | The personal shift list (below, 12D.2). Not when the message also says they can't make it or are late ("can't", "cannot", "won't", "not", "unable", "sick", "ill", "late"): that's about their own shift, so the AI or the office gets it. "shift" alone isn't a keyword for the same reason |
-| "help", "office", "talk" | "The office will see this and get back to you. Ref {ref}. Automatic reply. Send OFFICE to reach a person." + a request for the office (a question, the message as its note) |
+| "help" (the least specific, last) | "The office will see this and get back to you. Ref {ref}. Automatic reply. Send OFFICE to reach a person." + a request for the office (a question, the message as its note) |
 | anything else | Haiku picks one of the rows above (the worker's text only; an answer that isn't exactly one label counts as none); no AI, a failure, or no answer within 5 seconds: the office row. A photo with no text: the office row |
 
 ## Personal replies on the shifts line
@@ -449,20 +450,29 @@ someone has read them; on for the demo firms, but Parking):
 | What to wear | what do i wear · what uniform · do i need my hi vis | "For {next_shift}: {next_shift_instructions}" |
 | Renewing a licence | my licence runs out · my badge runs out · new licence | "Your {licence_expiry}. When you have the new one, add it on Profile: {profile_link}. The office checks it." |
 | Parking | where do i park · is there parking | "Each shift says where to park in its instructions. If it doesn't, staff parking isn't provided: please use public transport or a nearby car park." |
-| Office hours | is anyone in · what time is the office open | "The office is open Monday to Friday, 9:00 to 17:00. Out of hours, questions about your shifts, cancelling and pay are answered here straight away." |
+| Office hours | is anyone in · what time do you open | "The office is open Monday to Friday, 9:00 to 17:00. Out of hours, questions about your shifts, cancelling and pay are answered here straight away." |
+
+An answer whose words use a pay fill-in ({next_pay_day}, {pay_cycle} or {pay_link}) gets, added by
+code after its words on every channel (and in the office's preview), "If your pay looks wrong, tap
+'Raise a pay query' on your pay page, so payroll sees it." (`ANSWER_PAY_HINT`, beside the pay
+reply's `PAY_QUERY_HINT` in `src/lib/messaging/pay-hint.ts`; golden rule 9: the way to payroll is
+always said).
 
 For example, Zoe's "when will I get paid?" with Pay day on: "Your next pay day is Friday 20
-November, for shifts Mon 9 to Sun 15 Nov. Your hours and rates: https://acme.…/pay Automatic reply.
-Send OFFICE to reach a person. — Acme Events Shift Team". A message about pay going wrong ("my pay is
-wrong", "I haven't been paid") never gets a library answer: it gets the built-in pay reply above, or
-the office.
+November, for shifts Mon 9 to Sun 15 Nov. Your hours and rates: https://acme.…/pay If your pay looks
+wrong, tap 'Raise a pay query' on your pay page, so payroll sees it. Automatic reply. Send OFFICE to
+reach a person. — Acme Events Shift Team". A message about pay going wrong ("my pay is wrong", "I
+haven't been paid", "it's late", "it hasn't gone in", "where's my money") never gets a library
+answer: it gets the built-in pay reply above, or the office. Nor does one that asks to cancel or for
+a person (cancel, office, talk, help) or says they can't make it or are late: it goes on to the
+built-in replies above (docs/screens.md "## Phase 35", "The match").
 
 In the app, under the latest of these answers (Phase 35.4; docs/screens.md "## Phase 35", "The
 casual's Messages"), "Not what you needed? Ask the office" sends her own message to the office:
-"Please can someone from the office help? (About: {answer's name})", or, when the name could steer
-it to an automatic answer (a keyword such as "pay", or another answer's example question), "Please
-can someone from the office help with my last question?" (else "Please can someone from the office
-help?"). Its keyword "office" gives it to a person, with the usual "The office will see this and get
+"Please can someone from the office help? (About: {answer's name})". "office" is the first keyword
+and a message with it never gets a library answer, so it always reaches a person, whatever the
+answer's name (until the guardrails review, a name with "pay" in it sent "…help with my last
+question?" instead). Its keyword "office" gives it to a person, with the usual "The office will see this and get
 back to you. Ref {ref}." reply; on her screen: "Sent to the office. They'll answer here."
 
 ## Push (title / body)

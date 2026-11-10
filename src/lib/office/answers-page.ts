@@ -10,6 +10,7 @@ import {
   type UnansweredQuestion,
 } from "../answers/office";
 import { aboutPayTrouble } from "../answers/match";
+import { libraryAllowed } from "../inbound/keywords";
 import type { AnswerChannel, AnswerSwitches } from "../answers/switches";
 import { firms } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
@@ -112,8 +113,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Add, and Add from a question ("Make this an answer": `from` a message's or an email's id). Only
 // the casual's own words of a question that went to a person, as "No answer yet" lists them (a
 // casual's message in the app, a WhatsApp or a text, or their email's words; not one about a
-// session, a voicemail, nor one about pay going wrong), read inside the firm: any other id, or one
-// of another firm's, starts with no example.
+// session, a voicemail, nor one about pay going wrong, nor one no answer could take: libraryAllowed()),
+// read inside the firm: any other id, or one of another firm's, starts with no example.
 export async function officeNewAnswer(
   ctx: OfficeContext,
   from: string | null,
@@ -125,7 +126,10 @@ export async function officeNewAnswer(
     return {
       ...(await firmFacts(tx)),
       answer: null,
-      example: text && !aboutPayTrouble(text) ? exampleFromQuestion(text) || null : null,
+      example:
+        text && !aboutPayTrouble(text) && libraryAllowed(text)
+          ? exampleFromQuestion(text) || null
+          : null,
     };
   });
 }

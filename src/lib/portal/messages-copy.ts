@@ -1,5 +1,3 @@
-import { matchByExample, type MatchableAnswer } from "../answers/match";
-import { keywordIntent } from "../inbound/keywords";
 import { dayLabel } from "../rules/reasons";
 import { localDateOf, wallTimeOf } from "../time/zoned";
 import { tryAgainText } from "./copy";
@@ -57,35 +55,28 @@ export function aboutLine(shift: { role: string; startsAt: Date }, timeZone: str
   return `About: ${roleLabel(shift.role)} · ${day}, ${pad(w.hour)}:${pad(w.minute)}`;
 }
 // "Not what you needed? Ask the office" (Phase 35.4), under the latest of the firm's own answers
-// in her thread: it sends her a message to the office naming the answer (askOfficeWords(), below,
-// keeps only words the shifts line gives a person), then says so.
+// in her thread: it sends her a message to the office naming the answer (askOfficeWords(), below),
+// then says so.
 export const ASK_OFFICE_BUTTON = "Not what you needed? Ask the office";
 export const ASK_OFFICE_SENT = "Sent to the office. They'll answer here.";
 // One of her "Ask the office" messages (they all start so): a follow-up, not a new question.
 export const ASK_OFFICE_START = "Please can someone from the office help";
 export const isAskOffice = (text: string): boolean => text.startsWith(ASK_OFFICE_START);
-// The words that go, best first: the answer named, when the name can't steer the message to an
-// automatic answer of its own ("Pay day" has "pay": the plain words go instead).
+// Every wording "Ask the office" has sent: the first since the guardrails review's H1; the other
+// two only before it (when a name such as "Pay day" could steer the first to the pay link), still
+// read as hers in a thread that holds one.
 export const askOfficeTexts = (answerName: string): string[] => [
   `Please can someone from the office help? (About: ${answerName})`,
   "Please can someone from the office help with my last question?",
   "Please can someone from the office help?",
 ];
 
-// The words "Ask the office" sends: the first of askOfficeTexts() the shifts line gives a person by
-// the same pure checks its job makes first (src/lib/inbound/reply.ts answerApp): no example question
-// of a switched-on answer in it, and the built-in keyword "office" its keyword (cancel, pay and
-// shifts come before it: an answer named "Pay day" would get the pay link). Null: none would.
-export function askOfficeWords(
-  answerName: string,
-  library: readonly MatchableAnswer[],
-): string | null {
-  return (
-    askOfficeTexts(answerName).find(
-      (t) => keywordIntent(t) === "office" && matchByExample(t, library) === null,
-    ) ?? null
-  );
-}
+// The words "Ask the office" sends: the answer named. Always a person's (the guardrails review,
+// H1): "office" is the first built-in keyword (src/lib/inbound/keywords.ts), whatever else the words
+// hold ("Pay day", "Cancelling"), and a message with it never gets a library answer
+// (libraryAllowed()), so the shifts line gives it to the office whatever the answer's name.
+export const askOfficeWords = (answerName: string): string =>
+  `Please can someone from the office help? (About: ${answerName})`;
 
 // Who an answer is from, under it.
 export const FROM_WORDS = { automatic: "Automatic reply", office: "From the office" } as const;

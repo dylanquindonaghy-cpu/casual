@@ -251,6 +251,7 @@ export function sortedStep(
       }
     | { how: "person"; why: "answer_failed"; code: string }
     | { how: "person"; why: "answer_missing" }
+    | { how: "person"; why: "answer_switched_off" }
     | { how: "unknown"; repeat: boolean }
     | { how: "opt_out" }
     | { how: "not_yet" }
@@ -301,6 +302,8 @@ export function sortedStep(
         return `The automatic answer failed on every try (${s.code}): passed to a person.`;
       if (s.why === "answer_missing")
         return "One of your answers matched, but it needs a fact we don't have for them: passed to a person.";
+      if (s.why === "answer_switched_off")
+        return "One of your answers matched, but it was switched off before it went: passed to a person.";
       if (s.why === "not_sorted" && s.ai) {
         return {
           not_connected: "AI not available: passed to a person (not connected).",
@@ -358,7 +361,11 @@ export function filledInStep(a: {
   fillIns: string[];
   missing: string[] | null;
   changedSince: boolean;
+  switchedOff?: boolean;
 }): string {
+  // Re-read as it went (the guardrails review, M2): switched off meanwhile, nothing was filled in.
+  if (a.switchedOff)
+    return "Not sent: it was switched off before it went, so it was passed to a person.";
   if (a.missing && a.missing.length > 0) {
     const names = fillInLabels(a.missing);
     return `Not sent: we have no ${names.join(", ")} for them, so it was passed to a person.`;

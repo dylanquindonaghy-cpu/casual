@@ -5,7 +5,8 @@ import { recordEvent, type EventInput } from "../events/record";
 
 // The five starter answers (Phase 35; docs/messaging-templates.md "The answer library"), added for
 // every firm switched off, until someone has read them: migration 0073 for the firms there then
-// (the same words: tests/unit/answers.library.test.ts), firm creation
+// (the same words, with Office hours' second example as 0074 left it: tests/unit/
+// answers.library.test.ts), firm creation
 // (scripts/firm-create-owner.ts) and the demo seed (on there, but Parking). Each is filled only from
 // the fixed fill-ins. UK English, short and plain.
 
@@ -49,7 +50,7 @@ export const STARTERS: readonly Starter[] = [
   {
     key: "office_hours",
     name: "Office hours",
-    examples: ["is anyone in", "what time is the office open"],
+    examples: ["is anyone in", "what time do you open"],
     body: "The office is open Monday to Friday, 9:00 to 17:00. Out of hours, questions about your shifts, cancelling and pay are answered here straight away.",
   },
 ];

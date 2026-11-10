@@ -2,10 +2,18 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { FILL_IN_KEYS, FILL_INS, fillInsNeeded, tokensIn } from "@/lib/answers/fill-ins";
 import { aboutPayTrouble, matchByExample, normalise } from "@/lib/answers/match";
-import { previewAnswer, renderAnswer } from "@/lib/answers/render";
+import { answerText, previewAnswer, renderAnswer, usesPayFillIn } from "@/lib/answers/render";
+import { ANSWER_PAY_HINT } from "@/lib/messaging/templates";
 import { DEMO_STARTERS_ON, STARTERS } from "@/lib/answers/starters";
 import { answerSwitches } from "@/lib/answers/switches";
-import { ANSWER_ERRORS, checkAnswer } from "@/lib/answers/validate";
+import { ANSWER_TEXT_PARTS_AT } from "@/lib/answers/limits";
+import {
+  ANSWER_ERRORS,
+  ANSWER_NOTES,
+  checkAnswer,
+  looksSignedByPerson,
+} from "@/lib/answers/validate";
+import { reservedWordIn } from "@/lib/inbound/keywords";
 import { applySetting } from "@/lib/onboarding/settings";
 import { eventWords } from "@/lib/office/event-words";
 import { enquiryOutcome } from "@/lib/office/enquiry-rules";
@@ -79,12 +87,44 @@ describe("PAY_TROUBLE: a message about pay going wrong never gets a library answ
     expect(aboutPayTrouble(text)).toBe(true);
   });
 
-  it.each(["when will i get paid", "is pay this friday", "what do i wear", "where do i park"])(
-    "not: %s",
-    (text) => {
-      expect(aboutPayTrouble(text)).toBe(false);
-    },
-  );
+  // Widened by the guardrails review (M1): one test a phrase, as a casual might write it.
+  it.each([
+    "my pay is late",
+    "pay's late again this week",
+    "I'm still waiting for my pay",
+    "I haven't received my wages",
+    "havent received anything",
+    "it hasn't gone in yet",
+    "hasnt gone in",
+    "my wages haven't gone in",
+    "it's not in my account",
+    "I only got £40",
+    "it was less than I worked",
+    "why was money deducted",
+    "what's this deduction",
+    "there are deductions I don't understand",
+    "I think I was overpaid",
+    "my hours are not right",
+    "where is my pay",
+    "where's my money",
+    "where is my wages?",
+    "wheres my pay",
+  ])("widened: %s", (text) => {
+    expect(aboutPayTrouble(text)).toBe(true);
+  });
+
+  it.each([
+    "when will i get paid",
+    "when do we get paid",
+    "is pay this friday",
+    "when is payday",
+    "what do i wear",
+    "where do i park",
+    "where is my shift",
+    "the plate on the gate",
+  ])("not: %s", (text) => {
+    expect(aboutPayTrouble(text)).toBe(false);
+  });
 });
 
 describe("renderAnswer", () => {
@@ -113,10 +153,30 @@ describe("renderAnswer", () => {
     expect(renderAnswer("Hello {nickname}", {})).toEqual({ missing: ["nickname"] });
   });
 
-  it("the office's preview uses each fill-in's made-up example", () => {
+  it("the office's preview uses each fill-in's made-up example, with the pay query hint where it goes", () => {
     expect(previewAnswer(STARTERS[0]?.body ?? "")).toEqual({
-      text: "Your next pay day is Friday 20 November, for shifts Mon 9 to Sun 15 Nov. Your hours and rates: https://acme.shiftdesk.example/pay",
+      text: "Your next pay day is Friday 20 November, for shifts Mon 9 to Sun 15 Nov. Your hours and rates: https://acme.shiftdesk.example/pay If your pay looks wrong, tap 'Raise a pay query' on your pay page, so payroll sees it.",
     });
+    expect(previewAnswer("Park at gate C.")).toEqual({ text: "Park at gate C." });
+  });
+
+  it("an answer using a pay fill-in gets the pay query hint after its words, added by code (M1)", () => {
+    expect(ANSWER_PAY_HINT).toBe(
+      "If your pay looks wrong, tap 'Raise a pay query' on your pay page, so payroll sees it.",
+    );
+    for (const key of ["next_pay_day", "pay_cycle", "pay_link"] as const) {
+      expect(usesPayFillIn(`x {${key}}`), key).toBe(true);
+      expect(answerText(`See {${key}}.`, { [key]: "v" }), key).toEqual({
+        text: `See v. ${ANSWER_PAY_HINT}`,
+      });
+    }
+    expect(usesPayFillIn("For {next_shift}: {next_shift_instructions} {profile_link}")).toBe(false);
+    expect(answerText("Hi {first_name}.", { first_name: "Zoe" })).toEqual({ text: "Hi Zoe." });
+    // One that can't go gets no hint: it says what's missing, as before.
+    expect(answerText("Pay day is {next_pay_day}.", {})).toEqual({ missing: ["next_pay_day"] });
+    // In docs/messaging-templates.md.
+    const templates = readFileSync("docs/messaging-templates.md", "utf8").replace(/\s+/g, " ");
+    expect(templates).toContain(ANSWER_PAY_HINT);
   });
 });
 
@@ -195,6 +255,102 @@ describe("checkAnswer (the office's form)", () => {
     });
     expect(checkAnswer(null)).toMatchObject({ ok: false });
   });
+
+  it("refuses an example with a word that always reaches a person or a built-in reply (H1)", () => {
+    for (const line of [
+      "what time is the office open",
+      "can I cancel",
+      "cancelling a shift",
+      "is there a cancellation fee",
+      "can I talk to someone",
+      "help with parking",
+      "stop texts",
+      "what time do we start",
+      "I can't find the gate",
+      "not sure what to wear",
+      "off sick what now",
+      "running late",
+    ]) {
+      expect(
+        checkAnswer({ name: "x", examples: `where do i park\n${line}`, body: "y" }),
+        line,
+      ).toEqual({ ok: false, errors: { examples: ANSWER_ERRORS.exampleReserved } });
+    }
+    // Inside a longer word is fine; a name or the words may hold them.
+    expect(
+      checkAnswer({
+        name: "Office hours",
+        examples: "officer at the gate\nstarting time",
+        body: "The office is open 9 to 5. Cancelling is in the app.",
+      }),
+    ).toMatchObject({ ok: true });
+  });
+
+  it("refuses a name or an example holding a phone number or an email address (L2)", () => {
+    expect(
+      checkAnswer({ name: "Ring 07700 900123", examples: "where do i park", body: "y" }),
+    ).toEqual({ ok: false, errors: { name: ANSWER_ERRORS.nameContact } });
+    expect(checkAnswer({ name: "x", examples: "is +447700900123 your number", body: "y" })).toEqual(
+      { ok: false, errors: { examples: ANSWER_ERRORS.exampleContact } },
+    );
+    expect(checkAnswer({ name: "x", examples: "can I email zoe@example.com", body: "y" })).toEqual({
+      ok: false,
+      errors: { examples: ANSWER_ERRORS.exampleContact },
+    });
+    // Times, dates and short numbers aren't phone numbers.
+    expect(
+      checkAnswer({
+        name: "Gate 3 at 13:30",
+        examples: "is it gate 3 on 14/11\nwhat about the 2026 season",
+        body: "y",
+      }),
+    ).toMatchObject({ ok: true });
+  });
+});
+
+describe("the form's notes, never a block (L1, L3)", () => {
+  it("long words: a text goes in several parts", () => {
+    expect(ANSWER_TEXT_PARTS_AT).toBe(300);
+    expect(ANSWER_NOTES.longText).toBe("Over 300 characters: a text sends it in several parts.");
+  });
+
+  it.each([
+    "Park at gate C.\nThanks, Sam",
+    "Park at gate C.\nCheers Sam",
+    "Park at gate C.\nMany thanks,\nSam Rota",
+    "Park at gate C.\nKind regards",
+    "Park at gate C.\nRegards, Sam",
+    "Park at gate C.\n— Sam",
+    "Park at gate C.\n- Sam Rota",
+    "Park at gate C. Cheers, Sam",
+    "Park at gate C. Thanks Sam.",
+  ])("looks signed by a person: %s", (body) => {
+    expect(looksSignedByPerson(body)).toBe(true);
+    expect(checkAnswer({ name: "x", examples: "", body })).toMatchObject({ ok: true });
+  });
+
+  it.each([
+    "Thanks for asking. Park at gate C.",
+    "Thanks, {first_name}. Park at gate C.",
+    "Park at gate C. Thanks!",
+    "Thanks to everyone who came.",
+    "Gate B opens at 9 - see you there.",
+    "Best to arrive early.",
+    "Your next pay day is {next_pay_day}.",
+  ])("not: %s", (body) => {
+    expect(looksSignedByPerson(body)).toBe(false);
+  });
+
+  it("the notes in the screens' words", () => {
+    expect(ANSWER_NOTES.personSignOff).toBe(
+      "Replies are signed by the firm's Shift Team: don't add a person's name.",
+    );
+    const screens = readFileSync("docs/screens.md", "utf8").replace(/\s+/g, " ");
+    expect(screens).toContain(`"${ANSWER_NOTES.longText}"`);
+    expect(screens).toContain(`"${ANSWER_NOTES.personSignOff}"`);
+    expect(screens).toContain(`"${ANSWER_ERRORS.exampleReserved}"`);
+    expect(screens).toContain(`"${ANSWER_ERRORS.exampleContact}"`);
+  });
 });
 
 describe("the five starters", () => {
@@ -216,13 +372,26 @@ describe("the five starters", () => {
     expect(DEMO_STARTERS_ON).toHaveLength(4);
   });
 
-  it("migration 0073 adds the same words for the firms there then", () => {
+  it("migration 0073 adds the same words for the firms there then, and 0074 Office hours' new example", () => {
     const sql = readFileSync("drizzle/0073_answer_library.sql", "utf8");
+    const fix = readFileSync("drizzle/0074_answer_examples.sql", "utf8");
     for (const s of STARTERS) {
       expect(sql).toContain(`'${s.key}', '${s.name}'`);
-      expect(sql).toContain(`E'${s.examples.join("\\n")}'`);
       expect(sql).toContain(`'${s.body.replace(/'/g, "''")}'`);
+      if (s.key === "office_hours") {
+        // 0073's "what time is the office open" held "office" (the guardrails review, H1): 0074
+        // replaces it where it's still the starter's own.
+        expect(sql).toContain(`E'is anyone in\\nwhat time is the office open'`);
+        expect(fix).toContain(`SET examples = E'${s.examples.join("\\n")}'`);
+        expect(fix).toContain(`examples = E'is anyone in\\nwhat time is the office open'`);
+      } else {
+        expect(sql).toContain(`E'${s.examples.join("\\n")}'`);
+      }
     }
+  });
+
+  it("none of their examples holds a word kept from the library (H1)", () => {
+    for (const s of STARTERS) for (const e of s.examples) expect(reservedWordIn(e), e).toBeNull();
   });
 
   it("none of them answers a pay dispute", () => {
@@ -321,6 +490,40 @@ describe("the office's words for it", () => {
       ),
     ).toBe(
       "Ann Booker sent a message in the app (for the office). One of your answers matched, but it needs a fact we don't have for them: it's waiting for a person.",
+    );
+    // Switched off between the read and the claim (M2).
+    expect(
+      say(
+        "message.received",
+        {
+          channel: "sms",
+          handledAs: "keyword",
+          intent: "office",
+          answerId: "a",
+          matchedBy: "example",
+          answerSwitchedOff: true,
+          workerId: "w",
+        },
+        "worker",
+      ),
+    ).toBe(
+      "Ann Booker sent a text to the shifts line (for the office). One of your answers matched, but it was switched off before it went: it's waiting for a person.",
+    );
+    expect(
+      say(
+        "email.received",
+        {
+          handledAs: "keyword",
+          intent: "office",
+          answerId: "a",
+          matchedBy: "example",
+          answerSwitchedOff: true,
+          workerId: "w",
+        },
+        "worker",
+      ),
+    ).toBe(
+      "Ann Booker emailed the staffing inbox. One of your answers matched, but it was switched off before it went: it's waiting for a person.",
     );
   });
 

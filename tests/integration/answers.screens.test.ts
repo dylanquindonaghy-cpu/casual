@@ -209,26 +209,43 @@ describe("Messages: Not what you needed? Ask the office", () => {
     expect(later.askOffice).toBeNull();
   });
 
-  it("an answer named with a keyword (Pay day) or another answer's example: the plain words, which still reach a person", async () => {
+  it("an answer named with a keyword (Pay day) or another answer's example: still the named words, which still reach a person (H1)", async () => {
     const s = await scene({
       answers: [
         { name: "Pay day", examples: "when is payday", body: "Fridays." },
-        { name: "Help desk", examples: "my last question", body: "Ask at the desk." },
         { name: "Kit list", examples: "what kit", body: "A torch." },
+        // Its example is in "(About: Kit list)": before H1 that would have matched it.
+        { name: "Bags", examples: "kit list", body: "One small bag." },
       ],
     });
+    const intentOf = async (id: string) =>
+      (
+        await su.query<{ intent: string; handled_as: string; answer_id: string | null }>(
+          "select intent, handled_as, answer_id::text as answer_id from messages where id = $1",
+          [id],
+        )
+      ).rows[0];
     await s.ask("When is payday?");
     const t1 = await messagesThread({ firm: { id: s.f.firmId }, run: withFirm }, s.ann);
-    // "(About: Pay day)" has "pay"; "…with my last question?" has Help desk's example.
-    expect(t1.askOffice?.words).toBe(askOfficeTexts("Pay day")[2]);
+    // "(About: Pay day)" has "pay", but "office" is the first keyword and keeps it from the library.
+    expect(t1.askOffice?.words).toBe("Please can someone from the office help? (About: Pay day)");
+    expect(t1.askOffice?.words).toBe(askOfficeTexts("Pay day")[0]);
     const asked = await s.ask(t1.askOffice?.words ?? "");
-    const { rows } = await su.query<{ intent: string }>(
-      "select intent from messages where id = $1",
-      [asked],
-    );
-    expect(rows[0]?.intent).toBe("office");
+    expect(await intentOf(asked)).toEqual({
+      intent: "office",
+      handled_as: "keyword",
+      answer_id: null,
+    });
+    const t1After = await messagesThread({ firm: { id: s.f.firmId }, run: withFirm }, s.ann);
+    expect(t1After.askOffice).toMatchObject({ asked: true });
     await s.ask("What kit do I bring?");
     const t2 = await messagesThread({ firm: { id: s.f.firmId }, run: withFirm }, s.ann);
     expect(t2.askOffice?.words).toBe("Please can someone from the office help? (About: Kit list)");
+    const asked2 = await s.ask(t2.askOffice?.words ?? "");
+    expect(await intentOf(asked2)).toEqual({
+      intent: "office",
+      handled_as: "keyword",
+      answer_id: null,
+    });
   });
 });

@@ -3856,18 +3856,36 @@ with 35.3 and 35.4; this part is the match, the fill-ins, the safeguards and the
 On each channel, in this order (`src/lib/inbound/reply.ts`, `src/lib/email/sort.ts`):
 
 1. STOP and START on a text, as before.
-2. **An example phrase**, in code (`matchByExample()`): one of a switched-on answer's example
+2. **Never the library** for a message that asks to cancel ("cancel", "cancelling", "canceling",
+   "cancellation"), asks for a person ("office", "talk", "help") or says they can't make it or are
+   late (the dropout words: "can't", "cannot", "won't", "not", "unable", "sick", "ill", "late";
+   `libraryAllowed()`, `src/lib/inbound/keywords.ts`; the guardrails review, H1): steps 3 and 5's
+   answers are skipped and it goes on to the built-in keywords, the AI's four labels or the office,
+   as before Phase 35. So "sick, can't make tonight, is anyone in?" reaches a person (not Office
+   hours), "I need to cancel Saturday, what do I wear" gets the cancel reply, and "office, when do
+   we get paid" the office.
+3. **An example phrase**, in code (`matchByExample()`): one of a switched-on answer's example
    phrases appears in the message as whole words, whatever the case and punctuation ("Where do I
    park?" matches "where do i park"; "park" never matches inside "parking"). The longest matching
    phrase wins; two answers tied for longest: none. Works with the AI off, and on the demo.
-3. The built-in keywords, as before (cancel, pay, shifts, office).
-4. **The AI**, shown the four built-in labels and the switched-on answers' names and example phrases
+4. The built-in keywords, as before, but "office" and "talk" (asking for a person by name) now come
+   first: office and talk, then cancel, pay, shifts, then help (docs/messaging-templates.md
+   "Instant replies on the shifts line"). So "Send OFFICE to reach a person" always does.
+5. **The AI**, shown the four built-in labels and the switched-on answers' names and example phrases
    (never a fill-in's value, never anything about the casual), picks one label or none
    (`sortMessageOrAnswer()`). None, unsure, slow, down, or a label it wasn't shown: the office, as
    today.
+6. **The claim re-checks it** (the guardrails review, M2): inside the transaction that marks the
+   message handled, after its lock, the answer and the channel are read again: the answer's switch
+   and its words, the channel's switch, and for texts and email the owner's `auto_replies`. Switched
+   off since the first read (or the channel, or `auto_replies`): nothing goes, the message is the
+   office's with its request as usual, and `message.received` / `email.received` say
+   `answerSwitchedOff: true`. Still on: the words are filled in from the answer as it is then (an
+   edit since the first read is what goes); words that now need a fill-in not read before: the
+   office's, with `answerMissing`.
 
 Only switched-on answers, only where that channel's switch is on, and never for a message about pay
-going wrong (step 2 and the AI's answers are skipped; it goes on to the built-in pay reply or the
+going wrong (steps 3 and 5's answers are skipped; it goes on to the built-in pay reply or the
 office). A voicemail is always the office's.
 
 ### Fill-ins
@@ -3897,9 +3915,15 @@ were missing.
 - The AI never writes a word a casual sees: it only picks one switched-on answer or none (golden
   rule 1). Its purpose and size stay as the built-in sorting's (`classify_message`, 5 tokens).
 - A message about pay going wrong never gets a library answer (golden rule 9): words such as wrong,
-  missing, short, underpaid, owed, not paid, haven't been paid, didn't get, hasn't come, mistake,
-  incorrect, dispute (`PAY_TROUBLE`, over the message with apostrophes dropped). A wide net: a word
-  too many only means the built-in reply or the office answers instead.
+  missing, short, underpaid, overpaid, owed, not paid, haven't been paid, didn't get, hasn't come,
+  late, still waiting, haven't received, hasn't gone in, not in my account, only got, less than,
+  deducted, deduction, not right, where is my pay (or money, or wages), mistake, incorrect, dispute
+  (`PAY_TROUBLE`, over the message with apostrophes dropped; widened by the guardrails review, M1).
+  A wide net: a word too many only means the built-in reply or the office answers instead. The
+  starters' own examples ("when do we get paid", "is pay this friday") hold none of them.
+- An answer whose words use a pay fill-in (Next pay day, That pay cycle, Link to Pay) gets "If your
+  pay looks wrong, tap 'Raise a pay query' on your pay page, so payroll sees it." after its words,
+  added by code on texts, the app and email, and shown in the office's preview (M1).
 - Every reply is marked automatic and signed "[Firm name] Shift Team"; a text says "Send OFFICE to
   reach a person", an email "reply to this email".
 - The channels' own limits hold: the app's 5 automatic answers an hour to a casual, the staffing
@@ -3909,6 +3933,12 @@ were missing.
   `answer.switched` {answerId, on}, `firm.settings_changed` {by: "firm", keys, on}; and on each
   message `message.received` / `email.received` {…, answerId, matchedBy: example / ai,
   answerMissing} and `message.replied` / `email.replied` {…, answerId}.
+- `message.received` / `email.received` also say `answerSwitchedOff: true` when the answer (or its
+  channel, or `auto_replies`) was switched off between the first read and the claim (step 6 above).
+  The log reads "One of your answers matched, but it was switched off before it went: it's waiting
+  for a person.", and "How it was answered" (Enquiries) "One of your answers matched, but it was
+  switched off before it went: passed to a person." and, for Filled in from your data, "Not sent: it
+  was switched off before it went, so it was passed to a person."
 - The library code never reaches the AI code (`tests/unit/ai.boundary.test.ts`).
 
 ### The switches
@@ -3959,7 +3989,8 @@ goes to a person." and "Open automatic answers"). Back link "Settings".
 - **No answer yet** ("The latest questions from casuals that went to a person in the last 30 days.
   Make one an answer, so the next is answered straight away."): the latest 10 from
   `questionsWithNoAnswer()` (not about a session, pay going wrong, or a voicemail; nor a casual's
-  "Ask the office" after an answer, a follow-up rather than a new question), each in quotes
+  "Ask the office" after an answer, a follow-up rather than a new question; nor one no answer could
+  take: it asks to cancel or for a person, or says they can't make it or are late, H1), each in quotes
   with its channel and time, **Make this an answer** and **Open it**. None: "No questions went to a
   person in the last 30 days."
 - After a save, at the top: "Saved “Pay day”. It's on: it answers casuals now." / "Saved “Pay day”.
@@ -3980,14 +4011,28 @@ answer", Edit's the answer's name with "On"/"Off", its uses and its last edit.
   fill-in's made-up example (`previewAnswer()`, never a real casual's facts) and "Automatic reply. —
   {firm} Shift Team"; a `{word}` that isn't a fill-in: "Use only the fill-ins from the list."
 - A problem shows under its field (`ANSWER_ERRORS`), with "Check the answer: see the notes above."
-  under the buttons; "Nothing changed." when nothing did.
+  under the buttons; "Nothing changed." when nothing did. Ways casuals ask it refuses a line with a
+  word that always reaches a person or a built-in reply (whole words: cancel, cancelling, canceling,
+  cancellation, office, help, talk, stop, start, and the dropout words can't, cannot, won't, not,
+  unable, sick, ill, late): "Leave out cancel, office, help, talk, stop, start, and words like can't,
+  not, sick or late: messages with them always go to a person or a built-in reply." (a message with
+  one never gets a library answer, so the line could never match; H1). Name and Ways casuals ask it
+  refuse a phone number or an email address, found as the log's masker finds them
+  (`holdsPhoneOrEmail()`): "Take out the phone number or email address." ("Make this an answer"
+  starts from a casual's own words; L2).
+- Two notes under the words, which never stop a save (`ANSWER_NOTES`): over 300 characters as a
+  casual would get them (the preview's words): "Over 300 characters: a text sends it in several
+  parts." (L1); words that look signed by a person (a line "Thanks, Sam", "Cheers Sam", "Kind
+  regards", or a last line "— Sam"; `looksSignedByPerson()`): "Replies are signed by the firm's
+  Shift Team: don't add a person's name." (golden rule 8; L3).
+- "A casual would get (example):" shows the pay query hint too, for words with a pay fill-in.
 - Buttons: Add, **Save and switch on** / **Save, keep off**; Edit of one that's on, **Save, keep
   on** / **Save and switch off**; of one that's off, **Save and switch on** / **Save, keep off**.
   Saved, back to the list, which says so.
 - `?from={message or email id}` ("Make this an answer"): Ways casuals ask it starts with that
   question, one line, cut at a word before 100 characters: only a casual's own question that went
-  to a person (as No answer yet lists them), read inside the firm, admins only; anything else starts
-  empty.
+  to a person (as No answer yet lists them: never one with a word an example can't hold), read
+  inside the firm, admins only; anything else starts empty.
 
 ### Enquiries (35.3)
 
@@ -4022,12 +4067,12 @@ answer", Edit's the answer's name with "On"/"Off", its uses and its last edit.
 - One of the firm's answers shows as any automatic answer ("Automatic reply"). Under the latest one,
   while she hasn't written since, the button **Not what you needed? Ask the office**: it sends, as
   her message through Send's own checks and limit, "Please can someone from the office help?
-  (About: What to wear)", or, when the answer's name could steer it elsewhere (a keyword such as
-  "pay" in "Pay day", or another answer's example question), "Please can someone from the office
-  help with my last question?" (the first of these the shifts line gives a person: the keyword
-  "office", no example question). Then "Sent to the office. They'll answer here." stays there; the
-  office gets it on Need a person, with the usual "The office will see this…" reply. Gone once she
-  writes anything else.
+  (About: What to wear)", always naming the answer: "office" is the first built-in keyword and a
+  message with it never gets a library answer, so the shifts line gives it to a person whatever the
+  answer's name ("Pay day" too; until the guardrails review's H1 such a name sent "Please can
+  someone from the office help with my last question?" instead). Then "Sent to the office. They'll
+  answer here." stays there; the office gets it on Need a person, with the usual "The office will
+  see this…" reply. Gone once she writes anything else.
 - By text and WhatsApp the same answer carries the usual "Automatic reply. Send OFFICE to reach a
   person." (docs/messaging-templates.md "The answer library").
 - The demo's story (`src/lib/db/admin/seed-story.ts`): in the app, Zoe asks "What do I wear for the

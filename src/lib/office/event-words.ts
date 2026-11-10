@@ -38,8 +38,16 @@ export const HELD_REPLY_LOG = "No automatic reply (they're off): it's waiting fo
 // One of the firm's answers matched, but a fill-in had no value for them (Phase 35.2).
 export const ANSWER_MISSING_LOG =
   "One of your answers matched, but it needs a fact we don't have for them: it's waiting for a person.";
+// One of the firm's answers matched, but it (or its channel) was switched off before it went (the
+// guardrails review, M2: re-read in the claim).
+export const ANSWER_SWITCHED_OFF_LOG =
+  "One of your answers matched, but it was switched off before it went: it's waiting for a person.";
 const missingNote = (d: Record<string, unknown>) =>
-  Array.isArray(d.answerMissing) ? ` ${ANSWER_MISSING_LOG}` : "";
+  Array.isArray(d.answerMissing)
+    ? ` ${ANSWER_MISSING_LOG}`
+    : d.answerSwitchedOff === true
+      ? ` ${ANSWER_SWITCHED_OFF_LOG}`
+      : "";
 export const HELD_ALERT_LOG =
   "No email about it yet: 5 already went this hour, so it'll be in one email for the rest.";
 
@@ -691,7 +699,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
           ? String(d.sortedAs)
           : null;
       if (held === null && d.intent === "office") {
-        return Array.isArray(d.answerMissing)
+        return Array.isArray(d.answerMissing) || d.answerSwitchedOff === true
           ? `${worker} emailed the staffing inbox.${missingNote(d)}`
           : `${worker} emailed the staffing inbox (for the office${ai}). It's waiting for a person.`;
       }

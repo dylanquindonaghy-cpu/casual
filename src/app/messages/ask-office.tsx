@@ -16,8 +16,8 @@ import { sendAppMessageAction } from "./actions";
 
 // "Not what you needed? Ask the office" (Phase 35.4; docs/screens.md "## Phase 35"), under the
 // latest of the firm's own answers in her thread: one tap sends `words` (the page chose them:
-// src/lib/portal/messages.ts askOfficeWords(), words the shifts line gives a person, naming the
-// answer where it can) as her message, through Messages' own Send (its checks and its limit), then
+// src/lib/portal/messages-copy.ts askOfficeWords(): the answer named, words the shifts line always
+// gives a person, since "office" is its first keyword) as her message, through Messages' own Send (its checks and its limit), then
 // says "Sent to the office. They'll answer here." The page, read again, keeps saying it (`asked`).
 // Waits for the page (docs/ui-design.md "Forms wait for the page").
 export function AskOffice({ words, asked }: { words: string; asked: boolean }) {

@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { STARTERS } from "@/lib/answers/starters";
-import { keywordIntent } from "@/lib/inbound/keywords";
+import { keywordIntent, libraryAllowed } from "@/lib/inbound/keywords";
 import {
   ANSWERS_INTRO,
   answerSwitchResultText,
@@ -19,9 +19,11 @@ import {
 } from "@/lib/office/answers-copy";
 import {
   answerChosenStep,
+  emailSortedStep,
   enquiriesEmptyText,
   filledInStep,
   outcomeWords,
+  sortedStep,
   VIEW_LABELS,
 } from "@/lib/office/enquiries-copy";
 import {
@@ -158,6 +160,24 @@ describe("Enquiries: one of the firm's answers", () => {
     expect(screens).toContain(
       '"Not sent: we have no Next shift for them, so it was passed to a person."',
     );
+    // Switched off (the answer, or its channel) between the read and the claim (M2).
+    expect(
+      filledInStep({
+        fillIns: ["next_pay_day"],
+        missing: null,
+        changedSince: false,
+        switchedOff: true,
+      }),
+    ).toBe("Not sent: it was switched off before it went, so it was passed to a person.");
+    expect(sortedStep({ how: "person", why: "answer_switched_off" })).toBe(
+      "One of your answers matched, but it was switched off before it went: passed to a person.",
+    );
+    expect(emailSortedStep({ how: "person", why: "answer_switched_off" })).toBe(
+      "One of your answers matched, but it was switched off before it went: passed to a person.",
+    );
+    expect(screens).toContain(
+      '"Not sent: it was switched off before it went, so it was passed to a person."',
+    );
   });
 });
 
@@ -171,29 +191,31 @@ describe("Messages: Not what you needed? Ask the office", () => {
     expect(screens).toContain(`"${ASK_OFFICE_SENT}"`);
   });
 
-  it("its words always get the keyword 'office' and no answer's example; a name that would steer them is left out", () => {
-    const starters = STARTERS.map((s, i) => ({ id: String(i), examples: s.examples }));
-    // Every starter: words that reach a person.
-    for (const s of STARTERS) {
-      const words = askOfficeWords(s.name, starters);
-      expect(words, s.name).not.toBeNull();
-      expect(keywordIntent(words ?? ""), s.name).toBe("office");
+  it("its words always name the answer and always reach a person: the keyword 'office' first, and never a library answer", () => {
+    // Whatever the answer's name, even one holding another keyword ("Pay day", "Cancelling a
+    // shift", "Help with shifts") or another answer's example question: "office" is the first
+    // keyword, and a message with it never gets a library answer (the guardrails review, H1).
+    const names = [
+      ...STARTERS.map((s) => s.name),
+      "Pay day",
+      "Cancelling a shift",
+      "Help with shifts",
+      "Work available",
+      "Uniform",
+      "my last question",
+    ];
+    for (const name of names) {
+      const words = askOfficeWords(name);
+      expect(words, name).toBe(`Please can someone from the office help? (About: ${name})`);
+      expect(words, name).toBe(askOfficeTexts(name)[0]);
+      expect(keywordIntent(words), name).toBe("office");
+      expect(libraryAllowed(words), name).toBe(false);
     }
-    expect(askOfficeWords("What to wear", starters)).toBe(
-      "Please can someone from the office help? (About: What to wear)",
-    );
-    // "Pay day" has "pay", "Cancel…" has "cancel": the plain words.
-    expect(askOfficeWords("Pay day", starters)).toBe(askOfficeTexts("Pay day")[1]);
-    expect(askOfficeWords("Cancel a shift", [])).toBe(askOfficeTexts("x")[1]);
-    // An answer whose example is in the words: the next words without it.
-    expect(askOfficeWords("Uniform", [{ id: "u", examples: ["uniform"] }])).toBe(
-      askOfficeTexts("x")[1],
-    );
-    expect(askOfficeWords("Pay day", [{ id: "q", examples: ["my last question"] }])).toBe(
-      askOfficeTexts("x")[2],
-    );
-    // None would reach a person: no button.
-    expect(askOfficeWords("Help", [{ id: "h", examples: ["office"] }])).toBeNull();
+    // The older wordings, still read as hers in a thread that holds one, reach a person too.
+    for (const words of askOfficeTexts("Pay day")) {
+      expect(keywordIntent(words)).toBe("office");
+      expect(libraryAllowed(words)).toBe(false);
+    }
   });
 
   it("the button sits under the latest of the firm's answers only", () => {

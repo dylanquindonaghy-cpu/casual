@@ -1,5 +1,6 @@
 import { roleLabel, roleWords } from "../portal/format";
 import { cutChars } from "../text/cut";
+import { PAY_QUERY_HINT } from "./pay-hint";
 // Message copy from docs/messaging-templates.md. Every message ends with the firm's sign-off.
 
 export interface FirmVoice {
@@ -501,9 +502,9 @@ export const APP_AUTOMATIC_REPLY = "Automatic reply.";
 export const forTheApp = (text: string): string =>
   text.split(AUTOMATIC_REPLY).join(APP_AUTOMATIC_REPLY);
 
-// Where a pay question that's really a dispute goes: a pay query, which reaches payroll's digest.
-export const PAY_QUERY_HINT =
-  "If something looks wrong, tap 'Raise a pay query' there, so payroll sees it.";
+// Where a pay question that's really a dispute goes: a pay query, which reaches payroll's digest
+// (src/lib/messaging/pay-hint.ts, with the answer library's own).
+export { ANSWER_PAY_HINT, PAY_QUERY_HINT } from "./pay-hint";
 
 export function shiftsLineReply(firm: FirmVoice, reply: ShiftsLineReply): string {
   const text =

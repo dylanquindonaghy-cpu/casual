@@ -2,7 +2,6 @@ import { and, eq, sql } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
 import { messages, shifts, workers } from "../db/schema";
 import { withFirm, type FirmTx } from "../db/scoped";
-import { switchedOnAnswers } from "../answers/library";
 import { sessionToTag } from "../inbound/app";
 import { askOfficeTexts, askOfficeWords } from "./messages-copy";
 import type { PortalContext } from "./my-shifts";
@@ -97,8 +96,7 @@ async function readThread(tx: FirmTx, workerId: string, now: Date): Promise<Thre
     if (after.length > 0 && after.every((i) => i.text !== null && texts.includes(i.text))) {
       askOffice = { replyId: reply.id, words: "", asked: true };
     } else if (after.length === 0) {
-      const words = askOfficeWords(name, await switchedOnAnswers(tx));
-      if (words) askOffice = { replyId: reply.id, words, asked: false };
+      askOffice = { replyId: reply.id, words: askOfficeWords(name), asked: false };
     }
   }
   return {

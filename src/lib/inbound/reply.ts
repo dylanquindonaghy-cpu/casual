@@ -41,7 +41,15 @@ import {
 } from "./opt-out";
 import { cancelReply, shiftsReply, type EnquiryChecks } from "./personal-reply";
 import { cutChars } from "../text/cut";
-import { answersFor, matchByExample, prepareAnswer, type LibraryAnswer } from "../answers/library";
+import {
+  answerFacts,
+  answersFor,
+  matchByExample,
+  recheckAnswer,
+  wordsFor,
+  type LibraryAnswer,
+} from "../answers/library";
+import type { Facts } from "../answers/render";
 
 // Answering a WhatsApp, a text or a voicemail on the shifts line (docs/api-and-jobs.md `inbound-message`;
 // docs/messaging-templates.md "Instant replies on the shifts line", "Call-to-text recording").
@@ -60,7 +68,9 @@ import { answersFor, matchByExample, prepareAnswer, type LibraryAnswer } from ".
 //      office. A message with no text (a photo) goes to the office;
 //   3. the claim, in one transaction: the message locked and, if no one has handled it yet, marked
 //      handled (how, and what they asked); the office's `general` request (the message as its
-//      note, linked by `message_id`) when it's for the office; `message.received`;
+//      note, linked by `message_id`) when it's for the office; `message.received`. A library answer
+//      (Phase 35) is settled here first: the answer and its channel re-read, the office's if either
+//      was switched off meanwhile (`answerSwitchedOff`), and its words filled in as they are now;
 //   4. the reply goes outside any transaction, from the number they wrote to, at once (a reply to
 //      their own message: quiet hours don't apply);
 //   5. the reply stored as an outbound message, and `message.replied`, or `message.reply_failed`
@@ -426,10 +436,48 @@ async function aiSort(
 
 // What the log says about a library answer (ids and labels only): which, how it was matched, and
 // the fill-ins that had no value when it couldn't go.
-const answerLog = (picked: Picked | null, missing: string[] | null) => ({
+const answerLog = (picked: Picked | null, missing: string[] | null, switchedOff: boolean) => ({
   ...(picked ? { answerId: picked.answer.id, matchedBy: picked.by } : {}),
   ...(missing ? { answerMissing: missing } : {}),
+  ...(switchedOff ? { answerSwitchedOff: true } : {}),
 });
+
+// A library answer as the claim settles it (the guardrails review, M2), after the message's lock:
+// the answer and its channel re-read (switched off meanwhile, or the channel or `auto_replies`:
+// `switchedOff`, and the office's), and the words filled in from the answer as it is now, with
+// the facts read before the claim (a fill-in they don't hold, or with no value: `missing`, and the
+// office's).
+type Settled =
+  | { words: string; missing: null; switchedOff: false }
+  | { words: null; missing: string[] | null; switchedOff: boolean };
+
+// The casual's facts a picked answer's words need, read before the claim.
+function answerFactsFor(
+  run: WithFirm,
+  firmId: string,
+  c: { firm: FirmVoiceAndFacts; workerId: string },
+  baseDomain: string,
+  now: Date,
+  picked: Picked,
+): Promise<Facts> {
+  return run(firmId, (tx) =>
+    answerFacts(tx, { firm: c.firm, baseDomain, now }, c.workerId, picked.answer.body),
+  );
+}
+
+async function settleAnswer(
+  tx: FirmTx,
+  picked: Picked,
+  channel: "texts" | "app",
+  facts: Facts,
+): Promise<Settled> {
+  const now = await recheckAnswer(tx, picked.answer.id, channel);
+  if (!now.on) return { words: null, missing: null, switchedOff: true };
+  const words = wordsFor(now.body, facts);
+  return words.ok
+    ? { words: words.text, missing: null, switchedOff: false }
+    : { words: null, missing: words.missing, switchedOff: false };
+}
 
 async function answerMessage(
   payload: InboundMessagePayload,
@@ -480,24 +528,11 @@ async function answerMessage(
   // way (Phase 35.2: src/lib/answers/facts.ts); one with no value for this casual: the office's.
   const portal = portalUrl(c.firm.slug, deps.baseDomain);
   const now = (deps.clock ?? systemClock).now();
-  let answerWords: string | null = null;
-  let answerMissing: string[] | null = null;
-  if (intent === "answer" && picked) {
-    const pick = picked;
-    const prepared = await run(payload.firmId, (tx) =>
-      prepareAnswer(
-        tx,
-        { firm: c.firm, baseDomain: deps.baseDomain, now },
-        c.workerId,
-        pick.answer,
-      ),
-    );
-    if (prepared.ok) answerWords = prepared.text;
-    else {
-      answerMissing = prepared.missing;
-      intent = "office";
-    }
-  }
+  // (The words themselves are filled in inside the claim, from the answer as it is then.)
+  const facts: Facts | null =
+    intent === "answer" && picked
+      ? await answerFactsFor(run, payload.firmId, c, deps.baseDomain, now, picked)
+      : null;
   const voiceOf = { name: c.firm.name, signOff: c.firm.signOff };
   const personal = !c.autoReplies
     ? null
@@ -525,9 +560,23 @@ async function answerMessage(
     ? { whatsapp: settled(personal.checks.whatsapp), sms: settled(personal.checks.sms) }
     : null;
 
-  // Step 3: the claim, the office's request and the event, together.
+  // Step 3: the claim, the office's request and the event, together. A library answer is settled
+  // first (settleAnswer()): switched off meanwhile, or a fill-in with no value: the office's.
+  // (`settledIntent`: the intent as the claim leaves it, for the reply's record after the send.)
+  const before = intent;
+  let settledIntent: Intent = intent;
   const texts = await run(payload.firmId, async (tx) => {
     if (!(await lockUnhandled(tx, payload.messageId))) return null;
+    let intent = before;
+    let answerWords: string | null = null;
+    let answerMissing: string[] | null = null;
+    let switchedOff = false;
+    if (intent === "answer" && picked) {
+      const settledAnswer = await settleAnswer(tx, picked, "texts", facts ?? {});
+      ({ words: answerWords, missing: answerMissing, switchedOff } = settledAnswer);
+      if (answerWords === null) intent = "office";
+    }
+    settledIntent = intent;
     // The fixed reply (pay, the office); null for shifts and cancel (the personal reply).
     let built: ShiftsLineReply | null = null;
     if (intent === "office") {
@@ -583,7 +632,7 @@ async function answerMessage(
         handledAs,
         intent,
         ...(aiFallback ? { aiFallback } : {}),
-        ...answerLog(picked, answerMissing),
+        ...answerLog(picked, answerMissing, switchedOff),
         ...(c.autoReplies ? {} : { replyHeld: true, sortedAs }),
         workerId: c.workerId,
       },
@@ -608,6 +657,7 @@ async function answerMessage(
   if (texts === null) return { status: "already" };
   if (texts === "held") return { status: "held", intent: "office", sortedAs, handledAs };
   const { replyText, smsText } = texts;
+  intent = settledIntent;
   const replyAnswerId = intent === "answer" && picked ? picked.answer.id : null;
 
   // By WhatsApp to a WhatsApp (a text if WhatsApp refuses it); a text to a text, and to a
@@ -755,24 +805,11 @@ async function answerApp(
   // library answer's fill-ins (one with no value for her: the office's).
   const portal = portalUrl(c.firm.slug, deps.baseDomain);
   const now = (deps.clock ?? systemClock).now();
-  let answerWords: string | null = null;
-  let answerMissing: string[] | null = null;
-  if (intent === "answer" && picked) {
-    const pick = picked;
-    const prepared = await run(payload.firmId, (tx) =>
-      prepareAnswer(
-        tx,
-        { firm: c.firm, baseDomain: deps.baseDomain, now },
-        c.workerId,
-        pick.answer,
-      ),
-    );
-    if (prepared.ok) answerWords = prepared.text;
-    else {
-      answerMissing = prepared.missing;
-      intent = "office";
-    }
-  }
+  // (The words themselves are filled in inside the claim, from the answer as it is then.)
+  const facts: Facts | null =
+    intent === "answer" && picked
+      ? await answerFactsFor(run, payload.firmId, c, deps.baseDomain, now, picked)
+      : null;
   const voiceOf = { name: c.firm.name, signOff: c.firm.signOff };
   const personal = !answers
     ? null
@@ -807,6 +844,16 @@ async function answerApp(
         answers = false;
         intent = "office";
       }
+    }
+    // A library answer, settled now (settleAnswer()): switched off meanwhile (the answer or the
+    // app's switch), or a fill-in with no value: the office's.
+    let answerWords: string | null = null;
+    let answerMissing: string[] | null = null;
+    let switchedOff = false;
+    if (intent === "answer" && picked) {
+      const settledAnswer = await settleAnswer(tx, picked, "app", facts ?? {});
+      ({ words: answerWords, missing: answerMissing, switchedOff } = settledAnswer);
+      if (answerWords === null) intent = "office";
     }
     let built: ShiftsLineReply | null = null;
     if (intent === "office") {
@@ -852,7 +899,7 @@ async function answerApp(
         handledAs,
         intent,
         ...(aiFallback ? { aiFallback } : {}),
-        ...answerLog(picked, answerMissing),
+        ...answerLog(picked, answerMissing, switchedOff),
         ...(!c.active
           ? { formerWorker: true }
           : aboutShift

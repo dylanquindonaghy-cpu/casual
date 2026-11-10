@@ -1429,35 +1429,61 @@ Done when: the task is ticked with a stamp that includes the browser tests; it b
 says; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; the `guardrails-reviewer` has no open
 findings; the `claims-auditor` checks the task against its line and this one.
 
-## Phase 35 — The answer library: automatic answers the office approves, everything else flagged (proposed 2026-11-10; S, M, UI; waiting for the mock-up's approval)
+## Phase 35 — The answer library: automatic answers the office approves, everything else flagged (go-ahead: Dylan, 2026-11-10; S, M, UI)
 
 Asked, 2026-11-10 (Dylan, in chat, word for word): "it should be able to send off messages but only
 from a restricted amount of pre made answers from common questions then if anything falls outside
-of those answers it gets flagged", then "yes plan it as the next phase, mock-up first". Today the
-shifts line has three fixed answers (shifts, cancel, pay) and sends everything else to Need a
-person; this phase lets the office keep its own list of approved answers. Golden rules 1 and 9
-hold: the AI only picks one switched-on answer or "none", never writes a word a casual sees; facts
-in an answer are filled in by code from the firm's data; a pay dispute is never an answer. The
-mock-up (before and after, phone and laptop): https://claude.ai/artifact/LKSpXGPp5XEUHnodmJEcC6.
-Boxes, numbers and a "Done when" line are added when Dylan approves it and answers the four
-calls it asks (who edits answers; which channels; the new table; the starter answers).
+of those answers it gets flagged", then "yes plan it as the next phase, mock-up first". The mock-up
+(before and after, phone and laptop): https://claude.ai/artifact/LKSpXGPp5XEUHnodmJEcC6. Approved
+the same day: "approved, go with your recommendations and build it", so: **admins only** edit
+answers; **app messages, texts and the staffing email each have their own switch**; **a new table**
+for the answers; **five starter answers, switched off** until someone reads them. Golden rules 1
+and 9 hold: the AI only ever picks one switched-on answer or none, never writes a word a casual
+sees; facts in an answer are filled in by code from the firm's data; a message about pay going
+wrong never gets a library answer. Built from the mock-up with three changes, said to Dylan: an
+answer matches first by its own example phrases, in code, so it works with the AI off (and on the
+demo); "Asked a lot, no answer yet" is the latest questions that got no answer, each with "Make
+this an answer" (grouping needs the AI, which is off); and the owner's `auto_replies` stays the
+master switch for texts and emails (nothing goes by text or email while it's off, as P4.7 decided),
+with the page's three switches deciding where the library answers. Words in `docs/screens.md`
+("## Phase 35") and `docs/messaging-templates.md`.
 
-- The answers (S, T): a firm table of answers (a name, example questions, the words with named
-  fill-ins from a fixed list, on or off, who changed it and when), with RLS, `TABLE_ACCESS` and
-  isolation fixtures; changes logged.
-- The match (M): keywords first, as today; then the AI is shown only the switched-on answers and
-  picks one or "none", under the existing 5-second limit and fallback; "none", unsure or down: the
-  usual office reply and Need a person. Fill-ins come from code; an answer whose fill-in has no
-  value for this casual is not sent (flagged instead).
-- Where it answers (M): app messages, texts to the shifts line and the staffing inbox's emails,
-  each with its own switch for the firm (the server's `auto_replies` command becomes the page's
-  switches).
-- The office (UI): Settings → Automatic answers (the list, add and edit with the fill-in picker and
-  "what Zoe would get", the switches, "Asked a lot, no answer yet" from flagged messages);
-  Enquiries' "Answered automatically" tab, which answer went and the exact words, and "Make this an
-  answer" on a flagged message.
-- The casual (UI): the answer on Messages and by text, marked as automatic, with "Not what you
-  needed? Ask the office".
+- [ ] The answers and their switches (S, T, M): a firm table `answers` (name, example phrases, the
+      words with named fill-ins from a fixed list, on or off, who last changed it and when; never
+      deleted, only switched off) with RLS, `TABLE_ACCESS`, isolation fixtures and composite FKs;
+      `messages.answer_id` and `inbound_emails.answer_id` (which answer went), a new intent
+      `answer`, the email reply template `answer`; settings `answers.app`, `answers.texts`,
+      `answers.email` (off unless set; on for the demo firms), written through
+      `app_set_firm_setting()`; the five starter answers (pay day, what to wear, renewing a
+      licence, parking, office hours) for every firm, switched off, and on the demo; every change
+      logged (`answer.created`, `answer.changed`, `answer.switched`, `firm.settings_changed`), ids
+      only (S, T; M) (35.1)
+- [ ] The match and the reply (M, R): after STOP/START, an answer whose example phrase appears in
+      the message, in code; then the built-in keywords; then the AI, shown only the built-in labels
+      and the switched-on answers' names and examples, picks one or none; none, unsure, slow, down,
+      or a message about pay going wrong: the office, as today; an answer whose fill-in has no
+      value for this casual isn't sent (the office instead, the log says why); the words are filled
+      in by code (first name, next pay day, that pay cycle, next shift, its instructions, the
+      soonest licence expiry, links to Pay, Profile and Shifts) and sent as an automatic reply on
+      the channel it came in on (texts: only while `auto_replies` is on; email: within its daily
+      limit); `message.received`/`email.received` and the replies name the answer by id (M, R)
+      (35.2)
+- [ ] The office (UI): Settings → Automatic answers (admins only; its own area and menu item): the
+      three switches, the built-in answers, the firm's answers with their switches and uses in the
+      last 7 days, Add and Edit (the fill-in picker, an example of what a casual would get, "Save
+      and switch on" and "Save, keep off"), and the latest questions with no answer, each with
+      "Make this an answer"; Enquiries: "Answered automatically" tab, "Answered automatically ·
+      {answer}" on the row, the answer and the exact words in "How it was answered", and "Make this
+      an answer" on a message that went to a person (admins) (UI; S) (35.3)
+- [ ] The casual (UI): a library answer on Messages marked as automatic, with "Not what you needed?
+      Ask the office" (which sends their question to the office); the same words by text with the
+      usual "Send OFFICE to reach a person"; Messages' intro in the mock-up's words; the demo's
+      story has one question answered from the library and one flagged (UI; M) (35.4)
+
+Done when: all four tasks are ticked with a stamp that includes the browser tests; each built what
+its line says, as the approved mock-up shows (with the three changes above); `RUN_E2E=1
+./scripts/verify.sh` prints VERIFIED; the `guardrails-reviewer` has no open findings; the
+`claims-auditor` checks each task against its line and this one.
 
 ## Stage 2 (after 3 paying firms) — not now
 

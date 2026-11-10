@@ -50,7 +50,7 @@ test("Messages: answered at once in the app, then the office's reply, counted on
   await expect(page.getByRole("heading", { level: 1, name: "Messages" })).toBeVisible();
   await expect(
     page.getByText(
-      "Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.",
+      "Ask us anything. Common questions are answered straight away; anything else goes to the office. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.",
     ),
   ).toBeVisible();
   await expect(page.getByText("No messages yet.")).toBeVisible();

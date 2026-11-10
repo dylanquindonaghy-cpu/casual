@@ -1,3 +1,5 @@
+import { matchByExample, type MatchableAnswer } from "../answers/match";
+import { keywordIntent } from "../inbound/keywords";
 import { dayLabel } from "../rules/reasons";
 import { localDateOf, wallTimeOf } from "../time/zoned";
 import { tryAgainText } from "./copy";
@@ -7,12 +9,12 @@ import type { MessageAbout } from "./message-office";
 // The words of a casual's Messages (P8; Phase 25.6; docs/screens.md "Messages: the in-app chat";
 // Phase 28.6, docs/screens.md "### 28.6"). Browser-safe: no server imports.
 
-// What happens to a message, as it does (src/lib/inbound/reply.ts), in two sentences (Phase 28.6):
-// shifts, cancelling and pay get an automatic answer straight away; a pay answer is a link to Pay,
-// where a pay query reaches payroll (golden rule 9: never an AI answer to a pay dispute); anything
-// else goes to the office.
+// What happens to a message, as it does (src/lib/inbound/reply.ts): since Phase 35 (the approved
+// mock-up's words) common questions, the built-in ones and the firm's own answers, get an answer
+// straight away; anything else goes to the office; and, as Phase 28.6 had it, a pay dispute goes to
+// payroll by a pay query on Pay (golden rule 9: never an AI answer to a pay dispute).
 export const MESSAGES_INTRO =
-  "Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.";
+  "Ask us anything. Common questions are answered straight away; anything else goes to the office. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.";
 // Opened from Pay about a question Pay can't take (28.10; Phase 29.1, Dylan's decision 20): it goes
 // to payroll as a pay query, never sorted and never an automatic or AI answer (golden rule 9).
 export const MESSAGES_INTRO_PAY =
@@ -54,6 +56,37 @@ export function aboutLine(shift: { role: string; startsAt: Date }, timeZone: str
   const day = dayLabel(localDateOf(shift.startsAt, timeZone));
   return `About: ${roleLabel(shift.role)} · ${day}, ${pad(w.hour)}:${pad(w.minute)}`;
 }
+// "Not what you needed? Ask the office" (Phase 35.4), under the latest of the firm's own answers
+// in her thread: it sends her a message to the office naming the answer (askOfficeWords(), below,
+// keeps only words the shifts line gives a person), then says so.
+export const ASK_OFFICE_BUTTON = "Not what you needed? Ask the office";
+export const ASK_OFFICE_SENT = "Sent to the office. They'll answer here.";
+// One of her "Ask the office" messages (they all start so): a follow-up, not a new question.
+export const ASK_OFFICE_START = "Please can someone from the office help";
+export const isAskOffice = (text: string): boolean => text.startsWith(ASK_OFFICE_START);
+// The words that go, best first: the answer named, when the name can't steer the message to an
+// automatic answer of its own ("Pay day" has "pay": the plain words go instead).
+export const askOfficeTexts = (answerName: string): string[] => [
+  `Please can someone from the office help? (About: ${answerName})`,
+  "Please can someone from the office help with my last question?",
+  "Please can someone from the office help?",
+];
+
+// The words "Ask the office" sends: the first of askOfficeTexts() the shifts line gives a person by
+// the same pure checks its job makes first (src/lib/inbound/reply.ts answerApp): no example question
+// of a switched-on answer in it, and the built-in keyword "office" its keyword (cancel, pay and
+// shifts come before it: an answer named "Pay day" would get the pay link). Null: none would.
+export function askOfficeWords(
+  answerName: string,
+  library: readonly MatchableAnswer[],
+): string | null {
+  return (
+    askOfficeTexts(answerName).find(
+      (t) => keywordIntent(t) === "office" && matchByExample(t, library) === null,
+    ) ?? null
+  );
+}
+
 // Who an answer is from, under it.
 export const FROM_WORDS = { automatic: "Automatic reply", office: "From the office" } as const;
 

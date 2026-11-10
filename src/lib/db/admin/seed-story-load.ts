@@ -691,6 +691,19 @@ export async function loadStory(
       story.messages.map((m) => {
         const w = story.workers.find((x) => x.key === m.workerKey);
         if (!w) throw new Error(`no story worker ${m.workerKey}`);
+        // A message in the app (Phase 35.4): hers by worker, no numbers, as the app stores it.
+        if (m.app) {
+          return {
+            id: m.id,
+            firmId,
+            direction: "in" as const,
+            channel: "app" as const,
+            providerMessageId: `seed-story-${m.workerKey}-${m.app.tag}`,
+            workerId: w.id,
+            body: m.body,
+            createdAt: m.receivedAt,
+          };
+        }
         return {
           id: m.id,
           firmId,
@@ -717,8 +730,9 @@ const seedTransport: MessagingTransport = {
 
 // The story's messages answered by the shifts line's own job (src/lib/inbound/reply.ts), as the job
 // worker would: the same replies, request and log entries the app makes. Allowed by Dylan
-// (2026-10-12; tests/unit/ai.boundary.test.ts lists this file): no AI (`noAi`; the three messages
-// match keywords anyway) and nothing sent (seedTransport). Only those not answered yet, so a re-run
+// (2026-10-12; tests/unit/ai.boundary.test.ts lists this file): no AI (`noAi`; the texts match
+// keywords anyway, Zoe's message in the app an answer's example question, and Priya's goes to the
+// office as it would with the AI off) and nothing sent (seedTransport). Only those not answered yet, so a re-run
 // changes nothing.
 export async function answerStoryMessages(
   run: WithFirm,

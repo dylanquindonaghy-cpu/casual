@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { card, h2, headingGap, muted, page, rows, row, sectionGap } from "@/app/ui/classes";
+import { btn, card, h2, headingGap, muted, page, rows, row, sectionGap } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip } from "@/app/ui/status-chip";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
+import { ANSWERS_SETTINGS_LINE, ANSWERS_TITLE } from "@/lib/office/answers-copy";
 import { officeContracts } from "@/lib/office/contracts";
 import { CONTRACTS_INTRO, CONTRACTS_TITLE } from "@/lib/office/customise-copy";
 import { siteLocationText, strikesEmailStatus } from "@/lib/office/settings-copy";
@@ -18,8 +20,8 @@ export const metadata: Metadata = { title: "Settings" };
 
 // Settings (docs/office-v2.md 3.10; docs/screens.md `/office/settings`; 12B.7). Admins only
 // (checked here, in the loader and again in every change). The strikes team's email, the firm's
-// shifts line (its number, to read: Phase 24), the sites' postcodes and the contracts (clients and
-// their venues: Phase 26.3). Everything else the firm
+// shifts line (its number, to read: Phase 24), the link to Automatic answers (Phase 35.3), the
+// sites' postcodes and the contracts (clients and their venues: Phase 26.3). Everything else the firm
 // agreed stays with the owner (`firm:settings`).
 export default async function SettingsPage() {
   const { firm, officeUser } = await requireOfficeArea("settings");
@@ -61,6 +63,19 @@ export default async function SettingsPage() {
           Shifts line
         </h2>
         <p className={`${card} ${headingGap} tabular-nums`}>{shiftsLineText(line)}</p>
+      </section>
+
+      {/* The answer library (Phase 35.3): its own page, for admins as this one is. */}
+      <section className={sectionGap.office} aria-labelledby="automatic-answers">
+        <h2 id="automatic-answers" className={h2}>
+          {ANSWERS_TITLE}
+        </h2>
+        <div className={`${card} ${headingGap} flex flex-col items-start gap-3`}>
+          <p>{ANSWERS_SETTINGS_LINE}</p>
+          <Link href="/office/settings/answers" className={btn.secondary}>
+            Open automatic answers
+          </Link>
+        </div>
       </section>
 
       <section className={sectionGap.office} aria-labelledby="sites">

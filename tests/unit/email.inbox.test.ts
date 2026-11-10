@@ -526,6 +526,7 @@ describe("an email drawn on Enquiries", () => {
     subject: "Training",
     who: { kind: "casual", workerId: "w1", name: "Priya Shah", firstName: "Priya", active: true },
     outcome: "person_waiting",
+    answerName: null,
     ...o,
   });
   const text = (html: string) =>

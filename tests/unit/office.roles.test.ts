@@ -57,6 +57,20 @@ describe("office roles", () => {
     }
   });
 
+  it("Automatic answers (the answer library, Phase 35.3) is for admins only", () => {
+    expect(canAccess("admin", "answers")).toBe(true);
+    expect(canAccess("resourcer", "answers")).toBe(false);
+    expect(canAccess("payroll", "answers")).toBe(false);
+    expect(officeMenu("admin").flatMap((g) => g.links.map((l) => l.href))).toContain(
+      "/office/settings/answers",
+    );
+    for (const role of ["resourcer", "payroll"] as const) {
+      expect(officeMenu(role).flatMap((g) => g.links.map((l) => l.href))).not.toContain(
+        "/office/settings/answers",
+      );
+    }
+  });
+
   it("pay queries are for payroll and admins", () => {
     expect(canAccess("payroll", "pay")).toBe(true);
     expect(canAccess("admin", "pay")).toBe(true);
@@ -83,6 +97,7 @@ describe("office roles", () => {
       "/office/team": ["team"],
       "/office/settings": ["settings"],
       "/office/settings/integrations": ["integrations"],
+      "/office/settings/answers": ["answers"],
       "/office/data": ["data"],
       "/office/guide": ["guide"],
     };

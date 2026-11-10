@@ -12,7 +12,7 @@ import {
   emailTitle,
   notCasualText,
   OUTCOME_TONES,
-  OUTCOME_WORDS,
+  outcomeWords,
   PAY_LOCK,
   subjectLine,
   thenStep,
@@ -21,6 +21,7 @@ import { roleLabel, timeOnDay } from "@/lib/portal/format";
 import { dayLabel } from "@/lib/rules/reasons";
 import { localDateOf } from "@/lib/time/zoned";
 import { EmailForms } from "./[id]/email-forms";
+import { AnswerSteps, SentWords } from "./enquiry-detail";
 import { Ref } from "@/app/ui/ref";
 
 // One email to the staffing inbox (P7.4, P7.5; Phase 25.5; docs/screens.md "The staffing inbox in
@@ -36,7 +37,9 @@ export { emailTitle };
 export function EmailFacts({ e }: { e: EmailEnquiryDetail }) {
   return (
     <p className="flex flex-wrap items-center gap-2">
-      <StatusChip tone={OUTCOME_TONES[e.outcome]}>{OUTCOME_WORDS[e.outcome]}</StatusChip>
+      <StatusChip tone={OUTCOME_TONES[e.outcome]}>
+        {outcomeWords(e.outcome, e.answer?.name ?? null)}
+      </StatusChip>
       {e.pay && <StatusChip tone="quiet">{PAY_LOCK}</StatusChip>}
       <span className={`${meta} ${nums}`}>
         Reference <Ref>{e.ref}</Ref>
@@ -57,10 +60,12 @@ export function EmailBody({
   e,
   level,
   stayOn,
+  admin = false,
 }: {
   e: EmailEnquiryDetail;
   level: 2 | 3;
   stayOn?: string;
+  admin?: boolean; // may use Automatic answers: the answer's Edit link (Phase 35.3)
 }) {
   const H = level === 2 ? "h2" : "h3";
   const at = (d: Date) => timeOnDay(d, e.timeZone);
@@ -116,8 +121,10 @@ export function EmailBody({
           <li>
             <span className="font-semibold">Sorted:</span> {emailSortedStep(t.sorted)}
           </li>
+          {e.answer && <AnswerSteps a={e.answer} at={at} admin={admin} />}
           <li>
-            <span className="font-semibold">Reply sent:</span> {emailReplyStep(t.reply)}
+            <span className="font-semibold">Reply sent:</span>{" "}
+            {e.answer?.words ? <SentWords words={e.answer.words} /> : emailReplyStep(t.reply)}
           </li>
           <li>
             <span className="font-semibold">Sent:</span> {emailSentStep(t.sent, at)}

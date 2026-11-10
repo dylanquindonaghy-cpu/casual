@@ -1,4 +1,5 @@
 import type { StatusTone } from "@/app/ui/status-chip";
+import { fillInLabels } from "./answers-copy";
 import type { CloseReason, Outcome, ReplyPlan } from "./enquiry-rules";
 
 // Enquiries in plain words (docs/office-v2.md 3.6; docs/screens.md `/office/enquiries`; 12D.1).
@@ -41,10 +42,11 @@ export const PAY_LOCK = "Pay: never answered by AI";
 // reads, the firm's message retention (90 days unless the owner changed it: enquiryWindow()).
 // A firm with a staffing inbox (Phase 25.5) reads its emails here too.
 export function enquiriesEmptyText(
-  view: "all" | "person" | "pay",
+  view: "all" | "person" | "answered" | "pay",
   days: number,
   inbox = false,
 ): string {
+  if (view === "answered") return `Nothing answered automatically in the last ${days} days.`;
   if (view === "person")
     return inbox
       ? "Nothing needs a person. Messages and emails we can't answer show here."
@@ -71,6 +73,7 @@ export const AI_BANNER =
 export const VIEW_LABELS = {
   all: "All",
   person: "Need a person",
+  answered: "Answered automatically", // Phase 35.3
   app: "Requests from the app",
   pay: "Pay",
 } as const;
@@ -319,6 +322,51 @@ export function sortedStep(
 }
 
 export const NO_CHECKS = "No checks recorded.";
+
+// The chip of one answered with one of the firm's own answers (Phase 35.3): "Answered
+// automatically · Pay day"; any other outcome as OUTCOME_WORDS has it.
+export const outcomeWords = (outcome: Outcome, answerName: string | null): string =>
+  outcome === "answer" && answerName
+    ? `${OUTCOME_WORDS.answer} · ${answerName}`
+    : OUTCOME_WORDS[outcome];
+
+// "How it was answered" for one matched to one of the firm's own answers (Phase 35.3): which, how,
+// and the last time it was switched on before the message came.
+export function answerChosenStep(
+  a: {
+    name: string;
+    matchedBy: "example" | "ai" | null;
+    switchedOn: { by: string | null; at: Date } | null;
+  },
+  at: (d: Date) => string,
+): string {
+  const how =
+    a.matchedBy === "example"
+      ? `“${a.name}”, matched by one of its example questions.`
+      : a.matchedBy === "ai"
+        ? `“${a.name}”, picked by the AI from your answers that are on.`
+        : `“${a.name}”.`;
+  if (!a.switchedOn) return how;
+  return a.switchedOn.by
+    ? `${how} Switched on by ${a.switchedOn.by} at ${at(a.switchedOn.at)}.`
+    : `${how} Switched on when it was set up, at ${at(a.switchedOn.at)}.`;
+}
+
+// What the answer's fill-ins took from the firm's data (their names; the values are in the words
+// that went), or the ones with no value for this casual, so it wasn't sent.
+export function filledInStep(a: {
+  fillIns: string[];
+  missing: string[] | null;
+  changedSince: boolean;
+}): string {
+  if (a.missing && a.missing.length > 0) {
+    const names = fillInLabels(a.missing);
+    return `Not sent: we have no ${names.join(", ")} for them, so it was passed to a person.`;
+  }
+  const since = a.changedSince ? " The answer's words have been changed since." : "";
+  if (a.fillIns.length === 0) return `Nothing: its words are the same for everyone.${since}`;
+  return `${fillInLabels(a.fillIns).join(", ")}. The values are in the words that went.${since}`;
+}
 
 export function replyStep(
   r:

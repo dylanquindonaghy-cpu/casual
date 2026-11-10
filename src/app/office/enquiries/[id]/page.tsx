@@ -4,9 +4,16 @@ import { notFound } from "next/navigation";
 import { btn, page, sectionGap } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
+import { canAccess } from "@/lib/auth/roles";
 import { officeEnquiry } from "@/lib/office/enquiries";
 import { EmailBody, EmailCasualLink, EmailFacts, emailTitle } from "../email-detail";
-import { CasualPageLink, EnquiryBody, EnquiryFacts, enquiryTitle } from "../enquiry-detail";
+import {
+  CasualPageLink,
+  EnquiryBody,
+  EnquiryFacts,
+  enquiryTitle,
+  MakeAnswerLink,
+} from "../enquiry-detail";
 
 export const metadata: Metadata = { title: "Enquiry" };
 
@@ -19,6 +26,9 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const e = await officeEnquiry({ firm, officeUserId: officeUser.id }, id);
   if (!e) notFound();
+  // Admins (the "answers" area, Phase 35.3): "Make this an answer" and an answer's Edit link.
+  const admin = canAccess(officeUser.role, "answers");
+  const makeAnswer = <MakeAnswerLink e={e} admin={admin} />;
   // An email to the staffing inbox (Phase 25.5): its own parts (../email-detail.tsx).
   if (e.channel === "email") {
     return (
@@ -26,11 +36,18 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
         <PageHeader
           back={{ href: "/office/enquiries", label: "Enquiries" }}
           title={emailTitle(e.who)}
-          actions={e.who.kind === "casual" ? <EmailCasualLink e={e} /> : undefined}
+          actions={
+            e.who.kind === "casual" ? (
+              <>
+                {makeAnswer}
+                <EmailCasualLink e={e} />
+              </>
+            ) : undefined
+          }
         >
           <EmailFacts e={e} />
         </PageHeader>
-        <EmailBody e={e} level={2} />
+        <EmailBody e={e} level={2} admin={admin} />
         <p className={sectionGap.office}>
           <Link href="/office/enquiries" className={btn.link}>
             Back to Enquiries
@@ -45,11 +62,18 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
       <PageHeader
         back={{ href: "/office/enquiries", label: "Enquiries" }}
         title={enquiryTitle(e)}
-        actions={e.who.kind === "casual" ? casual : undefined}
+        actions={
+          e.who.kind === "casual" ? (
+            <>
+              {makeAnswer}
+              {casual}
+            </>
+          ) : undefined
+        }
       >
         <EnquiryFacts e={e} />
       </PageHeader>
-      <EnquiryBody e={e} level={2} />
+      <EnquiryBody e={e} level={2} admin={admin} />
       <p className={sectionGap.office}>
         <Link href="/office/enquiries" className={btn.link}>
           Back to Enquiries

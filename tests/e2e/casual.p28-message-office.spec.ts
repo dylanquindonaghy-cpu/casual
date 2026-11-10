@@ -94,7 +94,7 @@ test("Message the office about a shift: the About line and a ready sentence, sen
   await page.goto(link);
   await expect(
     page.getByText(
-      "Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.",
+      "Ask us anything. Common questions are answered straight away; anything else goes to the office. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.",
     ),
   ).toBeVisible();
   await expect(page.getByText("No messages yet.")).toBeVisible();

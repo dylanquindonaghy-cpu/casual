@@ -8,7 +8,7 @@ import {
   NO_SUBJECT,
   NOT_CASUAL_ROW,
   OUTCOME_TONES,
-  OUTCOME_WORDS,
+  outcomeWords,
   PAY_LOCK,
   whoName,
 } from "@/lib/office/enquiries-copy";
@@ -17,7 +17,8 @@ import { cutChars } from "@/lib/text/cut";
 import { PaneLink } from "./pane-link";
 
 // One enquiry in Enquiries' list (Phase 24, 24.4: round 7 of the canvas): the channel's icon, who
-// sent it and when, the outcome chip, their words in quotes (and, on a pay message, that pay is
+// sent it and when, the outcome chip (one of the firm's own answers named: "Answered automatically ·
+// Pay day", Phase 35.3), their words in quotes (and, on a pay message, that pay is
 // never answered by AI); an email's subject on its own line above its words (Phase 25.5), and one
 // not from a casual says its words weren't kept. The whole row is its name's link
 // (./pane-link.tsx): on a phone to the message's own page, from 1024px picking it into the pane
@@ -72,7 +73,9 @@ export function EnquiryItem({
           </span>
         </p>
         <p>
-          <StatusChip tone={OUTCOME_TONES[r.outcome]}>{OUTCOME_WORDS[r.outcome]}</StatusChip>
+          <StatusChip tone={OUTCOME_TONES[r.outcome]}>
+            {outcomeWords(r.outcome, r.answerName)}
+          </StatusChip>
         </p>
         {r.channel === "email" && r.who.kind === "casual" && (
           <p className="font-semibold break-words">{preview(r.subject) ?? NO_SUBJECT}</p>

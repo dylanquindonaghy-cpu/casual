@@ -298,27 +298,45 @@ describe("the demo story", () => {
     ]);
   });
 
-  it("the enquiries: Zoe's list, Ben's pay question and Kieran's cancel, answered by the seed with the shifts line's own job", async () => {
+  // Phase 35.4: and, in the app, Zoe's "what do I wear" answered from the answer library by its
+  // example question (What to wear, filled in from her next shift), and Priya's question about food,
+  // which nothing answers, for the office.
+  it("the enquiries: Zoe's list, Ben's pay question, Kieran's cancel, Zoe's what to wear and Priya's food question, answered by the seed with the shifts line's own job", async () => {
     const ids = STORY.messages.map((x) => x.id);
     const { rows } = await su.query<{
       who: string;
       intent: string;
       handled: string;
       reply: string;
+      channel: string;
+      answer: string | null;
     }>(
-      `select w.first_name as who, m.intent, m.handled_as as handled, r.body as reply
+      `select w.first_name as who, m.intent, m.handled_as as handled, r.body as reply,
+              m.channel, a.name as answer
          from messages m join workers w on w.id = m.worker_id
          join messages r on r.reply_to = m.id
-        where m.id = any($1::uuid[]) order by w.first_name`,
+         left join answers a on a.id = m.answer_id
+        where m.id = any($1::uuid[]) order by w.first_name, m.channel desc`,
       [ids],
     );
-    expect(rows.map((r) => [r.who, r.intent, r.handled])).toEqual([
-      ["Ben", "pay", "keyword"],
-      ["Kieran", "cancel", "keyword"],
-      ["Zoe", "shifts", "keyword"],
+    expect(rows.map((r) => [r.who, r.channel, r.intent, r.handled, r.answer])).toEqual([
+      ["Ben", "sms", "pay", "keyword", null],
+      ["Kieran", "sms", "cancel", "keyword", null],
+      ["Priya", "app", "office", "office", null],
+      ["Zoe", "sms", "shifts", "keyword", null],
+      ["Zoe", "app", "answer", "keyword", "What to wear"],
     ]);
     // Zoe's personal list names her shifts; every reply is the app's, signed by the firm.
-    expect(rows.find((r) => r.who === "Zoe")?.reply).toContain("Acme Demo Arena");
+    expect(rows.find((r) => r.who === "Zoe" && r.channel === "sms")?.reply).toContain(
+      "Acme Demo Arena",
+    );
+    // What to wear, filled in from her next shift (Riverside's): its uniform and meeting point.
+    const wear = rows.find((r) => r.who === "Zoe" && r.channel === "app")?.reply ?? "";
+    expect(wear).toMatch(/^For Steward · Riverside Food Festival, .+ at Riverside Demo Park: /);
+    expect(wear).toContain("Meet at: Volunteer tent by the river gate.");
+    expect(rows.find((r) => r.who === "Priya")?.reply).toContain(
+      "The office will see this and get back to you.",
+    );
     for (const r of rows) expect(r.reply).toContain("Acme Events Shift Team");
     const { rows: logged } = await su.query<{ action: string }>(
       `select distinct action from events
@@ -347,7 +365,7 @@ describe("the demo story", () => {
         )
       ).rows[0];
     const before = await state();
-    expect(before).toMatchObject({ messages: 3, replies: 3 });
+    expect(before).toMatchObject({ messages: 5, replies: 5 });
     await run();
     expect(await state()).toEqual(before);
   });

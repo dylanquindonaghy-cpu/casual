@@ -457,6 +457,14 @@ Send OFFICE to reach a person. — Acme Events Shift Team". A message about pay 
 wrong", "I haven't been paid") never gets a library answer: it gets the built-in pay reply above, or
 the office.
 
+In the app, under the latest of these answers (Phase 35.4; docs/screens.md "## Phase 35", "The
+casual's Messages"), "Not what you needed? Ask the office" sends her own message to the office:
+"Please can someone from the office help? (About: {answer's name})", or, when the name could steer
+it to an automatic answer (a keyword such as "pay", or another answer's example question), "Please
+can someone from the office help with my last question?" (else "Please can someone from the office
+help?"). Its keyword "office" gives it to a person, with the usual "The office will see this and get
+back to you. Ref {ref}." reply; on her screen: "Sent to the office. They'll answer here."
+
 ## Push (title / body)
 
 - Offer: "Shift available" / "{date} {start} at {site}. Tap to take it." (built: `offerPush()`, with

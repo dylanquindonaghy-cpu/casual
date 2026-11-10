@@ -4,6 +4,7 @@ import { firms } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { retentionSettings } from "../gdpr/retention-settings";
 import { strangerTextsOff } from "../inbound/opt-out";
+import { fillInsNeeded } from "../answers/fill-ins";
 import { signOffFor } from "../tenancy/sign-off";
 import { wallTimeOf, zonedToUtc } from "../time/zoned";
 import type { EmailSorted } from "./enquiries-copy";
@@ -48,7 +49,9 @@ const CONVERSATION_MAX = 5; // later messages from the same number shown on a me
 const IN_APP_HOURS = 24; // a booking or cancellation this soon after a reply was "done in the app"
 const UNCONFIRMED_MS = 15 * 60_000; // an office reply still "sending" this long after: unconfirmed
 
-export const ENQUIRY_VIEWS = ["all", "person", "app", "pay"] as const;
+// "answered" (Phase 35.3): answered automatically, by a built-in answer or one of the firm's own
+// (ANSWERED_AUTOMATICALLY).
+export const ENQUIRY_VIEWS = ["all", "person", "answered", "app", "pay"] as const;
 export type EnquiryView = (typeof ENQUIRY_VIEWS)[number];
 
 // app: a casual's message in the app (P8; Phase 25.6).
@@ -88,12 +91,13 @@ export const isEnquiry = (m: string, since: Date): SQL =>
 export const enquirySource = (since: Date): SQL => sql`(
   select m.id, m.firm_id, m.created_at, m.channel, m.body, null::text as subject, m.from_e164,
          null::text as from_address, m.handled_at, m.handled_as, m.intent, m.worker_id,
-         0 as attachments
+         0 as attachments, m.answer_id
     from messages m
    where ${isEnquiry("m", since)}
   union all
   select e.id, e.firm_id, e.created_at, 'email'::text, e.body, e.subject, null::text,
-         e.from_address, e.handled_at, e.handled_as, e.intent, e.worker_id, e.attachments
+         e.from_address, e.handled_at, e.handled_as, e.intent, e.worker_id, e.attachments,
+         e.answer_id
     from inbound_emails e
    where e.created_at > ${since}
 )`;
@@ -106,6 +110,8 @@ export interface EnquiryRow {
   subject: string | null; // an email's (Phase 25.5)
   who: Who;
   outcome: Outcome;
+  // The firm's own answer it got (Phase 35.3: "Answered automatically · Pay day"), by its name now.
+  answerName: string | null;
 }
 
 // Who sent it: one of the firm's casuals (active or not), a number nobody here has, an email
@@ -129,6 +135,7 @@ export interface EnquiriesPage {
   // queue's own "waiting" (request-queue.ts), for the head's line and its tab's count (O2).
   appWaiting: number;
   needPerson: { count: number; oldestAt: Date | null };
+  answered: number; // answered automatically in the window (the "answered" view's count)
   rows: EnquiryRow[]; // the view's (empty for "app": that view is the request queue)
   more: boolean;
   inbox: boolean; // the firm has a staffing inbox (P7): its emails are listed too
@@ -151,6 +158,7 @@ type ListRow = {
   worker_status: string | null;
   waiting: boolean;
   in_app: boolean;
+  answer_name: string | null;
 };
 
 const whoOf = (
@@ -186,9 +194,11 @@ const outcomeOf = (r: ListRow) =>
 const listSelect = (since: Date) => sql`
   select m.id, m.created_at, m.channel, m.body, m.subject, m.from_e164, m.from_address,
          m.handled_at, m.handled_as, m.intent, m.worker_id, w.first_name, w.last_name,
-         w.status as worker_status, ${needsPerson("m")} as waiting, ${doneInApp("m")} as in_app
+         w.status as worker_status, ${needsPerson("m")} as waiting, ${doneInApp("m")} as in_app,
+         a.name as answer_name
     from ${enquirySource(since)} m
     left join workers w on w.firm_id = m.firm_id and w.id = m.worker_id
+    left join answers a on a.firm_id = m.firm_id and a.id = m.answer_id
 `;
 
 async function firmTime(tx: FirmTx) {
@@ -201,6 +211,16 @@ async function firmTime(tx: FirmTx) {
 
 // Answered without a person, as SQL over `m`: handled, not pay, not for a person (the outcomes
 // "keyword", "ai" and "in_app" of enquiryOutcome(), STOP and START among them).
+// Answered automatically (Phase 35.3; the "answered" view, docs/screens.md "## Phase 35"): sorted, by
+// a keyword, an example question or the AI, as one of the built-in answers (open shifts, cancel, the
+// pay link) or one of the firm's own, and given it: the stored intent is one of those only when the
+// answer was to go (automatic replies off, a fill-in with no value, a pay question for payroll or an
+// answer that failed on every try: the office's). Not STOP or START, nor one done in the app after a person's
+// answer.
+const answeredAutomatically = (m: string): SQL =>
+  sql.raw(`(${m}.handled_as in ('keyword', 'ai')
+            and ${m}.intent in ('shifts', 'cancel', 'pay', 'answer'))`);
+
 const automatic = (m: string): SQL =>
   sql.raw(`(${m}.handled_at is not null and ${m}.intent is distinct from 'pay'
             and ${m}.handled_as is distinct from 'unknown' and ${m}.intent is distinct from 'office')`);
@@ -219,6 +239,7 @@ export async function loadEnquiries(
     today: number;
     automatic: number;
     waiting: number;
+    answered: number;
     oldest: string | Date | null;
     app_today: number;
     app_waiting: number;
@@ -227,6 +248,7 @@ export async function loadEnquiries(
            count(*) filter (where m.created_at >= ${midnight} and ${automatic("m")})::int
              as automatic,
            count(*) filter (where ${needsPerson("m")})::int as waiting,
+           count(*) filter (where ${answeredAutomatically("m")})::int as answered,
            min(m.created_at) filter (where ${needsPerson("m")}) as oldest,
            (select count(*)::int from requests q
              where q.message_id is null and q.created_at >= ${midnight}) as app_today,
@@ -239,14 +261,16 @@ export async function loadEnquiries(
     const where = sql`${
       view === "person"
         ? sql`and ${needsPerson("m")}`
-        : view === "pay"
-          ? // A pay question, answered or waiting for a person because automatic replies are off
-            // (Phase 25.3: what it was sorted as is in its `message.received`).
-            sql`and (m.intent = 'pay' or exists (select 1 from events e
+        : view === "answered"
+          ? sql`and ${answeredAutomatically("m")}`
+          : view === "pay"
+            ? // A pay question, answered or waiting for a person because automatic replies are off
+              // (Phase 25.3: what it was sorted as is in its `message.received`).
+              sql`and (m.intent = 'pay' or exists (select 1 from events e
                       where e.firm_id = m.firm_id and e.entity_id = m.id
                         and e.action in ('message.received', 'email.received')
                         and e.data ->> 'sortedAs' = 'pay'))`
-          : sql``
+            : sql``
     } ${opts.day === "today" ? sql`and m.created_at >= ${midnight}` : sql``}`;
     // Need a person: oldest first (first asked, first answered). The rest: newest first.
     const order = view === "person" ? sql`m.created_at, m.id` : sql`m.created_at desc, m.id`;
@@ -269,6 +293,7 @@ export async function loadEnquiries(
     appToday: c?.app_today ?? 0,
     appWaiting: c?.app_waiting ?? 0,
     needPerson: { count: c?.waiting ?? 0, oldestAt: c?.oldest ? new Date(c.oldest) : null },
+    answered: c?.answered ?? 0,
     rows: rows.slice(0, limit).map((r) => ({
       messageId: r.id,
       at: new Date(r.created_at),
@@ -277,6 +302,7 @@ export async function loadEnquiries(
       subject: r.subject,
       who: whoOf(r),
       outcome: outcomeOf(r),
+      answerName: r.intent === "answer" ? r.answer_name : null,
     })),
     more: rows.length > limit,
     inbox: inboxRows[0]?.inbox === true,
@@ -403,6 +429,8 @@ export interface EnquiryDetail {
   // What the personal reply was built from (its `enquiry.checks` entry, 12D.2), or null: no such
   // reply, or one sent before 12D.2 ("No checks recorded").
   built: BuiltReply | null;
+  // The firm's own answer it was matched to (Phase 35.3), or null: none was.
+  answer: AnswerChosen | null;
 }
 
 // A session the entry names, as the office reads it.
@@ -763,6 +791,13 @@ export async function loadEnquiry(
 
   const who = whoOf(m);
   const { plan } = await replyPlanFor(tx, m, now);
+  const { rows: answerReply } = await tx.execute<{ body: string | null }>(sql`
+    select r.body from messages r
+     where r.reply_to = ${m.id} and r.direction = 'out' and r.answer_id is not null
+     order by r.created_at, r.id
+     limit 1
+  `);
+  const answer = await answerChosen(tx, received?.data, at, answerReply[0]?.body ?? null);
 
   return {
     timeZone,
@@ -810,6 +845,7 @@ export async function loadEnquiry(
       signOff: signOffFor(firm?.name ?? "", firm?.settings.sign_off),
     },
     built,
+    answer,
   };
 }
 
@@ -858,6 +894,7 @@ export interface EmailEnquiryDetail {
   };
   draft: string | null; // the AI's, while it waits for a person (never for pay)
   firstName: string; // the casual's, for the reply's words
+  answer: AnswerChosen | null; // the firm's own answer it was matched to (Phase 35.3)
   firm: { name: string; signOff: string };
 }
 
@@ -1081,10 +1118,80 @@ export async function loadEmailEnquiry(
     },
     draft: e.waiting && !pay ? e.draft_reply : null,
     firstName: e.first_name ?? "",
+    answer: await answerChosen(tx, d, at, automatic?.template === "answer" ? automatic.body : null),
     firm: {
       name: firm?.name ?? "",
       signOff: signOffFor(firm?.name ?? "", firm?.settings.sign_off),
     },
+  };
+}
+
+// --- The firm's own answer a message or an email was matched to (Phase 35.3) ---------------------
+
+export interface AnswerChosen {
+  answerId: string;
+  name: string; // as it's called now
+  matchedBy: "example" | "ai" | null; // by one of its example questions, or the AI's pick
+  // The last time it was switched on before the message came, and by whom (null: by the system, a
+  // demo's or a starter's); null: no switch-on logged.
+  switchedOn: { by: string | null; at: Date } | null;
+  fillIns: string[]; // the fill-ins in its words (keys, in the list's order)
+  missing: string[] | null; // the fill-ins with no value for this casual: it wasn't sent
+  words: string | null; // the reply as it went, its exact words (null: nothing went)
+  changedSince: boolean; // its words were changed after the message came
+}
+
+// From the message's or email's `*.received` entry (`answerId`, `matchedBy`, `answerMissing`) and
+// the answer as it is now (answers are never deleted: RLS keeps it the firm's own).
+async function answerChosen(
+  tx: FirmTx,
+  logged: Record<string, unknown> | undefined,
+  at: Date,
+  words: string | null,
+): Promise<AnswerChosen | null> {
+  const answerId = str(logged?.answerId);
+  if (!answerId || !UUID.test(answerId)) return null;
+  const { rows } = await tx.execute<{
+    name: string;
+    body: string;
+    on_at: string | Date | null;
+    on_by: string | null;
+    changed: boolean;
+  }>(sql`
+    with switched as (
+      select e.created_at, o.name
+        from events e
+        left join office_users o
+          on o.firm_id = e.firm_id and e.actor_type = 'office' and o.id = e.actor_id
+       where e.action = 'answer.switched' and e.entity_id = ${answerId}
+         and e.data ->> 'on' = 'true' and e.created_at <= ${at}
+       order by e.created_at desc, e.id desc
+       limit 1
+    )
+    select a.name, a.body,
+           (select created_at from switched) as on_at,
+           (select name from switched) as on_by,
+           exists (select 1 from events c
+                    where c.action = 'answer.changed' and c.entity_id = a.id
+                      and c.created_at > ${at} and c.data -> 'keys' ? 'body') as changed
+      from answers a
+     where a.id = ${answerId}
+  `);
+  const a = rows[0];
+  if (!a) return null;
+  const missing = Array.isArray(logged?.answerMissing)
+    ? logged.answerMissing.filter((k): k is string => typeof k === "string")
+    : null;
+  return {
+    answerId,
+    name: a.name,
+    matchedBy:
+      logged?.matchedBy === "example" || logged?.matchedBy === "ai" ? logged.matchedBy : null,
+    switchedOn: a.on_at ? { by: a.on_by, at: new Date(a.on_at) } : null,
+    fillIns: fillInsNeeded(a.body),
+    missing,
+    words,
+    changedSince: a.changed,
   };
 }
 

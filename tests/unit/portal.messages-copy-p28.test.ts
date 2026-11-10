@@ -107,12 +107,18 @@ describe("the About line", () => {
 });
 
 describe("Messages' own words", () => {
-  it("the intro is two short sentences that still send a pay dispute to payroll", () => {
-    expect(sentences(MESSAGES_INTRO)).toHaveLength(2);
+  // Phase 35.4 (the answer library's approved mock-up) changed the first sentence: three short
+  // sentences now; the pay sentence is 28.6's, word for word, and 28.6's section points to Phase 35.
+  it("the intro is short sentences that still send a pay dispute to payroll", () => {
+    expect(sentences(MESSAGES_INTRO)).toHaveLength(3);
     for (const s of sentences(MESSAGES_INTRO)) expect(words(s)).toBeLessThanOrEqual(25);
-    expect(MESSAGES_INTRO).toContain("raise a pay query on the Pay page: it goes to payroll");
-    expect(screens28).toContain(MESSAGES_INTRO);
-    expect(screensAll).toContain(`then (Phase 28.6: two sentences) "${MESSAGES_INTRO}"`);
+    expect(MESSAGES_INTRO).toContain(
+      "If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll.",
+    );
+    expect(screens28).toContain("Phase 35.4 changed its first sentence");
+    expect(screensAll).toContain(
+      `then (Phase 35.4, the mock-up's words; two sentences in Phase 28.6) "${MESSAGES_INTRO}"`,
+    );
   });
 
   it('the box is "Your message"; sent about a shift, "Sent. The office will answer here."', () => {

@@ -135,6 +135,8 @@ export const OFFICE_PAGE_LINES: Record<string, string> = {
   "/office/reports/pilot": "How the pilot is going, week by week.",
   "/office/team": "Who can log in to the office, and their roles.",
   "/office/settings": "The firm's settings, sites and strikes team.",
+  "/office/settings/answers":
+    "Your automatic answers to casuals' common questions, and where they go.",
   "/office/settings/integrations": "API keys and webhooks for your planner.",
   "/office/data": "Send someone their data, or delete it when they ask.",
   "/office/guide": "Step-by-step help for every job in the office.",

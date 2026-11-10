@@ -85,6 +85,13 @@ const MENU: {
       { area: "pilot", href: "/office/reports/pilot", label: "Pilot metrics", icon: "pilot" },
       { area: "team", href: "/office/team", label: "Office team", icon: "team" },
       { area: "settings", href: "/office/settings", label: "Settings", icon: "settings" },
+      // The answer library (Phase 35.3): the firm's automatic answers and their switches.
+      {
+        area: "answers",
+        href: "/office/settings/answers",
+        label: "Automatic answers",
+        icon: "messages",
+      },
       // The planner's API keys (12J.1; docs/office-v2.md 5.3.4).
       {
         area: "integrations",

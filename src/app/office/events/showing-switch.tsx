@@ -14,6 +14,26 @@ const failed = { status: "error" as const };
 // The server checks the office user and logs the change; the page then reloads its data. The
 // answer stays beside it ("Hidden from casuals. Booked casuals keep their shifts."). Waits for the
 // page (docs/ui-design.md "Forms wait for the page").
+// The track and its knob, 4px in from its edges (Phase 21's spacing); the knob solid (`knob`:
+// white in light, near-black in dark) with a soft lift. On, the track is green (`done`, round
+// 7's: showing to casuals is the good state; dark green in light, light green in dark, so it
+// keeps 3:1 on the glass in both); off, grey. Phase 35.3: Automatic answers' switches use it too.
+export function SwitchTrack({ on, small }: { on: boolean; small?: boolean }) {
+  const track = small ? "h-6 w-10" : "h-7 w-12";
+  const knob = small ? "size-4" : "size-5";
+  const moved = small ? "translate-x-4" : "translate-x-5";
+  return (
+    <span
+      aria-hidden="true"
+      className={`${track} inline-flex items-center rounded-full p-1 transition-colors ${on ? "bg-done" : "bg-switch-off"}`}
+    >
+      <span
+        className={`${knob} rounded-full bg-knob shadow-lift transition-transform duration-150 ease-sd motion-reduce:transition-none ${on ? moved : "translate-x-0"}`}
+      />
+    </span>
+  );
+}
+
 export function ShowingSwitch({
   target,
   id,
@@ -39,13 +59,6 @@ export function ShowingSwitch({
       setMessage(showingResultText(result, target));
       if (result.status === "shown" || result.status === "hidden") router.refresh();
     });
-  // The track and its knob, 4px in from its edges (Phase 21's spacing); the knob solid (`knob`:
-  // white in light, near-black in dark) with a soft lift. On, the track is green (`done`, round
-  // 7's: showing to casuals is the good state; dark green in light, light green in dark, so it
-  // keeps 3:1 on the glass in both); off, grey.
-  const track = small ? "h-6 w-10" : "h-7 w-12";
-  const knob = small ? "size-4" : "size-5";
-  const on = small ? "translate-x-4" : "translate-x-5";
   return (
     <div className="flex flex-col items-end gap-2">
       <button
@@ -58,14 +71,7 @@ export function ShowingSwitch({
         onClick={flip}
         className={`press relative inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center disabled:cursor-not-allowed disabled:opacity-60`}
       >
-        <span
-          aria-hidden="true"
-          className={`${track} inline-flex items-center rounded-full p-1 transition-colors ${showing ? "bg-done" : "bg-switch-off"}`}
-        >
-          <span
-            className={`${knob} rounded-full bg-knob shadow-lift transition-transform duration-150 ease-sd motion-reduce:transition-none ${showing ? on : "translate-x-0"}`}
-          />
-        </span>
+        <SwitchTrack on={showing} small={small} />
       </button>
       {message && (
         <p role="status" className={`${resultBox} max-w-xs text-sm`}>

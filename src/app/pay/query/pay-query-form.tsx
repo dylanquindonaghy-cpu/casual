@@ -18,6 +18,7 @@ import {
   type PayQueryProblem,
   type RaisePayQueryOutcome,
 } from "@/lib/portal/pay-query-kinds";
+import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { raisePayQueryAction } from "./actions";
 
 // "Raise a pay query" (docs/screens.md `/pay/query`, "### 28.10"): which shift (or a day), what's
@@ -60,7 +61,7 @@ export function PayQueryForm({
         () => ({ status: "error" }) as const,
       );
       if (result.status === "logged_out") {
-        router.replace("/login");
+        router.replace(LOGIN_AGAIN);
         return;
       }
       setOutcome(result);

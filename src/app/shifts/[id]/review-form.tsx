@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { MAX_REQUEST_NOTE, type ReviewOutcome } from "@/lib/portal/request-kinds";
+import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { askForReviewAction } from "./actions";
 import { tryAgainText } from "@/lib/portal/copy";
 import { labelStack, staffBtn, staffField } from "../../ui/classes";
@@ -29,7 +30,7 @@ export function ReviewForm({ shiftId }: { shiftId: string }) {
         status: "error" as const,
       }));
       sending.current = false;
-      if (result.status === "logged_out") router.replace("/login");
+      if (result.status === "logged_out") router.replace(LOGIN_AGAIN);
       else setOutcome(result);
     });
   };

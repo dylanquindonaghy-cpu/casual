@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import type { FirmDirectoryEntry } from "../db/directory";
 import { getCurrentFirm } from "../tenancy/current-firm";
+import { loginPageFor } from "./login-page";
 import { readWorkerSessionToken } from "./session-cookie";
 import { isSteppedUp } from "./step-up";
 import { currentWorker, type WorkerSession } from "./worker-login";
@@ -18,11 +19,12 @@ export const getWorkerSession = cache(
   },
 );
 
-// For pages only: it redirects to /login. Server actions must not use it (an action's redirect
-// renders without the firm's Host header); they call getWorkerSession() and return a result.
+// For pages only: it redirects to /login (the staffing demo login where that is on: Phase 34).
+// Server actions must not use it (an action's redirect renders without the firm's Host header);
+// they call getWorkerSession() and return a result.
 export async function requireWorker(): Promise<WorkerSession & { firm: FirmDirectoryEntry }> {
   const session = await getWorkerSession();
-  if (!session) redirect("/login");
+  if (!session) redirect(await loginPageFor("worker"));
   return session;
 }
 

@@ -14,6 +14,7 @@ import {
   sendProblemText,
   type SendProblem,
 } from "@/lib/portal/messages-copy";
+import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { sendAppMessageAction } from "./actions";
 
 // Every few seconds for a minute after a send, the page looks again until the answer is there.
@@ -107,7 +108,7 @@ export function Composer({
         status: "error" as const,
       }));
       sending.current = false;
-      if (result.status === "logged_out") return router.replace("/login");
+      if (result.status === "logged_out") return router.replace(LOGIN_AGAIN);
       if (result.status !== "sent") return setProblem(result.status);
       clientId.current = undefined;
       setText("");

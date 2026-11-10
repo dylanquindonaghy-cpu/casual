@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import type { AskShiftOutcome } from "@/lib/portal/ask-shift";
+import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { staffBtn } from "../../ui/classes";
 import { askShiftAction } from "./actions";
 import { AskResult } from "./ask-result";
@@ -25,7 +26,7 @@ export function AskButton({ shiftId }: { shiftId: string }) {
     startTransition(async () => {
       const result = await askShiftAction(shiftId).catch(() => ({ status: "error" as const }));
       sending.current = false;
-      if (result.status === "logged_out") router.replace("/login");
+      if (result.status === "logged_out") router.replace(LOGIN_AGAIN);
       else if (result.status === "take_it") router.refresh();
       else setOutcome(result);
     });

@@ -8,6 +8,7 @@ import { useHydrated } from "@/app/use-hydrated";
 import { isOnline } from "@/lib/portal/copy";
 import { CHECK_PREVIEW, sendUploadText, type SendUploadOutcome } from "@/lib/portal/upload-copy";
 import { WEB_IMPORT_MAX_BYTES } from "@/lib/office/import-limits";
+import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { sendUploadAction } from "./upload-actions";
 
 // "Upload a new photo" / "Take or choose a photo" (docs/office-v2.md 4.6, 5.5; 12F.2; 28.11): one
@@ -105,7 +106,7 @@ export function UploadForm({
       if (type) form.set("type", type);
       form.set("file", picture, "picture");
       const result: SendUploadOutcome = await sendUploadAction(form).catch(() => failed);
-      if (result.status === "logged_out") return router.replace("/login");
+      if (result.status === "logged_out") return router.replace(LOGIN_AGAIN);
       setMessage({ text: sendUploadText(result), ok: result.status === "sent" });
       if (result.status === "sent") {
         show(null);

@@ -7,6 +7,7 @@ import { Slip } from "@/app/ui/slip";
 import { useHydrated } from "@/app/use-hydrated";
 import type { AvailabilityOutcome } from "@/lib/portal/profile-kinds";
 import { dayLabel } from "@/lib/rules/reasons";
+import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { setUnavailableAction } from "./actions";
 import { tryAgainText } from "@/lib/portal/copy";
 
@@ -40,7 +41,7 @@ export function AvailabilityForm({
         status: "error" as const,
       }));
       sending.current = false;
-      if (result.status === "logged_out") return router.replace("/login");
+      if (result.status === "logged_out") return router.replace(LOGIN_AGAIN);
       setMessage(say(result));
       if (result.status === "added" || result.status === "removed") {
         setDay("");

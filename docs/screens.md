@@ -3818,3 +3818,22 @@ Checked against the app (the mock-up's words, changed where they weren't true):
 
 - The office video: "60 emails a day?" "Here's your one screen." "The dashboard: every gap on one map." "The session: who can take it, and one tap to offer." "Enquiries: every message in one place, and logged." "Casuals and pay: licences checked, pay questions grouped." "Your planner stays in charge: API in, signed webhooks out." "Let's show you round."
 - The casual video: "Your shifts. One link." "No app to download." "Your next shift: where, when, and what you'll earn." "Take or ask for open shifts." "We remind you before a qualification runs out." "Your pay day, always in view." "Let's show you round."
+
+## Phase 34
+
+**On the staffing demo, every way back to a login lands on the staffing login** (Dylan, 2026-11-10;
+`PLAN.md` Phase 34). Only where the staffing login is on (a demo server, on Acme:
+`staffDemoOn`); every other firm and server keeps its own login pages. Where a redirect goes is
+`loginPageFor()` (`src/lib/auth/login-page.ts`):
+
+| How you get there | Elsewhere | On the staffing demo |
+|---|---|---|
+| An office page (or the quick guide) with no session | `/office/login` | `/start/login` |
+| A casual page with no session | `/login` | `/start/login` |
+| "Log out" in the office's account menu | `/office/login?out=1` | `/start/login?out=1` |
+| "Log out" on the casual's Profile | `/login?out=1` | `/start/login?out=1` |
+| A casual action that finds the session gone | `/login?again=1` (the plain login page) | `/start/login` |
+
+`/start/login?out=1` shows "You're logged out." under its intro, in the office login's slip. `/login`
+and `/office/login` opened by address still show on the demo (the walkthrough and the magic links
+use them); only `out=1` or `again=1`, which a redirect adds, sends them on.

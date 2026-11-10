@@ -11,6 +11,7 @@ import {
   YES_COMING,
 } from "@/lib/portal/still-coming-copy";
 import { useHydrated } from "@/app/use-hydrated";
+import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { disc, staffBtn } from "../ui/classes";
 import { Icon } from "../ui/icons";
 import { Slip } from "../ui/slip";
@@ -59,7 +60,7 @@ export function StillComingCard({
     startTransition(async () => {
       const result = await stillComingAction(shiftId).catch(() => ({ status: "error" as const }));
       sending.current = false;
-      if (result.status === "logged_out") router.replace("/login");
+      if (result.status === "logged_out") router.replace(LOGIN_AGAIN);
       else if (result.status === "confirmed" || result.status === "already") {
         setSaid(new Date(result.at));
         setThanks(true);

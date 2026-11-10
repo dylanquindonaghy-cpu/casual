@@ -11,6 +11,7 @@ import {
   type CancelWarning,
 } from "@/lib/portal/cancel-reasons";
 import { CANCEL_FOOTER } from "@/lib/strikes/words";
+import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { labelStack, staffBtn, staffBtnSmall, staffChoice, staffField } from "../ui/classes";
 import { Icon } from "../ui/icons";
 import { Slip } from "../ui/slip";
@@ -91,7 +92,7 @@ export function CancelShift({
     startTransition(async () => {
       const result = await cancelWarningAction(shiftId).catch(() => ({ status: "error" as const }));
       sending.current = false;
-      if (result.status === "logged_out") router.replace("/login");
+      if (result.status === "logged_out") router.replace(LOGIN_AGAIN);
       else if (result.status === "ok") setWarning(result.warning);
       else setOutcome(result);
     });
@@ -114,7 +115,7 @@ export function CancelShift({
         reopen.current = false;
         setAsking(true);
       }
-      if (result.status === "logged_out") router.replace("/login");
+      if (result.status === "logged_out") router.replace(LOGIN_AGAIN);
       else if (result.status === "invalid_reason") setProblem(NO_REASON);
       else if (result.status === "warning_changed") {
         setWarning(result.warning);

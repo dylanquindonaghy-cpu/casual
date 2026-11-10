@@ -13,6 +13,7 @@ import {
   type CreateRequestOutcome,
   type WorkerRequestKind,
 } from "@/lib/portal/request-kinds";
+import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { createRequestAction } from "../actions";
 import { RequestResult } from "../request-result";
 
@@ -74,7 +75,7 @@ export function RequestForm({
         status: "error" as const,
       }));
       sending.current = false;
-      if (result.status === "logged_out") router.replace("/login");
+      if (result.status === "logged_out") router.replace(LOGIN_AGAIN);
       else setOutcome(result);
     });
   };

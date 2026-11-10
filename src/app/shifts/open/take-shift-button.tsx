@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import type { TakeShiftOutcome } from "@/lib/portal/take-shift";
+import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { staffBtn } from "../../ui/classes";
 import { takeShiftAction } from "./actions";
 import { ReviewForm } from "../[id]/review-form";
@@ -35,7 +36,7 @@ export function TakeShiftButton({
     startTransition(async () => {
       const result = await takeShiftAction(shiftId).catch(() => ({ status: "error" as const }));
       sending.current = false;
-      if (result.status === "logged_out") router.replace("/login");
+      if (result.status === "logged_out") router.replace(LOGIN_AGAIN);
       else setOutcome(result);
     });
   };

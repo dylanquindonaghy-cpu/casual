@@ -1408,6 +1408,27 @@ its line says, as the approved mock-up shows; `RUN_E2E=1 ./scripts/verify.sh` pr
 `guardrails-reviewer` has no open findings; the `claims-auditor` checks each task against its line
 and this one.
 
+## Phase 34 — On the staffing demo, every way back to a login lands on the staffing login (go-ahead: Dylan, 2026-11-10; A)
+
+Asked, 2026-11-10 (Dylan, in chat, with screenshots of `/office/login?out=1` and `/login?out=1` on
+the live demo, word for word): "theres also an issue with redirects going to the old log in pages
+just for now only make it so the redirects go to the staffing@test.com log in page with the password
+no demo phone is needed atm". Only where the staffing login exists (a demo server, on Acme); every
+other firm and server keeps its own login pages. The login pages themselves stay reachable by
+address (the walkthrough and the magic links use them); only the redirects change. No new screen:
+the staffing login gains the logged-out line the other login pages already show.
+
+- [x] Where the staffing login is on (`staffDemoOn`), the redirects to a login go to `/start/login`:
+      a page opened with no session (office or casual, `requireOfficeArea`, `requireWorker`, the
+      quick guide), "Log out" in the office's account menu and on the casual's Profile (it lands on
+      `/start/login?out=1`, which says "You're logged out."), and the casual app's actions that find
+      the session gone; `/login` and `/office/login` opened by address still show; everywhere else
+      nothing changes (A; S) (34.1)
+
+Done when: the task is ticked with a stamp that includes the browser tests; it built what its line
+says; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; the `guardrails-reviewer` has no open
+findings; the `claims-auditor` checks the task against its line and this one.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

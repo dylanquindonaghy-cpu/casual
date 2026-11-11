@@ -2533,3 +2533,16 @@ Each task adds what it left out here as its wave is merged.
 - A tour for payroll users. The office tour walks the dashboard, which payroll can't open, so payroll
   gets neither the welcome window nor "Take the tour again" (and the mark-seen action refuses them).
   A payroll tour would walk Pay queries and the payroll digest instead.
+
+## Phase 35, deferred while building (2026-11-10)
+
+- **More stop words for the answer library** (the fourth guardrails review, optional, low): "at the
+  GP", "train strike", "car crash", "throwing up"/"vomited"/"sick bug", "hurts" still let a
+  library answer through when the message also holds an example phrase. A miss costs a factual
+  answer with "Not what you needed? Ask the office". Add `gp`, `strike`, `crash`, `vomit`,
+  `vomited`, `hurts` to `LIBRARY_STOP_WORDS` (`src/lib/inbound/keywords.ts`) with a test line.
+- **Grouped "Asked a lot, no answer yet"** (the mock-up's counts): needs the AI to group similar
+  questions; today the page lists the latest questions with no answer, one by one.
+- **"Reply anyway" on an answered enquiry** (in the mock-up, left out as optional).
+- **A switch-off of `auto_replies` mid-job for a message that isn't a library answer** still sends
+  the office's acknowledgement (as before Phase 35; found by the fix builder).

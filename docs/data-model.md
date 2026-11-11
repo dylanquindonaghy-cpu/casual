@@ -65,6 +65,7 @@ architecture.md, Tenancy).
 | sheet_name_problems | The role names a rota sheet's last sync couldn't use (one it can't read, a skipped one on a session still to come), for Needs attention; replaced by each sync (Phase 25.2) | P3 |
 | webhook_status | The planner's webhook status, one row per firm: when its address was set, the last delivery that worked, failing since when; for Integrations and Needs attention (Phase 25.3) | P4 |
 | metrics_daily | Pilot baseline and daily counts | 5 |
+| answers | The answer library (Phase 35): the firm's own automatic answers to common questions: a name, example phrases one a line, the words with fill-ins from a fixed list, on or off, which starter it came from, who last changed it and when. Never deleted, only switched off. Five starters, switched off, for every firm | 35 |
 
 ## Firm settings (jsonb on `firms.settings`)
 
@@ -99,6 +100,14 @@ texts by itself. Only `true` turns it on; missing or anything else is off, the d
 nothing goes back by WhatsApp or text, and every casual's message waits for the office in Need a
 person (`docs/messaging-templates.md`, "Notification policy"). The made-up firms in the seed have
 it on.
+
+`answers` (Phase 35, `src/lib/answers/switches.ts`): `{ "app": true, "texts": false, "email": false }`,
+where the firm's switched-on library answers answer casuals: messages in the app, texts and
+WhatsApps, emails to the staffing inbox. Each is off unless `true`. Written only through
+`app_set_firm_setting()` (keys `answers.app`, `answers.texts`, `answers.email`; migration 0073) by an
+admin on Settings → Automatic answers, or by the owner's `npm run firm:settings`. `auto_replies`
+stays the master switch for texts and emails: with it off nothing goes by either, whatever these
+say. The made-up firms in the seed have all three on.
 
 `firm_system_sends` (P2.3, `src/lib/notices/who-sends.ts`; "Connecting the firm's systems" 9 and
 17): whether the firm's own system (its rota sheet, or its CRM through the API: P5) reminds the
@@ -919,7 +928,12 @@ create table messages (                 -- built in Phase 7 (migrations 0022-002
   to_e164 text,                          -- inbound: the firm's shifts line; empty in the app only
   body text,                             -- at most 1600; the worker's words: never copied into events
   handled_as text,                       -- keyword | ai | office | unknown | opt_out (inbound only)
-  intent text,                           -- shifts | cancel | pay | office
+  intent text,                           -- shifts | cancel | pay | office | answer (Phase 35: one of
+                                         -- the firm's library answers went; answer_id says which)
+  answer_id uuid,                        -- Phase 35 (migration 0073): (firm_id, answer_id) -> answers
+                                         -- (messages_answer_fk); set on the casual's message and its
+                                         -- reply exactly when the intent is answer
+                                         -- (messages_answer_intent)
   handled_at timestamptz,                -- the reply job claimed it (at most one reply). One kind is
                                          -- stored already handled, with no job: an active casual's
                                          -- message in the app sent about her pay (/messages?about=pay,
@@ -1205,7 +1219,11 @@ create table inbound_emails (
   body text,                             -- a known casual's only, quoted history and signature
                                          -- taken off, <= 4000
   attachments integer not null default 0, -- how many were left out (never kept)
-  handled_as text, intent text, handled_at timestamptz, -- set once by its job (P7.4)
+  handled_as text, intent text, handled_at timestamptz, -- set once by its job (P7.4); intent as
+                                         -- messages' (answer since Phase 35)
+  answer_id uuid,                        -- Phase 35: (firm_id, answer_id) -> answers, exactly when
+                                         -- the intent is answer; cleared with the intent if the
+                                         -- email didn't go (inbound_emails_answer_intent)
   draft_reply text,                      -- the AI's draft of the office's reply (P7.5), 1..1200;
                                          -- only a known casual's, once handled, never for pay
   created_at timestamptz not null default now(),
@@ -1222,13 +1240,34 @@ create table email_replies (
   inbound_email_id uuid not null,        -- (firm_id, inbound_email_id) -> inbound_emails, cascade
   worker_id uuid not null,               -- (firm_id, worker_id) -> workers
   kind text not null,                    -- automatic | office
-  template text,                         -- automatic: shifts | cancel | pay
+  template text,                         -- automatic: shifts | cancel | pay | answer (Phase 35)
   sent_by uuid,                          -- office: (firm_id, sent_by) -> office_users
   from_draft boolean not null default false, -- office: began as the AI's draft
   to_address text not null,              -- the address on file, lower case
   subject text not null,                 -- 1..200
   body text not null,                    -- 1..4000, as sent
   created_at timestamptz not null default now()
+);
+
+-- The answer library (Phase 35, migration 0073; docs/screens.md "## Phase 35"). Read by the reply
+-- jobs (only switched-on answers, only where the channel's switch is on: settings.answers) and by
+-- Settings → Automatic answers (admins only). The app may insert and update the editable columns
+-- (COLUMN_UPDATES), never delete: a message names the answer it got. Every change logged:
+-- answer.created, answer.changed {answerId, keys}, answer.switched {answerId, on}.
+create table answers (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  name text not null,                    -- 1..60
+  examples text not null default '',     -- example phrases, one a line: at most 10 of at most 100
+  body text not null,                    -- 1..600; fill-ins as {key} from the fixed list
+                                         -- (src/lib/answers/fill-ins.ts), filled in by code
+  is_on boolean not null default false,
+  starter_key text,                      -- pay_day | what_to_wear | renewing_licence | parking |
+                                         -- office_hours; null: the firm's own. Unique per firm
+  updated_by uuid,                       -- (firm_id, updated_by) -> office_users; null: the system
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  unique (firm_id, id)
 );
 
 create table api_keys (

@@ -432,6 +432,8 @@ describe("Acme's Saturday event day", () => {
     expect(held).toEqual({ n: 0 });
   });
 
+  // Requests made in the app (no message): the office's questions from the shifts line (the story's
+  // Priya asking about food, Phase 35.4) are Enquiries', not these.
   it("has two open requests from booked workers: a time change and a swap", async () => {
     const rows = await acmeRows<{
       type: string;
@@ -442,7 +444,7 @@ describe("Acme's Saturday event day", () => {
       `select r.type, r.status, r.payload,
               exists (select 1 from assignments a where a.shift_id = r.shift_id and a.worker_id = r.worker_id
                         and a.status = 'confirmed') as booked
-         from requests r where r.firm_id = $1 order by r.type`,
+         from requests r where r.firm_id = $1 and r.message_id is null order by r.type`,
     );
     expect(rows).toHaveLength(2);
     expect(rows.map((r) => [r.type, r.status, r.booked])).toEqual([

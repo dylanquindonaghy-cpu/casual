@@ -3,6 +3,7 @@ import { systemClock } from "../auth/clock";
 import { messages, shifts, workers } from "../db/schema";
 import { withFirm, type FirmTx } from "../db/scoped";
 import { sessionToTag } from "../inbound/app";
+import { askOfficeTexts, askOfficeWords } from "./messages-copy";
 import type { PortalContext } from "./my-shifts";
 
 // A casual's Messages (P8; Phase 25.6; docs/screens.md "Messages: the in-app chat"): their messages
@@ -25,6 +26,17 @@ export interface ThreadItem {
   // Hers, sent about her pay: it went to payroll as a pay query (Phase 29.1; src/lib/inbound/app.ts
   // stores only those as handled_as 'office' with intent 'pay'). Its answer is on her Pay page.
   toPayroll?: boolean;
+  // An automatic answer that was one of the firm's own (Phase 35: `messages.answer_id`).
+  libraryAnswer?: boolean;
+}
+
+// "Not what you needed? Ask the office" (Phase 35.4), under the latest of the firm's own answers in
+// her thread (`replyId`), while she hasn't written since: the words it sends (`words`), or, once
+// she has sent them, that it went (`asked`). Gone once she writes anything else after it.
+export interface AskOffice {
+  replyId: string;
+  words: string;
+  asked: boolean;
 }
 
 export interface Thread {
@@ -32,6 +44,7 @@ export interface Thread {
   more: boolean; // older ones within the days weren't shown
   latestMineAt: Date | null; // their newest message
   answered: boolean; // an answer came after their newest message (one to payroll waits for none)
+  askOffice?: AskOffice | null; // Phase 35.4 (absent: none)
 }
 
 async function readThread(tx: FirmTx, workerId: string, now: Date): Promise<Thread> {
@@ -43,9 +56,12 @@ async function readThread(tx: FirmTx, workerId: string, now: Date): Promise<Thre
     intent: string | null;
     handled_as: string | null;
     created_at: string | Date;
+    answer_name: string | null;
   }>(sql`
-    select m.id, m.direction, m.body, m.intent, m.handled_as, m.created_at
+    select m.id, m.direction, m.body, m.intent, m.handled_as, m.created_at, a.name as answer_name
       from messages m
+      left join answers a
+        on m.direction = 'out' and a.firm_id = m.firm_id and a.id = m.answer_id
      where m.channel = 'app' and m.worker_id = ${workerId} and m.created_at > ${since}
      order by m.created_at desc, m.id desc
      limit ${THREAD_MAX + 1}
@@ -60,12 +76,32 @@ async function readThread(tx: FirmTx, workerId: string, now: Date): Promise<Thre
       at: new Date(r.created_at),
       from: r.direction === "in" ? null : r.intent ? "automatic" : "office",
       toPayroll: r.direction === "in" && r.intent === "pay" && r.handled_as === "office",
+      libraryAnswer: r.direction === "out" && r.answer_name !== null,
     }));
   const lastMine = items.findLastIndex((i) => i.mine);
   // One to payroll is answered on her Pay page, never here: it waits for no answer in the thread.
   const lastAsked = items.findLastIndex((i) => i.mine && !i.toPayroll);
+  // The latest of the firm's own answers, and what she wrote after it.
+  let askOffice: AskOffice | null = null;
+  const lastAnswer = items.findLastIndex((i) => i.libraryAnswer);
+  const names = rows
+    .slice(0, THREAD_MAX)
+    .reverse()
+    .map((r) => (r.direction === "out" ? r.answer_name : null));
+  const name = lastAnswer >= 0 ? names[lastAnswer] : null;
+  const reply = lastAnswer >= 0 ? items[lastAnswer] : undefined;
+  if (reply && name) {
+    const after = items.slice(lastAnswer + 1).filter((i) => i.mine);
+    const texts = askOfficeTexts(name);
+    if (after.length > 0 && after.every((i) => i.text !== null && texts.includes(i.text))) {
+      askOffice = { replyId: reply.id, words: "", asked: true };
+    } else if (after.length === 0) {
+      askOffice = { replyId: reply.id, words: askOfficeWords(name), asked: false };
+    }
+  }
   return {
     items,
+    askOffice,
     more: rows.length > THREAD_MAX,
     latestMineAt: lastMine >= 0 ? (items[lastMine]?.at ?? null) : null,
     answered: lastAsked < 0 || items.slice(lastAsked + 1).some((i) => !i.mine),

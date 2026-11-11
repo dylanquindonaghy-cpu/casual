@@ -1,4 +1,5 @@
 import type { StatusTone } from "@/app/ui/status-chip";
+import { fillInLabels } from "./answers-copy";
 import type { CloseReason, Outcome, ReplyPlan } from "./enquiry-rules";
 
 // Enquiries in plain words (docs/office-v2.md 3.6; docs/screens.md `/office/enquiries`; 12D.1).
@@ -18,6 +19,8 @@ export const OUTCOME_WORDS: Record<Outcome, string> = {
   payroll: "Pay: sent to payroll",
   in_app: "They sorted it in the app",
   inbox: "Left for your inbox",
+  // One of the firm's own answers (Phase 35): 35.3 adds its name ("Answered automatically · Pay day").
+  answer: "Answered automatically",
 };
 
 export const OUTCOME_TONES: Record<Outcome, StatusTone> = {
@@ -30,6 +33,7 @@ export const OUTCOME_TONES: Record<Outcome, StatusTone> = {
   payroll: "quiet",
   in_app: "done",
   inbox: "quiet",
+  answer: "done",
 };
 
 export const PAY_LOCK = "Pay: never answered by AI";
@@ -38,10 +42,11 @@ export const PAY_LOCK = "Pay: never answered by AI";
 // reads, the firm's message retention (90 days unless the owner changed it: enquiryWindow()).
 // A firm with a staffing inbox (Phase 25.5) reads its emails here too.
 export function enquiriesEmptyText(
-  view: "all" | "person" | "pay",
+  view: "all" | "person" | "answered" | "pay",
   days: number,
   inbox = false,
 ): string {
+  if (view === "answered") return `Nothing answered automatically in the last ${days} days.`;
   if (view === "person")
     return inbox
       ? "Nothing needs a person. Messages and emails we can't answer show here."
@@ -68,6 +73,7 @@ export const AI_BANNER =
 export const VIEW_LABELS = {
   all: "All",
   person: "Need a person",
+  answered: "Answered automatically", // Phase 35.3
   app: "Requests from the app",
   pay: "Pay",
 } as const;
@@ -220,7 +226,7 @@ type WhoFull =
   | { kind: "unknown"; from: string }
   | { kind: "unknown_address"; from: string }
   | { kind: "withheld" };
-type Intent = "shifts" | "cancel" | "pay" | "office";
+type Intent = "shifts" | "cancel" | "pay" | "office" | "answer";
 
 export function receivedStep(
   r: { channel: "whatsapp" | "sms" | "voice" | "app"; at: Date; who: WhoFull },
@@ -244,6 +250,8 @@ export function sortedStep(
         ai?: "not_connected" | "no_answer" | "not_a_label";
       }
     | { how: "person"; why: "answer_failed"; code: string }
+    | { how: "person"; why: "answer_missing" }
+    | { how: "person"; why: "answer_switched_off" }
     | { how: "unknown"; repeat: boolean }
     | { how: "opt_out" }
     | { how: "not_yet" }
@@ -265,13 +273,22 @@ export function sortedStep(
       return `About their pay, from Messages: it went to payroll as pay query ${s.ref}, for the pay digest. Never sorted or answered automatically.`;
     // Sorted, then passed to a person: automatic replies are off (Phase 25.3).
     case "held":
+      if (s.intent === "answer") {
+        return s.by === "keyword"
+          ? "One of your answers matched its example question. Automatic replies are off, so it was passed to a person."
+          : "AI picked one of your answers. Automatic replies are off, so it was passed to a person.";
+      }
       return s.by === "keyword"
         ? `A keyword matched: "${s.intent}". Automatic replies are off, so it was passed to a person.`
         : `AI sorted it as "${s.intent}". Automatic replies are off, so it was passed to a person.`;
     case "keyword":
-      return `A keyword matched: "${s.intent}".`;
+      return s.intent === "answer"
+        ? "One of your answers matched its example question."
+        : `A keyword matched: "${s.intent}".`;
     case "ai":
-      return `AI sorted it as "${s.intent}".`;
+      return s.intent === "answer"
+        ? "AI picked one of your answers."
+        : `AI sorted it as "${s.intent}".`;
     case "unknown":
       return s.repeat
         ? "Not one of your casuals' numbers: passed to a person. It wrote in the last 24 hours too, so it got no second reply."
@@ -283,6 +300,10 @@ export function sortedStep(
     default:
       if (s.why === "answer_failed")
         return `The automatic answer failed on every try (${s.code}): passed to a person.`;
+      if (s.why === "answer_missing")
+        return "One of your answers matched, but it needs a fact we don't have for them: passed to a person.";
+      if (s.why === "answer_switched_off")
+        return "One of your answers matched, but it was switched off before it went: passed to a person.";
       if (s.why === "not_sorted" && s.ai) {
         return {
           not_connected: "AI not available: passed to a person (not connected).",
@@ -305,6 +326,55 @@ export function sortedStep(
 
 export const NO_CHECKS = "No checks recorded.";
 
+// The chip of one answered with one of the firm's own answers (Phase 35.3): "Answered
+// automatically · Pay day"; any other outcome as OUTCOME_WORDS has it.
+export const outcomeWords = (outcome: Outcome, answerName: string | null): string =>
+  outcome === "answer" && answerName
+    ? `${OUTCOME_WORDS.answer} · ${answerName}`
+    : OUTCOME_WORDS[outcome];
+
+// "How it was answered" for one matched to one of the firm's own answers (Phase 35.3): which, how,
+// and the last time it was switched on before the message came.
+export function answerChosenStep(
+  a: {
+    name: string;
+    matchedBy: "example" | "ai" | null;
+    switchedOn: { by: string | null; at: Date } | null;
+  },
+  at: (d: Date) => string,
+): string {
+  const how =
+    a.matchedBy === "example"
+      ? `“${a.name}”, matched by one of its example questions.`
+      : a.matchedBy === "ai"
+        ? `“${a.name}”, picked by the AI from your answers that are on.`
+        : `“${a.name}”.`;
+  if (!a.switchedOn) return how;
+  return a.switchedOn.by
+    ? `${how} Switched on by ${a.switchedOn.by} at ${at(a.switchedOn.at)}.`
+    : `${how} Switched on when it was set up, at ${at(a.switchedOn.at)}.`;
+}
+
+// What the answer's fill-ins took from the firm's data (their names; the values are in the words
+// that went), or the ones with no value for this casual, so it wasn't sent.
+export function filledInStep(a: {
+  fillIns: string[];
+  missing: string[] | null;
+  changedSince: boolean;
+  switchedOff?: boolean;
+}): string {
+  // Re-read as it went (the guardrails review, M2): switched off meanwhile, nothing was filled in.
+  if (a.switchedOff)
+    return "Not sent: it was switched off before it went, so it was passed to a person.";
+  if (a.missing && a.missing.length > 0) {
+    const names = fillInLabels(a.missing);
+    return `Not sent: we have no ${names.join(", ")} for them, so it was passed to a person.`;
+  }
+  const since = a.changedSince ? " The answer's words have been changed since." : "";
+  if (a.fillIns.length === 0) return `Nothing: its words are the same for everyone.${since}`;
+  return `${fillInLabels(a.fillIns).join(", ")}. The values are in the words that went.${since}`;
+}
+
 export function replyStep(
   r:
     | { how: "automatic"; intent: Intent | "unknown_number" | "voicemail" }
@@ -321,6 +391,7 @@ export function replyStep(
     cancel: "The cancel reply, with the link to My shifts.",
     pay: "The pay reply: the link to their pay page, never an answer about pay.",
     office: 'The "the office will get back to you" reply, with the question\'s reference.',
+    answer: "One of your answers, filled in from your data.",
     voicemail: "The voicemail reply, with the question's reference.",
     unknown_number: "The reply asking a number we don't know for their full name.",
   }[r.intent];
@@ -626,7 +697,13 @@ export type EmailSorted =
 
 export function emailSortedStep(s: EmailSorted): string {
   const sorted = (by: "keyword" | "ai", intent: Intent) =>
-    by === "keyword" ? `A keyword matched: "${intent}".` : `AI sorted it as "${intent}".`;
+    intent === "answer"
+      ? by === "keyword"
+        ? "One of your answers matched its example question."
+        : "AI picked one of your answers."
+      : by === "keyword"
+        ? `A keyword matched: "${intent}".`
+        : `AI sorted it as "${intent}".`;
   switch (s.how) {
     case "stale":
       return "It came in more than 3 hours before the inbox could answer it, so it was passed to a person unsorted.";
@@ -648,7 +725,10 @@ export function emailSortedStep(s: EmailSorted): string {
 }
 
 export function emailReplyStep(
-  r: { how: "automatic"; answer: "shifts" | "cancel" | "pay" } | { how: "held" } | { how: "none" },
+  r:
+    | { how: "automatic"; answer: "shifts" | "cancel" | "pay" | "answer" }
+    | { how: "held" }
+    | { how: "none" },
 ): string {
   if (r.how === "none") return "No automatic reply.";
   if (r.how === "held") {
@@ -658,6 +738,7 @@ export function emailReplyStep(
     shifts: "The open shifts email, with the link to Open shifts.",
     cancel: "The cancel email, with the link to My shifts.",
     pay: "The pay email: the link to their pay page and to raise a pay query, never an answer about pay.",
+    answer: "One of your answers, filled in from your data, by email.",
   }[r.answer];
 }
 

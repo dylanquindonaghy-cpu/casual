@@ -64,7 +64,15 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
       ["People", ["Casuals", "Strikes", "Notice report"]],
       [
         "Admin and records",
-        ["Action log", "Pilot metrics", "Office team", "Settings", "Integrations", "Data requests"],
+        [
+          "Action log",
+          "Pilot metrics",
+          "Office team",
+          "Settings",
+          "Automatic answers",
+          "Integrations",
+          "Data requests",
+        ],
       ],
       ["Help", ["How-to guide"]],
     ]);
@@ -304,6 +312,9 @@ describe("the current page in the menu", () => {
     // Integrations (12J.1) sits under Settings' address but marks its own link.
     ["/office/settings", "/office/settings"],
     ["/office/settings/integrations", "/office/settings/integrations"],
+    // Automatic answers (Phase 35.3) too, its Add and Edit pages with it.
+    ["/office/settings/answers", "/office/settings/answers"],
+    ["/office/settings/answers/new", "/office/settings/answers"],
     ["/office/login", null],
     ["/office/shiftsx", null],
   ])("%s marks %s", (pathname, expected) => {
@@ -957,6 +968,7 @@ describe("the rail", () => {
       "Pilot metrics",
       "Office team",
       "Settings",
+      "Automatic answers",
       "Integrations",
       "Data requests",
     ]);
@@ -975,6 +987,7 @@ describe("the rail", () => {
       "Pilot metrics",
       "Office team",
       "Settings",
+      "Automatic answers",
       "Integrations",
       "Data requests",
     ]);

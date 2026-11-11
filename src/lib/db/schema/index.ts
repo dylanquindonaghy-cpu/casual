@@ -1,5 +1,6 @@
 // Drizzle schema. Every table has firm_id (firms: id), created_at, RLS enabled and a policy.
 // FORCE RLS and grants are applied by db:migrate from src/lib/db/admin/access.ts.
+export * from "./answers";
 export * from "./auth";
 export * from "./connector";
 export * from "./email";

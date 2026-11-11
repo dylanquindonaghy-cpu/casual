@@ -15,6 +15,7 @@ import {
 } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
+import { canAccess } from "@/lib/auth/roles";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { appEnv } from "@/lib/env";
 import {
@@ -36,7 +37,13 @@ import {
 } from "@/lib/office/enquiries-copy";
 import { officeRequestQueue } from "@/lib/office/request-queue";
 import { EmailBody, EmailCasualLink, EmailFacts, emailTitle } from "./email-detail";
-import { CasualPageLink, EnquiryBody, EnquiryFacts, enquiryTitle } from "./enquiry-detail";
+import {
+  CasualPageLink,
+  EnquiryBody,
+  EnquiryFacts,
+  enquiryTitle,
+  MakeAnswerLink,
+} from "./enquiry-detail";
 import { EnquiryItem } from "./enquiry-row";
 import { RequestQueueView } from "./request-queue-view";
 
@@ -96,6 +103,8 @@ export default async function EnquiriesPage({
   const first = list.rows[0];
   if (!chosen && view !== "app" && first) chosen = await officeEnquiry(ctx, first.messageId);
   const now = new Date();
+  // Admins (the "answers" area, Phase 35.3): "Make this an answer" and an answer's Edit link.
+  const admin = canAccess(officeUser.role, "answers");
   return (
     <main className={page.office}>
       <PageHeader title="Enquiries">
@@ -119,6 +128,12 @@ export default async function EnquiriesPage({
               <>
                 {" "}
                 <span className={tabCount(v === view)}>{list.needPerson.count}</span>
+              </>
+            )}
+            {v === "answered" && (
+              <>
+                {" "}
+                <span className={tabCount(v === view)}>{list.answered}</span>
               </>
             )}
             {v === "app" && (
@@ -221,16 +236,29 @@ export default async function EnquiriesPage({
                     <EnquiryFacts e={chosen} />
                   )}
                 </div>
-                {chosen.channel === "email" ? (
-                  <EmailCasualLink e={chosen} />
-                ) : (
-                  <CasualPageLink e={chosen} />
-                )}
+                <div className="flex flex-wrap gap-3">
+                  <MakeAnswerLink e={chosen} admin={admin} />
+                  {chosen.channel === "email" ? (
+                    <EmailCasualLink e={chosen} />
+                  ) : (
+                    <CasualPageLink e={chosen} />
+                  )}
+                </div>
               </header>
               {chosen.channel === "email" ? (
-                <EmailBody e={chosen} level={3} stayOn={paneHref(view, day, chosen.messageId)} />
+                <EmailBody
+                  e={chosen}
+                  level={3}
+                  stayOn={paneHref(view, day, chosen.messageId)}
+                  admin={admin}
+                />
               ) : (
-                <EnquiryBody e={chosen} level={3} stayOn={paneHref(view, day, chosen.messageId)} />
+                <EnquiryBody
+                  e={chosen}
+                  level={3}
+                  stayOn={paneHref(view, day, chosen.messageId)}
+                  admin={admin}
+                />
               )}
             </section>
           )}

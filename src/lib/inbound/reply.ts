@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { getAi } from "../ai/anthropic";
-import { sortMessage, type AiFallback } from "../ai/classify-message";
+import { sortMessage, sortMessageOrAnswer, type AiFallback } from "../ai/classify-message";
 import type { AiClient } from "../ai/client";
 import { firms, messages, requests, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
@@ -41,6 +41,15 @@ import {
 } from "./opt-out";
 import { cancelReply, shiftsReply, type EnquiryChecks } from "./personal-reply";
 import { cutChars } from "../text/cut";
+import {
+  answerFacts,
+  answersFor,
+  matchByExample,
+  recheckAnswer,
+  wordsFor,
+  type LibraryAnswer,
+} from "../answers/library";
+import type { Facts } from "../answers/render";
 
 // Answering a WhatsApp, a text or a voicemail on the shifts line (docs/api-and-jobs.md `inbound-message`;
 // docs/messaging-templates.md "Instant replies on the shifts line", "Call-to-text recording").
@@ -59,7 +68,9 @@ import { cutChars } from "../text/cut";
 //      office. A message with no text (a photo) goes to the office;
 //   3. the claim, in one transaction: the message locked and, if no one has handled it yet, marked
 //      handled (how, and what they asked); the office's `general` request (the message as its
-//      note, linked by `message_id`) when it's for the office; `message.received`;
+//      note, linked by `message_id`) when it's for the office; `message.received`. A library answer
+//      (Phase 35) is settled here first: the answer and its channel re-read, the office's if either
+//      was switched off meanwhile (`answerSwitchedOff`), and its words filled in as they are now;
 //   4. the reply goes outside any transaction, from the number they wrote to, at once (a reply to
 //      their own message: quiet hours don't apply);
 //   5. the reply stored as an outbound message, and `message.replied`, or `message.reply_failed`
@@ -135,7 +146,8 @@ type Read =
       // active (or stored before 29.1) is read here.
       aboutPay: boolean;
       repliedThisHour: number; // automatic answers in the app to them in the last hour
-      firm: { name: string; slug: string; signOff: string };
+      firm: FirmVoiceAndFacts;
+      library: LibraryAnswer[]; // the answer library's, for the app (Phase 35)
     }
   | {
       kind: "known";
@@ -147,9 +159,19 @@ type Read =
       line: string;
       body: string | null;
       keyword: Intent | null;
-      firm: { name: string; slug: string; signOff: string };
+      firm: FirmVoiceAndFacts;
       autoReplies: boolean; // the firm's automatic replies (off: nothing is sent back)
+      library: LibraryAnswer[]; // the answer library's, for texts (Phase 35)
     };
+
+// The firm's voice, and what an answer's fill-ins need of it (Phase 35).
+type FirmVoiceAndFacts = {
+  id: string;
+  name: string;
+  slug: string;
+  signOff: string;
+  timezone: string;
+};
 
 // Step 1: reads only.
 async function read(tx: FirmTx, messageId: string): Promise<Read> {
@@ -171,7 +193,13 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
   if (!row || row.direction !== "in") return { kind: "done", result: { status: "gone" } };
   if (row.handledAt) return { kind: "done", result: { status: "already" } };
   const [firm] = await tx
-    .select({ name: firms.name, slug: firms.slug, settings: firms.settings })
+    .select({
+      id: firms.id,
+      name: firms.name,
+      slug: firms.slug,
+      settings: firms.settings,
+      timezone: firms.timezone,
+    })
     .from(firms)
     .where(eq(firms.id, sql`app_current_firm_id()`));
   if (!firm) throw new Error("firm not visible inside its own transaction");
@@ -237,14 +265,17 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
     smsAllowed: smsAllowedFor(worker),
     line: m.to,
     body: m.body,
-    // A voicemail is for the office: no keywords (nor AI) for it.
+    // A voicemail is for the office: no keywords (nor AI, nor a library answer) for it.
     keyword: m.body && m.channel !== "voice" ? keywordIntent(m.body) : null,
     firm: {
+      id: firm.id,
       name: firm.name,
       slug: firm.slug,
       signOff: signOffFor(firm.name, firm.settings.sign_off),
+      timezone: firm.timezone,
     },
     autoReplies,
+    library: m.channel === "voice" ? [] : await answersFor(tx, firm.settings, "texts", m.body),
   };
 }
 
@@ -273,7 +304,13 @@ async function readApp(
     shiftId: string | null;
     intent: Intent | null;
   },
-  firm: { name: string; slug: string; settings: Record<string, unknown> },
+  firm: {
+    id: string;
+    name: string;
+    slug: string;
+    settings: Record<string, unknown>;
+    timezone: string;
+  },
 ): Promise<Read> {
   if (!m.workerId) return { kind: "done", result: { status: "gone" } };
   const [worker] = await tx
@@ -292,10 +329,13 @@ async function readApp(
     aboutPay: m.intent === "office",
     repliedThisHour,
     firm: {
+      id: firm.id,
       name: firm.name,
       slug: firm.slug,
       signOff: signOffFor(firm.name, firm.settings.sign_off),
+      timezone: firm.timezone,
     },
+    library: await answersFor(tx, firm.settings, "app", m.body),
   };
 }
 
@@ -356,6 +396,89 @@ async function olderUnhandled(tx: FirmTx, messageId: string): Promise<string[]> 
   return rows.map((r) => r.id);
 }
 
+// A library answer picked for a message (Phase 35.2): by one of its example phrases (in code), or
+// by the AI from the switched-on answers' names and examples.
+type Picked = { answer: LibraryAnswer; by: "example" | "ai" };
+
+// The AI's step (outside any transaction): a built-in label, one of the library's answers when the
+// firm has any switched on for this channel (src/lib/ai/classify-message.ts), or why there's none.
+async function aiSort(
+  body: string | null,
+  library: readonly LibraryAnswer[],
+  deps: InboundReplyDeps,
+  via: "shifts_line" | "app",
+): Promise<{
+  intent: Intent;
+  handledAs: "ai" | "office";
+  aiFallback: AiFallback | "no_text" | null;
+  picked: Picked | null;
+}> {
+  if (!body) return { intent: "office", handledAs: "office", aiFallback: "no_text", picked: null };
+  const opts = { timeoutMs: deps.aiTimeoutMs, ...(via === "app" ? { via } : {}) };
+  if (library.length === 0) {
+    const sorted = await sortMessage(body, deps.ai, opts);
+    return sorted.label
+      ? { intent: sorted.label, handledAs: "ai", aiFallback: null, picked: null }
+      : { intent: "office", handledAs: "office", aiFallback: sorted.why, picked: null };
+  }
+  const sorted = await sortMessageOrAnswer(body, deps.ai, { ...opts, answers: library });
+  if (sorted.label === null) {
+    return { intent: "office", handledAs: "office", aiFallback: sorted.why, picked: null };
+  }
+  const answer = sorted.answer === null ? undefined : library[sorted.answer];
+  if (sorted.label === "answer") {
+    return answer
+      ? { intent: "answer", handledAs: "ai", aiFallback: null, picked: { answer, by: "ai" } }
+      : { intent: "office", handledAs: "office", aiFallback: "not_a_label", picked: null };
+  }
+  return { intent: sorted.label, handledAs: "ai", aiFallback: null, picked: null };
+}
+
+// What the log says about a library answer (ids and labels only): which, how it was matched, and
+// the fill-ins that had no value when it couldn't go.
+const answerLog = (picked: Picked | null, missing: string[] | null, switchedOff: boolean) => ({
+  ...(picked ? { answerId: picked.answer.id, matchedBy: picked.by } : {}),
+  ...(missing ? { answerMissing: missing } : {}),
+  ...(switchedOff ? { answerSwitchedOff: true } : {}),
+});
+
+// A library answer as the claim settles it (the guardrails review, M2), after the message's lock:
+// the answer and its channel re-read (switched off meanwhile, or the channel or `auto_replies`:
+// `switchedOff`, and the office's), and the words filled in from the answer as it is now, with
+// the facts read before the claim (a fill-in they don't hold, or with no value: `missing`, and the
+// office's).
+type Settled =
+  | { words: string; missing: null; switchedOff: false }
+  | { words: null; missing: string[] | null; switchedOff: boolean };
+
+// The casual's facts a picked answer's words need, read before the claim.
+function answerFactsFor(
+  run: WithFirm,
+  firmId: string,
+  c: { firm: FirmVoiceAndFacts; workerId: string },
+  baseDomain: string,
+  now: Date,
+  picked: Picked,
+): Promise<Facts> {
+  return run(firmId, (tx) =>
+    answerFacts(tx, { firm: c.firm, baseDomain, now }, c.workerId, picked.answer.body),
+  );
+}
+
+async function settleAnswer(
+  tx: FirmTx,
+  picked: Picked,
+  channel: "texts" | "app",
+  facts: Facts,
+): Promise<Settled> {
+  const now = await recheckAnswer(tx, picked.answer.id, channel);
+  if (!now.on) return { words: null, missing: null, switchedOff: true };
+  const words = wordsFor(now.body, facts, now.topic);
+  return words.ok
+    ? { words: words.text, missing: null, switchedOff: false }
+    : { words: null, missing: words.missing, switchedOff: false };
+}
+
 async function answerMessage(
   payload: InboundMessagePayload,
   run: WithFirm,
@@ -374,19 +497,22 @@ async function answerMessage(
   // Why the AI didn't sort it (for the office's "How it was answered"): a photo with no text, or
   // the AI's own reason.
   let aiFallback: AiFallback | "no_text" | null = null;
-  if (c.keyword) {
+  // The answer library first (Phase 35.2): an example phrase of a switched-on answer, in code.
+  let picked: Picked | null = null;
+  const example = c.body ? matchByExample(c.body, c.library) : null;
+  if (example) {
+    intent = "answer";
+    handledAs = "keyword";
+    picked = { answer: example, by: "example" };
+  } else if (c.keyword) {
     intent = c.keyword;
     handledAs = "keyword";
   } else if (c.channel === "voice") {
     intent = "office";
     handledAs = "office";
   } else {
-    const sorted = c.body
-      ? await sortMessage(c.body, deps.ai, { timeoutMs: deps.aiTimeoutMs })
-      : ({ label: null, why: "no_text" } as const);
-    intent = sorted.label ?? "office";
-    handledAs = sorted.label ? "ai" : "office";
-    if (!sorted.label) aiFallback = sorted.why;
+    const sorted = await aiSort(c.body, c.library, deps, "shifts_line");
+    ({ intent, handledAs, aiFallback, picked } = sorted);
   }
 
   // Automatic replies off (P4.7; decision 11, "a text that comes in goes to the office"): every
@@ -398,9 +524,15 @@ async function answerMessage(
 
   // Step 2b: the personal reply to "shifts" or "cancel" (src/lib/inbound/personal-reply.ts), read
   // before the claim like the AI's label: built by code from the firm's data, never by the AI. Not
-  // read when nothing will be sent (automatic replies off).
+  // read when nothing will be sent (automatic replies off). A library answer's fill-ins the same
+  // way (Phase 35.2: src/lib/answers/facts.ts); one with no value for this casual: the office's.
   const portal = portalUrl(c.firm.slug, deps.baseDomain);
   const now = (deps.clock ?? systemClock).now();
+  // (The words themselves are filled in inside the claim, from the answer as it is then.)
+  const facts: Facts | null =
+    intent === "answer" && picked
+      ? await answerFactsFor(run, payload.firmId, c, deps.baseDomain, now, picked)
+      : null;
   const voiceOf = { name: c.firm.name, signOff: c.firm.signOff };
   const personal = !c.autoReplies
     ? null
@@ -428,9 +560,23 @@ async function answerMessage(
     ? { whatsapp: settled(personal.checks.whatsapp), sms: settled(personal.checks.sms) }
     : null;
 
-  // Step 3: the claim, the office's request and the event, together.
+  // Step 3: the claim, the office's request and the event, together. A library answer is settled
+  // first (settleAnswer()): switched off meanwhile, or a fill-in with no value: the office's.
+  // (`settledIntent`: the intent as the claim leaves it, for the reply's record after the send.)
+  const before = intent;
+  let settledIntent: Intent = intent;
   const texts = await run(payload.firmId, async (tx) => {
     if (!(await lockUnhandled(tx, payload.messageId))) return null;
+    let intent = before;
+    let answerWords: string | null = null;
+    let answerMissing: string[] | null = null;
+    let switchedOff = false;
+    if (intent === "answer" && picked) {
+      const settledAnswer = await settleAnswer(tx, picked, "texts", facts ?? {});
+      ({ words: answerWords, missing: answerMissing, switchedOff } = settledAnswer);
+      if (answerWords === null) intent = "office";
+    }
+    settledIntent = intent;
     // The fixed reply (pay, the office); null for shifts and cancel (the personal reply).
     let built: ShiftsLineReply | null = null;
     if (intent === "office") {
@@ -466,10 +612,14 @@ async function answerMessage(
       built = { intent: "office", ref: request.id.slice(0, 8).toUpperCase() };
     } else if (intent === "pay") {
       built = { intent: "pay", link: `${portal}/pay` };
+    } else if (intent === "answer") {
+      if (answerWords === null) throw new Error("a library answer without its words");
+      built = { intent: "answer", words: answerWords };
     }
+    const answerId = intent === "answer" && picked ? picked.answer.id : null;
     await tx
       .update(messages)
-      .set({ handledAt: new Date(), workerId: c.workerId, handledAs, intent })
+      .set({ handledAt: new Date(), workerId: c.workerId, handledAs, intent, answerId })
       .where(eq(messages.id, payload.messageId));
     await recordEvent(tx, {
       actorType: "worker",
@@ -482,6 +632,7 @@ async function answerMessage(
         handledAs,
         intent,
         ...(aiFallback ? { aiFallback } : {}),
+        ...answerLog(picked, answerMissing, switchedOff),
         ...(c.autoReplies ? {} : { replyHeld: true, sortedAs }),
         workerId: c.workerId,
       },
@@ -506,6 +657,8 @@ async function answerMessage(
   if (texts === null) return { status: "already" };
   if (texts === "held") return { status: "held", intent: "office", sortedAs, handledAs };
   const { replyText, smsText } = texts;
+  intent = settledIntent;
+  const replyAnswerId = intent === "answer" && picked ? picked.answer.id : null;
 
   // By WhatsApp to a WhatsApp (a text if WhatsApp refuses it); a text to a text, and to a
   // voicemail (Phase 26.9: never WhatsApp, whatever they chose; nothing after STOP). Always from the
@@ -541,7 +694,13 @@ async function answerMessage(
         action: "message.reply_failed",
         entityType: "message",
         entityId: payload.messageId,
-        data: { channel: sent.channel, intent, workerId: c.workerId, code: sent.code },
+        data: {
+          channel: sent.channel,
+          intent,
+          ...(replyAnswerId ? { answerId: replyAnswerId } : {}),
+          workerId: c.workerId,
+          code: sent.code,
+        },
       });
       return { status: "reply_failed", intent, code: sent.code };
     }
@@ -557,6 +716,7 @@ async function answerMessage(
         toE164: c.mobile,
         body: sent.channel === "sms" ? smsText : replyText,
         intent,
+        answerId: replyAnswerId,
         replyTo: payload.messageId,
       })
       .returning({ id: messages.id });
@@ -568,6 +728,7 @@ async function answerMessage(
       data: {
         channel: sent.channel,
         intent,
+        ...(replyAnswerId ? { answerId: replyAnswerId } : {}),
         ...(sent.fellBackFrom ? { fellBackFrom: sent.fellBackFrom } : {}),
         workerId: c.workerId,
         // The provider's id is on the stored reply (replyId).
@@ -614,9 +775,17 @@ async function answerApp(
   const aboutShift = c.active && c.shiftId !== null;
   const aboutPay = c.active && !aboutShift && c.aboutPay;
   const forPerson = aboutShift || aboutPay; // never sorted: a person answers
+  let picked: Picked | null = null;
+  const example =
+    c.echo || !c.active || forPerson || !c.body ? null : matchByExample(c.body, c.library);
   if (c.echo || !c.active || forPerson) {
     intent = "office";
     handledAs = "office";
+  } else if (example) {
+    // The answer library first (Phase 35.2), as the shifts line's.
+    intent = "answer";
+    handledAs = "keyword";
+    picked = { answer: example, by: "example" };
   } else if (c.keyword) {
     intent = c.keyword;
     handledAs = "keyword";
@@ -624,21 +793,23 @@ async function answerApp(
     intent = "office";
     handledAs = "office";
   } else {
-    const sorted = c.body
-      ? await sortMessage(c.body, deps.ai, { timeoutMs: deps.aiTimeoutMs, via: "app" })
-      : ({ label: null, why: "no_text" } as const);
-    intent = sorted.label ?? "office";
-    handledAs = sorted.label ? "ai" : "office";
-    if (!sorted.label) aiFallback = sorted.why;
+    const sorted = await aiSort(c.body, c.library, deps, "app");
+    ({ intent, handledAs, aiFallback, picked } = sorted);
   }
   const sortedAs = intent;
   let limited = c.repliedThisHour >= APP_REPLIES_PER_HOUR;
   let answers = c.active && !c.echo && !forPerson && !limited;
   if (!answers) intent = "office";
 
-  // The personal reply to "shifts" or "cancel", read before the claim, as the shifts line's.
+  // The personal reply to "shifts" or "cancel", read before the claim, as the shifts line's; and a
+  // library answer's fill-ins (one with no value for her: the office's).
   const portal = portalUrl(c.firm.slug, deps.baseDomain);
   const now = (deps.clock ?? systemClock).now();
+  // (The words themselves are filled in inside the claim, from the answer as it is then.)
+  const facts: Facts | null =
+    intent === "answer" && picked
+      ? await answerFactsFor(run, payload.firmId, c, deps.baseDomain, now, picked)
+      : null;
   const voiceOf = { name: c.firm.name, signOff: c.firm.signOff };
   const personal = !answers
     ? null
@@ -674,6 +845,16 @@ async function answerApp(
         intent = "office";
       }
     }
+    // A library answer, settled now (settleAnswer()): switched off meanwhile (the answer or the
+    // app's switch), or a fill-in with no value: the office's.
+    let answerWords: string | null = null;
+    let answerMissing: string[] | null = null;
+    let switchedOff = false;
+    if (intent === "answer" && picked) {
+      const settledAnswer = await settleAnswer(tx, picked, "app", facts ?? {});
+      ({ words: answerWords, missing: answerMissing, switchedOff } = settledAnswer);
+      if (answerWords === null) intent = "office";
+    }
     let built: ShiftsLineReply | null = null;
     if (intent === "office") {
       const [request] = await tx
@@ -698,10 +879,14 @@ async function answerApp(
       built = { intent: "office", ref: request.id.slice(0, 8).toUpperCase() };
     } else if (intent === "pay") {
       built = { intent: "pay", link: `${portal}/pay` };
+    } else if (intent === "answer") {
+      if (answerWords === null) throw new Error("a library answer without its words");
+      built = { intent: "answer", words: answerWords };
     }
+    const answerId = intent === "answer" && picked ? picked.answer.id : null;
     await tx
       .update(messages)
-      .set({ handledAt: new Date(), handledAs, intent })
+      .set({ handledAt: new Date(), handledAs, intent, answerId })
       .where(eq(messages.id, payload.messageId));
     await recordEvent(tx, {
       actorType: "worker",
@@ -714,6 +899,7 @@ async function answerApp(
         handledAs,
         intent,
         ...(aiFallback ? { aiFallback } : {}),
+        ...answerLog(picked, answerMissing, switchedOff),
         ...(!c.active
           ? { formerWorker: true }
           : aboutShift
@@ -751,6 +937,7 @@ async function answerApp(
         workerId: c.workerId,
         body: text,
         intent,
+        answerId,
         replyTo: payload.messageId,
       })
       .returning({ id: messages.id });
@@ -759,7 +946,13 @@ async function answerApp(
       action: "message.replied",
       entityType: "message",
       entityId: payload.messageId,
-      data: { channel: "app", intent, workerId: c.workerId, replyId: out?.id ?? null },
+      data: {
+        channel: "app",
+        intent,
+        ...(answerId ? { answerId } : {}),
+        workerId: c.workerId,
+        replyId: out?.id ?? null,
+      },
     });
     return { status: "replied", intent, handledAs };
   });

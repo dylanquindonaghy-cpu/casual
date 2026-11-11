@@ -1,3 +1,4 @@
+import { answerSwitches } from "../answers/switches";
 import { loginByEmail } from "../auth/login-channel";
 import { autoRepliesOn } from "../inbound/limits";
 import { firmSystemSends } from "../notices/who-sends";
@@ -35,6 +36,9 @@ export const SETTING_KEYS = [
   "quiet_hours.end",
   "quiet_hours.urgent_override",
   "auto_replies",
+  "answers.app",
+  "answers.texts",
+  "answers.email",
   "firm_system_sends",
   "login_by_email",
   "retention.message_days",
@@ -88,6 +92,9 @@ const READ: Record<SettingKey, (s: Settings) => SettingValue> = {
   "quiet_hours.end": (s) => quietHours(s).end,
   "quiet_hours.urgent_override": (s) => quietHours(s).urgentOverride,
   auto_replies: (s) => autoRepliesOn(s),
+  "answers.app": (s) => answerSwitches(s).app,
+  "answers.texts": (s) => answerSwitches(s).texts,
+  "answers.email": (s) => answerSwitches(s).email,
   firm_system_sends: (s) => firmSystemSends(s),
   login_by_email: (s) => loginByEmail(s),
   "retention.message_days": (s) => retentionSettings(s).messageDays,
@@ -120,6 +127,12 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
   "quiet_hours.urgent_override": "urgent messages may still go in quiet hours (true or false)",
   auto_replies:
     "the shifts line answers casuals' messages by itself (true or false; false, the default: nothing is sent back, and every casual's message waits for the office in Need a person)",
+  "answers.app":
+    "the firm's switched-on answers (Settings → Automatic answers) answer casuals' messages in the app (true or false; false, the default)",
+  "answers.texts":
+    "the firm's switched-on answers answer casuals' texts and WhatsApps (true or false; false, the default; nothing goes by text while auto_replies is off)",
+  "answers.email":
+    "the firm's switched-on answers answer casuals' emails to the staffing inbox (true or false; false, the default; nothing goes by email while auto_replies is off)",
   firm_system_sends:
     "the firm's own system (its rota sheet, or its CRM through the API) reminds the casuals it books (true or false; false, the default: ShiftDesk reminds every booking)",
   login_by_email:
@@ -190,6 +203,9 @@ function parseValue(key: SettingKey, raw: string): SettingValue | null {
     key === "quiet_hours.urgent_override" ||
     key === "travel.enabled" ||
     key === "auto_replies" ||
+    key === "answers.app" ||
+    key === "answers.texts" ||
+    key === "answers.email" ||
     key === "firm_system_sends" ||
     key === "login_by_email" ||
     key === "strikes.enabled"
@@ -223,6 +239,11 @@ export function applySetting(s: Settings, key: SettingKey, raw: string): Setting
     const part = key.slice("travel.".length);
     const inner = s.travel && typeof s.travel === "object" ? (s.travel as Settings) : {};
     next = { ...s, travel: { ...inner, [part]: value } };
+  } else if (key.startsWith("answers.")) {
+    // Beside the other two switches, kept as they are.
+    const part = key.slice("answers.".length);
+    const inner = s.answers && typeof s.answers === "object" ? (s.answers as Settings) : {};
+    next = { ...s, answers: { ...inner, [part]: value } };
   } else if (key.startsWith("photo.")) {
     const part = key.slice("photo.".length);
     const inner = s.photo && typeof s.photo === "object" ? (s.photo as Settings) : {};

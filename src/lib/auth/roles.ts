@@ -12,6 +12,9 @@ export const OFFICE_AREAS = {
   settings: ["admin"], // the strikes team's email and the sites' postcodes (12B.7)
   // Integrations (12J.1): the planner's API keys (create, shown once; revoke) and the codes it uses.
   integrations: ["admin"],
+  // Automatic answers (Phase 35): the answer library and its three switches. Admins only (Dylan,
+  // 2026-11-10). Its page and menu item come with 35.3.
+  answers: ["admin"],
   today: ["admin", "resourcer"], // gaps, urgent shifts, cancellations, requests, expiries
   shifts: ["admin", "resourcer"], // the shift list, creating, editing, importing, assigning
   // Enquiries (12D.1): the shifts line's messages (replying, closing) and the requests made in the

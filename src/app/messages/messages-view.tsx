@@ -20,7 +20,8 @@ import { localDateOf } from "@/lib/time/zoned";
 // hook-free (page.tsx reads the thread), so the plain-language test renders every state. Phase
 // 28.6: the bubbles take the office's 12px section corner, and "No messages yet." the empty box.
 // Phase 29.1: under one of hers that went to payroll as a pay query, "Sent to payroll. See it on
-// your Pay page" (a 44px link to /pay, where payroll's answer comes).
+// your Pay page" (a 44px link to /pay, where payroll's answer comes). Phase 35.4: under the latest
+// of the firm's own answers, "Not what you needed? Ask the office" (the page's `askOffice`).
 
 // "09:14" today, "09:14 on Mon 2 Nov" before.
 export const messageTime = (at: Date, now: Date, timeZone: string) =>
@@ -33,11 +34,13 @@ function Bubble({
   now,
   timeZone,
   linkOrigin,
+  after,
 }: {
   item: ThreadItem;
   now: Date;
   timeZone: string;
   linkOrigin: string;
+  after?: ReactNode; // under it, on its side (Phase 35.4: "Not what you needed? Ask the office")
 }) {
   const text = item.text ?? "(A photo or file, with no text.)";
   const bubble = (
@@ -71,6 +74,11 @@ function Bubble({
             </Link>
           </p>
         </div>
+      ) : after ? (
+        <div className="flex w-full flex-col items-start gap-2">
+          {bubble}
+          {after}
+        </div>
       ) : (
         bubble
       )}
@@ -85,6 +93,7 @@ export function MessagesView({
   linkOrigin,
   composer,
   intro = MESSAGES_INTRO,
+  askOffice,
 }: {
   thread: Thread;
   now: Date;
@@ -93,6 +102,8 @@ export function MessagesView({
   composer: ReactNode;
   // Opened from Pay (28.10's about=pay): MESSAGES_INTRO_PAY, as the message goes to payroll (29.1).
   intro?: string;
+  // Under the latest of the firm's own answers (`thread.askOffice`, Phase 35.4): the page's button.
+  askOffice?: ReactNode;
 }) {
   return (
     <>
@@ -110,6 +121,7 @@ export function MessagesView({
               now={now}
               timeZone={timeZone}
               linkOrigin={linkOrigin}
+              after={item.id === thread.askOffice?.replyId ? askOffice : undefined}
             />
           ))}
         </ol>

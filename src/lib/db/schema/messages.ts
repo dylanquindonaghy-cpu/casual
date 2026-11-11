@@ -9,6 +9,7 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+import { answers } from "./answers";
 import { createdAt, firmIsolation, timestamptz } from "./helpers";
 import { workers } from "./people";
 import { shifts } from "./roster";
@@ -35,7 +36,9 @@ export const MESSAGE_HANDLING = ["keyword", "ai", "office", "unknown", "opt_out"
 // Twilio's OptOutType on an incoming text, when its own opt-out handling acted on it (and sent its
 // own confirmation).
 export const TWILIO_OPT_OUTS = ["stop", "start"] as const;
-export const MESSAGE_INTENTS = ["shifts", "cancel", "pay", "office"] as const;
+// answer: one of the firm's own answers from its answer library went (Phase 35; answer_id says
+// which), on the casual's message and on the reply.
+export const MESSAGE_INTENTS = ["shifts", "cancel", "pay", "office", "answer"] as const;
 
 export const messages = pgTable(
   "messages",
@@ -60,6 +63,9 @@ export const messages = pgTable(
     // kept only for one she's booked on or can see that hasn't ended (src/lib/inbound/app.ts),
     // otherwise null and the message is sorted as any other. Never on a text, call or answer.
     shiftId: uuid("shift_id"),
+    // The library answer that went (Phase 35): on the casual's message and on the reply, with
+    // intent 'answer'; null otherwise.
+    answerId: uuid("answer_id"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -78,6 +84,11 @@ export const messages = pgTable(
       foreignColumns: [shifts.firmId, shifts.id],
     }),
     foreignKey({
+      name: "messages_answer_fk",
+      columns: [t.firmId, t.answerId],
+      foreignColumns: [answers.firmId, answers.id],
+    }),
+    foreignKey({
       name: "messages_reply_to_fk",
       columns: [t.firmId, t.replyTo],
       foreignColumns: [t.firmId, t.id] as [AnyPgColumn, AnyPgColumn],
@@ -94,7 +105,15 @@ export const messages = pgTable(
       "messages_handled_as_check",
       sql`${t.handledAs} in ('keyword', 'ai', 'office', 'unknown', 'opt_out')`,
     ),
-    check("messages_intent_check", sql`${t.intent} in ('shifts', 'cancel', 'pay', 'office')`),
+    check(
+      "messages_intent_check",
+      sql`${t.intent} in ('shifts', 'cancel', 'pay', 'office', 'answer')`,
+    ),
+    // A library answer names which one, and only a library answer does (Phase 35).
+    check(
+      "messages_answer_intent",
+      sql`(${t.answerId} is not null) = (${t.intent} is not distinct from 'answer')`,
+    ),
     check(
       "messages_from_e164",
       // "is not null" spelled out: a check that comes out null (null ~ …) would let the row in.

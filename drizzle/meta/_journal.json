@@ -512,6 +512,20 @@
       "when": 1794238522499,
       "tag": "0072_phase33_tour_seen",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1794311592490,
+      "tag": "0073_answer_library",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1794317683522,
+      "tag": "0074_answer_examples",
+      "breakpoints": true
     }
   ]
 }

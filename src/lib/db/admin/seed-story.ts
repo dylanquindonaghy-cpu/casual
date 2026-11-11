@@ -136,6 +136,9 @@ export interface StoryMessage {
   workerKey: StoryKey;
   body: string;
   receivedAt: Date;
+  // Phase 35.4: a message in the app (her Messages), not a text to the shifts line; `tag` keeps its
+  // stored id apart from her text's.
+  app?: { tag: string };
 }
 
 export interface StoryPayQuery {
@@ -1006,6 +1009,11 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
 
   // The shifts line: Zoe asks for shifts, Ben about his pay, Kieran to cancel, just before the seed
   // ran. The job worker answers them with the app's own replies when it runs (seed-story-load.ts).
+  // Ben's asks where to see his pay, not when it comes: the demo's "Pay day" answer (Phase 35) would
+  // take "when will I get paid", and his story is the built-in pay link. Phase 35.4, in the app: Zoe
+  // asks what to wear, answered from the answer library by its example question ("what do i
+  // wear": What to wear, its fill-ins her next shift, Riverside's, and its uniform and meeting
+  // point); Priya asks about food, which no answer or keyword covers, so it goes to the office.
   const messages: StoryMessage[] = [
     {
       id: id("message/zoe"),
@@ -1016,7 +1024,7 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
     {
       id: id("message/ben"),
       workerKey: "ben",
-      body: "When will I get paid for the food festival?",
+      body: "Where do I see my pay for the food festival?",
       receivedAt: new Date(now.getTime() - 2 * 60_000),
     },
     {
@@ -1024,6 +1032,20 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
       workerKey: "kieran",
       body: "I need to cancel please",
       receivedAt: new Date(now.getTime() - 60_000),
+    },
+    {
+      id: id("message/zoe/wear"),
+      workerKey: "zoe",
+      body: "What do I wear for the food festival?",
+      receivedAt: new Date(now.getTime() - 5 * 60_000),
+      app: { tag: "wear" },
+    },
+    {
+      id: id("message/priya/food"),
+      workerKey: "priya",
+      body: "Is there food at the festival?",
+      receivedAt: new Date(now.getTime() - 4 * 60_000),
+      app: { tag: "food" },
     },
   ];
 

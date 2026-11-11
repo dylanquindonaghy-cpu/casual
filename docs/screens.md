@@ -318,7 +318,8 @@ Messages' own words and look change too (the review's note on 51 words):
 
 - The intro is two sentences: "Ask about shifts, cancelling or pay for an answer straight away, or
   ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes
-  to payroll."
+  to payroll." (Phase 35.4 changed its first sentence to the answer library's
+  mock-up's words: see "## Phase 35", "The casual's Messages".)
 - The box's label is "Your message" (was "Write to the office": the first answer is often
   automatic).
 - "No messages yet." sits in the empty box (clear glass, 8px round, grey words).
@@ -3002,7 +3003,7 @@ text; an office reply comes with a notification on her phone.
 - **The tab bar**: Home, Shifts, Messages, Pay, Profile. Messages carries a count (the firm's
   colour) of office replies she hasn't seen on Messages yet; for screen readers "Messages, 1 new
   reply" / "Messages, 2 new replies".
-- **Messages** (`/messages`; `src/app/messages/`): "Messages", then (Phase 28.6: two sentences) "Ask about shifts, cancelling or pay for an answer straight away, or ask the office anything else. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll." Her messages and their
+- **Messages** (`/messages`; `src/app/messages/`): "Messages", then (Phase 35.4, the mock-up's words; two sentences in Phase 28.6) "Ask us anything. Common questions are answered straight away; anything else goes to the office. If your pay looks wrong, raise a pay query on the Pay page: it goes to payroll." Her messages and their
   answers, oldest first, the last 90 days, in 12px round bubbles (Phase 28.6): hers on the right in the firm's colour, the answers on
   the left in glass, each with its time ("09:14" today, else "09:14 on Mon 2 Nov"), an answer
   marked "Automatic reply" or "From the office"; a link in an answer is a link. Empty: "No
@@ -3173,7 +3174,8 @@ shows the way: each page still checks who can open it.
   dashboard", "Events & sessions", "Cancellations", "Cancellation record", "Sessions", "New session", "Sessions for an event", "Import sessions from a file", "Offer this
   session", "Enquiries", "Enquiry", "Strikes", "Casuals", "Action log", "Notice and cancellation report", "Pilot metrics",
   "Pay queries", "Import pay records", "Office team", "Settings", "Integrations", "Data requests",
-  "How-to guide", "Customise" (Phase 26.3), "Updates" (Phase 26.4). A shift's, an event's, a casual's and a worker's data page keep "{firm} shifts".
+  "How-to guide", "Customise" (Phase 26.3), "Updates" (Phase 26.4), "Automatic answers", "Add an
+  answer", "Edit an answer" (Phase 35.3). A shift's, an event's, a casual's and a worker's data page keep "{firm} shifts".
   `tests/unit/office.titles.test.ts` holds the pages to this list; the browser test checks "Events
   & sessions · Acme Events shifts".
 
@@ -3202,7 +3204,7 @@ shows the way: each page still checks who can open it.
 | `/office/shifts/[id]` | Shift detail | Built in Phase 5. A booked person who can't work it as things stand shows " · Not active", " · Blocked" or " · Can't work at this site" after "Booked" (Phase 10; also on the dashboard's "Bookings to check"). "{Role} at {site}", the times, "{1} of {2} booked · {status}" (+ " · Urgent"), "This session comes from your Google Sheet. Change it there." / "This session came from an import. Importing the file again updates it." / "This session comes from your planner. Change it there." (a session the firm's planner sent through the API, 12J.1: no "Edit this session" or "Session details" form, each "Change it in your planner.", and no "Move, shorten or cancel"; "Assign someone" and cancelling one booking stay; the server refuses the office's edit, details, move, cancel, "Mark as filled" and "Open it again" with the same sentence), "Instructions: …", "Offer to someone" (the main, dark button only while the shift can be offered: open, a place free and not started, Phase 11). **"Edit this session"**: Date, Start, Finish, Role, Site, Places, Instructions → "Save changes" → "Saved." / "Saved. {2 booked casuals} will be told." (Phase 28.3: new instructions with people booked; each one hears "Your shift's details changed", `shift_details_changed`, and the count leaves out anyone nothing can reach) / "Nothing changed."; with people booked: "People are booked on this session, so only the places and instructions can change here." (the date, times, role and site are locked; the server answers "People are booked on this session, so its date, times, role and site can't change here. Moving a booked shift comes with the office's move and cancel screen." / "There are more people booked than that. Cancel a booking first, or keep more places."); started or cancelled: "This session has started or was cancelled, so it can't be changed." **"Move, shorten or cancel"** (with people booked; "Cancel" alone when nobody is): "Everyone booked is told, and the notice they had is logged for each of them." New date, New start, New finish, Site, "Why?" (the fixed reasons: "The event's times or place changed", "The event was cancelled", "The client needs fewer staff", "Weather or safety", "Another reason") → "Move for everyone booked" → "Moved. / Shortened. {1 person} booked will be told. Their notice: {5 days'} notice." (counted from the earlier of the old and new start) + "{name} may not be able to work the new time: {the rules' reasons}"; or "Not moved: these people can't work the new time, for reasons that can't be overridden. Cancel their bookings first (they'll be told), then move it." + "{name}: {reasons}"; "Choose a reason."; "Nothing changed."; "This session has started or was cancelled, so it can't be moved." "Cancel this session" (opens: "{2 people are} booked: each is told, and the notice they had is logged." / "Nobody is booked on it.", "Why?", "Who asked for it?" (Phase 25.2: "The firm", "The client", "Not known"; required: "Choose who asked for it.")) → "Yes, cancel this session" → "Session cancelled. {2 people} booked will be told, and the notice they had is logged." / "Session cancelled. Nobody was booked on it." / "This session has started, so it can't be cancelled." **"Places"**: "{name}: Booked / Worked / Didn't attend" + "Cancel {name}'s booking" (opens: "Why?", the firm's reasons, plus "They've left, or can't work here" for a booking, then "Who asked for it?" ("The firm", "The client", "{name}", "Not known"; required, Phase 25.2) → "Yes, cancel {name}'s booking" → "Cancelled {name}'s booking with {2 days'} notice. They'll be told." With "The client needs fewer staff" the place goes too (Phase 10 task 19): "… They'll be told. The session now needs {2 people}."; on a shift's last place "This is the session's only place, so it can't go. To drop it, cancel the whole session. Nothing was changed."; on a rota sheet's shift "This session's places come from your rota sheet, so change them there. Nothing was changed."; on a session from the firm's planner "This session's places come from your planner, so change them there. Nothing was changed."); "Nobody booked yet." Once the shift has started: "Mark who worked it and who didn't attend." and per person "Mark as worked" / "Mark as not attended" (a marked one: "Change to worked" / "Change to not attended") → "Marked {name} as worked." / "Marked {name} as not attended." (or "{name} is already marked that way.", "This session hasn't started yet.", "{name} isn't booked on this session any more."); after the end, "Mark the {2 people} not marked yet as worked" (opens: "Only if they all worked it. You can change anyone afterwards." → "Yes, mark them as worked") → "Marked {2 people} as worked." (stays after the page refreshes) / "Everyone was already marked." / "This session hasn't ended yet. Mark each person instead."; history: "{Sam Rota} marked {name} as worked / not attended" (+ " (was: not attended)" for a correction); "Cancelled": "{name}: Cancelled by them / by the office, {12 hours'} notice ({09:14 on Mon 2 Nov}). Reason: …". **"Assign someone"**: "Who?" ("Choose someone with this role": active workers with the role, not on it) → "Check" → "The rules say {name} can work this session." → "Assign {name}" → "{name} is booked on this session. They'll get a message to say so." (`shift_confirmed`, Phase 10 task 19); or "{name} can't be booked:" + the rules' reasons, then "The office may allow this, with a reason." (only too little rest, the weekly hours or a day off here: the rules also allow "started", but "Assign someone" isn't on the page once the shift has started) → "Why is it all right? (kept with the booking)" → "Assign anyway" → "{name} is booked on this session. They'll get a message to say so. The override is in the log, and your reason is kept with the booking." (the reason then shows with them under "Places": ". Placed despite a rule. Reason: …"); or "These can't be overridden." **"Offers"**: "{name}: waiting / took it / … ({by Sam / wave 2}, {time})"; "No offers sent." **"History"** (the shift's events, newest first, at most 100): "{09:14 on Mon 2 Nov}: Created by Sam Rota." etc. (`src/lib/office/event-words.ts`; the firm's planner's changes through the API read "Created by your planner.", "Your planner: Changed the start and finish.", "Your planner moved {name}'s shift, with {5 days'} notice. Reason: …", "Your planner tried to move the shift. Not moved: someone booked can't work the new time.", "Your planner cancelled {name}, with …" and "Your planner cancelled the shift. Reason: …"). "Back to sessions". **"Session details"** (12B.1; on every shift that hasn't started or been cancelled, a Google Sheet's or a file's too: the sync and the import never change them; not on a session from the firm's planner, whose API sends them): "Pay rate, £ an hour (optional)", "Post (optional)", "Meeting point (optional)", "Uniform (optional)", "Extra requirements" → "Save details" → "Saved." / "Saved. {3 booked casuals} will be told." (Phase 28.3: a new pay rate, post, meeting point or uniform with people booked, told as above; "1 booked casual") / "Nothing changed." / the problems above; with people booked the extra requirements are locked ("People are booked on this session, so these can't change."; the server: "People are booked on this session, so its extra requirements can't change. The other details can."); started or cancelled: "This session has started or was cancelled, so its details can't be changed." Logged as "{Sam Rota}: Changed the pay rate, post and extra requirements." Extra requirements are checked by the rules on top of the role's, like any licence (12B.3): a casual without one in date until the session ends can't book it or be offered it, and the office can't override it. |
 | `/office/casuals` (planned) | Casuals, the rest | Not built yet (the list, search, qualifications, staff photos, uploads to check and access controls above are): import CSV, invite (sends a login link). |
 | `/office/casuals/[id]` (planned) | One casual, the rest | Not built yet (status, site blocks, logging out, bookings ahead, qualifications, uploads, staff photo, CSAS, travel area and strikes are, above): adding or editing other qualifications by hand (the office's own records come from imports), availability, hours this week, assignment history, notes, blocking the whole casual; data export/delete is on its own page (`/office/data/workers/[id]`, Phase 8). |
-| `/office/enquiries` | Enquiries | **Phase 24 (24.4):** from 1024px the list beside the chosen message (`?message=`): "Events & sessions, Enquiries and Casuals, round 7" above wins where this row differs. Built in 12D.1 (docs/office-v2.md 3.6; `src/app/office/enquiries/page.tsx`, data from `src/lib/office/enquiries.ts`, rules in `src/lib/office/enquiry-rules.ts`, words in `src/lib/office/enquiries-copy.ts`). Admins and resourcers (others: not found). "Enquiries" in the office menu, with a badge of how many need a person ("{n} need a person" for screen readers). Under the title: "{n} enquiries today · {n} need a person, the oldest {3 h 35 min} ago" (or "· none need a person"), then " · {2} requests to answer" while requests from the app wait (the launch review's O2). While `AI_TRANSPORT=none`: "AI sorting isn't connected yet: messages without a keyword go to a person." Views as links: "All" · "Need a person ({n})" · "Requests from the app ({n} waiting)" · "Pay". Under the views (not on Requests from the app, which lists every request waiting), "Show only today's" (→ `?day=today`, the same view; Phase 24, 24.3: the dashboard's "Enquiries today" card linked there from 12E.1 until then). With `?day=today`: only messages since midnight (the firm's time), "Only today's. Show the last {90} days", "Plus {1 request} made in the app today." with "See requests from the app" (All only), and "Nothing to the shifts line today." when there are none. All, Need a person and Pay list messages to the shifts line from the firm's message retention (`retention.message_days`, 90 days by default; each "{90}" below is that number) (a WhatsApp, a text, a voicemail's words; not a bare call), newest first (Need a person: oldest first), at most 100 ("Showing the latest 100." / "Showing the oldest 100."): a channel icon with its word for screen readers ("WhatsApp", "Text", "Voicemail"), the name ("{casual}" / "Unknown number" / "Withheld", → `/office/enquiries/[id]`), an outcome chip worked out by code from the log ("Answered by keyword" · "Sorted by AI, answered from your data" · "Passed to a person, waiting" · "Passed to a person, answered" · "Not understood" (the shifts line hasn't sorted it) · "Pay: link to their pay page" · "They sorted it in the app" (they booked or cancelled in the app within a day of a shifts or cancel reply)), the time, and their words in quotes (cut at 140 characters; "(A photo or file, with no text.)" / "(A voicemail we couldn't turn into text.)"); a pay one adds "Pay: never answered by AI". Need a person: a message for a person (they asked for the office, nothing sorted it, or the number isn't a casual's) not yet answered or closed, and its question (if any) still open. "Requests from the app" (the old Requests page; time changes, swaps, reviews and attendance questions; a shifts-line question only once its message has gone, so none is lost; Phase 28.9: "The casual app, Phase 28", "### 28.9", wins where this differs; answering one still linked to its message says "Answer this question on Enquiries, with the message it came from."): **"Waiting for an answer"** (open and escalated, oldest first, at most 100: "Showing the oldest 100."; the number waiting beside the heading, Phase 11): "{Time change / Swap / Availability / Question / Review}: {worker}", the shift ("{Role} at {site}" → the shift's page, "{Sat 7 Nov, 14:00 to 22:00}"), what they asked ("Asks for {13:00 to 18:30}.", "Could swap with: {name}." / "Asks to swap (no one named).", "Asks the office to look again at a shift the rules refused. The rules said:" + "• {reason}"; one sent after cancelling, 12C.1: "Tells the office what happened when they cancelled (reference {booking ref})." with "Answering doesn't change a strike."), "Their note: {note}" (a voicemail's request adds "From a voicemail on the shifts line. A caller's number can be faked: check anything unusual with them."), "Sent {09:14 on Mon 2 Nov} · Reference {ref}" (+ " · Escalated"); an attendance question (Phase 28.9): "Says the mark is wrong: marked not attended (they say they worked)." / "Says the mark is wrong: marked worked (they say they didn't work).", "Marked now: {Worked / Didn't attend}." (or "Not marked now."), "Answering doesn't change the mark. If it's wrong, mark again first.", "Mark again" (→ the session's Booked tab, `?show=booked#places`), "Note to {first name} (optional)" and one button, "Answer and tell {first name}" (no "Decline"; one sent anyway: "This question can only be answered, not declined."), stored as approved; "Approving doesn't change the shift. Make the change on the shift's page." (time change, swap) / "Approving doesn't book them. Assign them on the shift's page." (review); "Note to {first name} (needed to decline)" → "Approve and tell {first name}" ("Answer and tell {first name}" for a question) / "Decline and tell {first name}" → "Approved. {first name} will be told." ("Answered. …" for a question) / "Declined. {first name} will be told." (stays in place) or "Add a note saying why.", "The note is too long (500 characters at most).", "This request was already answered." / "This request was already sorted." / "They took this request back." (Phase 28.9: she took it back first), "We can't find that request.", "You can't answer requests."; "No requests waiting." **"Answered in the last 7 days"** (at most 50; their number beside the heading): "{kind}: {worker}", the shift, "{Approved / Answered (a question or an attendance question) / Declined} by {office user} at {time}. Reference {ref}." (or "Sorted"; Phase 28.9: one she took back, "Taken back by {first name} at {time}. Reference {ref}.", with no line about telling her), an attendance question's "Marked now: …", "Note: {note}", "{first name} was told." / "Telling {first name} waits for quiet hours to end." / "Telling {first name} failed. Phone them." / "Telling {first name}." (sending) / "{first name} will be told."; "Nothing answered in the last 7 days." | "No messages to the shifts line in the last {90} days." / "Nothing needs a person. Messages the shifts line can't answer show here." / "No pay messages in the last {90} days." / "No requests waiting." |
+| `/office/enquiries` | Enquiries | **Phase 24 (24.4):** from 1024px the list beside the chosen message (`?message=`): "Events & sessions, Enquiries and Casuals, round 7" above wins where this row differs. Built in 12D.1 (docs/office-v2.md 3.6; `src/app/office/enquiries/page.tsx`, data from `src/lib/office/enquiries.ts`, rules in `src/lib/office/enquiry-rules.ts`, words in `src/lib/office/enquiries-copy.ts`). Admins and resourcers (others: not found). "Enquiries" in the office menu, with a badge of how many need a person ("{n} need a person" for screen readers). Under the title: "{n} enquiries today · {n} need a person, the oldest {3 h 35 min} ago" (or "· none need a person"), then " · {2} requests to answer" while requests from the app wait (the launch review's O2). While `AI_TRANSPORT=none`: "AI sorting isn't connected yet: messages without a keyword go to a person." Views as links: "All" · "Need a person ({n})" · "Answered automatically ({n})" (Phase 35.3: "## Phase 35", "Enquiries (35.3)") · "Requests from the app ({n} waiting)" · "Pay". Under the views (not on Requests from the app, which lists every request waiting), "Show only today's" (→ `?day=today`, the same view; Phase 24, 24.3: the dashboard's "Enquiries today" card linked there from 12E.1 until then). With `?day=today`: only messages since midnight (the firm's time), "Only today's. Show the last {90} days", "Plus {1 request} made in the app today." with "See requests from the app" (All only), and "Nothing to the shifts line today." when there are none. All, Need a person and Pay list messages to the shifts line from the firm's message retention (`retention.message_days`, 90 days by default; each "{90}" below is that number) (a WhatsApp, a text, a voicemail's words; not a bare call), newest first (Need a person: oldest first), at most 100 ("Showing the latest 100." / "Showing the oldest 100."): a channel icon with its word for screen readers ("WhatsApp", "Text", "Voicemail"), the name ("{casual}" / "Unknown number" / "Withheld", → `/office/enquiries/[id]`), an outcome chip worked out by code from the log ("Answered by keyword" · "Sorted by AI, answered from your data" · "Passed to a person, waiting" · "Passed to a person, answered" · "Not understood" (the shifts line hasn't sorted it) · "Pay: link to their pay page" · "They sorted it in the app" (they booked or cancelled in the app within a day of a shifts or cancel reply)), the time, and their words in quotes (cut at 140 characters; "(A photo or file, with no text.)" / "(A voicemail we couldn't turn into text.)"); a pay one adds "Pay: never answered by AI". Need a person: a message for a person (they asked for the office, nothing sorted it, or the number isn't a casual's) not yet answered or closed, and its question (if any) still open. "Requests from the app" (the old Requests page; time changes, swaps, reviews and attendance questions; a shifts-line question only once its message has gone, so none is lost; Phase 28.9: "The casual app, Phase 28", "### 28.9", wins where this differs; answering one still linked to its message says "Answer this question on Enquiries, with the message it came from."): **"Waiting for an answer"** (open and escalated, oldest first, at most 100: "Showing the oldest 100."; the number waiting beside the heading, Phase 11): "{Time change / Swap / Availability / Question / Review}: {worker}", the shift ("{Role} at {site}" → the shift's page, "{Sat 7 Nov, 14:00 to 22:00}"), what they asked ("Asks for {13:00 to 18:30}.", "Could swap with: {name}." / "Asks to swap (no one named).", "Asks the office to look again at a shift the rules refused. The rules said:" + "• {reason}"; one sent after cancelling, 12C.1: "Tells the office what happened when they cancelled (reference {booking ref})." with "Answering doesn't change a strike."), "Their note: {note}" (a voicemail's request adds "From a voicemail on the shifts line. A caller's number can be faked: check anything unusual with them."), "Sent {09:14 on Mon 2 Nov} · Reference {ref}" (+ " · Escalated"); an attendance question (Phase 28.9): "Says the mark is wrong: marked not attended (they say they worked)." / "Says the mark is wrong: marked worked (they say they didn't work).", "Marked now: {Worked / Didn't attend}." (or "Not marked now."), "Answering doesn't change the mark. If it's wrong, mark again first.", "Mark again" (→ the session's Booked tab, `?show=booked#places`), "Note to {first name} (optional)" and one button, "Answer and tell {first name}" (no "Decline"; one sent anyway: "This question can only be answered, not declined."), stored as approved; "Approving doesn't change the shift. Make the change on the shift's page." (time change, swap) / "Approving doesn't book them. Assign them on the shift's page." (review); "Note to {first name} (needed to decline)" → "Approve and tell {first name}" ("Answer and tell {first name}" for a question) / "Decline and tell {first name}" → "Approved. {first name} will be told." ("Answered. …" for a question) / "Declined. {first name} will be told." (stays in place) or "Add a note saying why.", "The note is too long (500 characters at most).", "This request was already answered." / "This request was already sorted." / "They took this request back." (Phase 28.9: she took it back first), "We can't find that request.", "You can't answer requests."; "No requests waiting." **"Answered in the last 7 days"** (at most 50; their number beside the heading): "{kind}: {worker}", the shift, "{Approved / Answered (a question or an attendance question) / Declined} by {office user} at {time}. Reference {ref}." (or "Sorted"; Phase 28.9: one she took back, "Taken back by {first name} at {time}. Reference {ref}.", with no line about telling her), an attendance question's "Marked now: …", "Note: {note}", "{first name} was told." / "Telling {first name} waits for quiet hours to end." / "Telling {first name} failed. Phone them." / "Telling {first name}." (sending) / "{first name} will be told."; "Nothing answered in the last 7 days." | "No messages to the shifts line in the last {90} days." / "Nothing needs a person. Messages the shifts line can't answer show here." / "No pay messages in the last {90} days." / "No requests waiting." |
 | `/office/enquiries/[id]` | One message | **Phase 24 (24.4):** its parts are the pane's too, and "Close, no reply needed" asks why before "Close without a reply": "Events & sessions, Enquiries and Casuals, round 7" above wins where this row differs. Built in 12D.1 (`src/app/office/enquiries/[id]/`). "Enquiries" (→ the list), "Message from {casual}" / "Message from an unknown number" / "… a withheld number", the outcome chip (+ "Pay: never answered by AI"), "Reference {ref}" (its question's, or the message's), "{casual}'s page" (→ `/office/casuals/[id]`); a voicemail: "From a voicemail on the shifts line. A caller's number can be faked: check anything unusual with them." **"The conversation"**: their message, then each reply as they saw it, styled like WhatsApp (theirs on the left, replies on the right), then up to 5 later messages from the same number with their replies; each "{WhatsApp / Text / Voicemail} · {09:14 on Mon 2 Nov}", an office reply with who sent it and " · Sending" / " · Not sent" / " · Not confirmed" (still sending 15 minutes on: the job stopped part-way, so it may have gone and is never sent again). **"How it was answered"**, numbered, from logged facts only: 1 "Received: {WhatsApp} at {time}, from {casual}'s number" ("(not active)"; "from {number}, a number that isn't one of your casuals'"; "from a withheld number"). 2 "Sorted: " "A keyword matched: \"{shifts}\"." / "AI sorted it as \"{cancel}\"." / "They asked for a person (a keyword): passed to a person." / "AI sorted it as \"office\": passed to a person." / "A voicemail: always passed to a person." / "No text (a photo or file): passed to a person." / "No keyword matched and AI didn't sort it: passed to a person." / "The automatic answer failed on every try ({code}): passed to a person." (the shifts line's last try, 13.2; nothing was sent) / with the reason logged (12D.2): "AI not available: passed to a person ({not connected / no answer in time, or it failed / its answer wasn't a label})." / "Not one of your casuals' numbers: passed to a person." (a repeat within 24 hours: "…, so it got no second reply.") / "STOP or START on a text: texts turned off or back on." / "Not sorted yet: the shifts line hasn't answered it." 3 "What we checked: " for a personal reply (12D.2, from its `enquiry.checks` entry; `src/lib/office/enquiries-copy.ts`), each session the reply listed, "{Role} · {event}, {site}, {Sat 10 Oct} {08:00–16:00}", then every check the rules ran for it with its figures, ✓ or ✗: "Not started yet", "Account active", "Has the {door supervisor} role", "{SIA door supervisor licence} valid to {9 Jun 2028}" (" (this session needs it)" for a session's own requirement; "valid, no expiry"; "applied for, within the allowance"), "Clash: none", "Rest gap {16} h" ("Rest gap: no booking either side"), "Weekly hours {16}/{48}", "Not a day off", "Site allowed" ("A check whose record can't be read" for one whose times or dates don't read as such: never guessed at), then "Showing to casuals ✓" and the travel area: "Inside travel area ({20} min by car, {35} min by public transport, limit {45} min) ✓" / "Travel time not known yet: still offered (limit {45} min) ✓" / "No travel area set: not filtered by distance ✓" (minutes only, never where they live); none listed: "No session passed them (see below)."; a cancel reply: "None needed: the cancel reply only names their next booking."; any other message: "No checks recorded.". 4 "Reply sent: " for a personal reply, "The personal shift list, with {2} sessions (and {3} more by link):" and each session as a link to `/office/shifts/[id]` / "The personal shift list: nothing they could take." / "The cancel reply, naming their next booking:" and that booking's session as a link ("A session since removed") / "The cancel reply: no booking ahead."; otherwise the automatic reply's kind ("The \"open shifts\" reply, with the link to Open shifts." for one sent before 12D.2, "The pay reply: the link to their pay page, never an answer about pay." and so on) or "No automatic reply." 5 "Sent: " "Sent on WhatsApp at {time}." / "Sent by text at {time} after WhatsApp didn't take it." / "Not sent ({code}) at {time}." / "Nothing sent." 6 "Then: " each later fact: "{office user} replied at {time} (on WhatsApp, in their own words / by text, in their own words / as the request update template): sent / sending / not confirmed: it may not have gone, so check with them / not sent ({code}): it's back in Need a person.", "{office user} closed it at {time} without a reply: {reason}.", "{Answered / Declined} by {office user} at {time}." (a question answered on the request queue), "{first name} took a shift in the app at {time}: {Role} at {site}, {Sat 10 Oct}." / "… cancelled a shift …"; none: "Waiting for a person." / "Nothing more." **"Considered but not offered"** (12D.2): each session the casual app's list considered for them (their roles, open, in the 28-day window, the days they named) but didn't offer, soonest first, at most 50 then "And {n} more not listed." (and, past the 80 sessions a reply reads, "{n} more sessions in the 28 days weren't checked one by one."): "{Role}: {reasons, joined by \"; \"} · {event}, {site}, {Sat 10 Oct} {08:00–16:00}" ("A session: …" for one since removed), each reason in a few words: "hidden from casuals", "outside their travel area", "full", "held for others until {18:00 on Fri 9 Oct}", "already started", "account not active", "not their role", "no qualification rule for the role", "needs {first aid at work certificate} (none on file)", "{SIA door supervisor licence} out of date", "… suspended", "… applied for, over the allowance", "already booked {10:00–18:00}" ("clashes with a booking"), "under the rest gap", "over the weekly hours", "a day off", "blocked from the site"; none: "Nothing left out."; a cancel reply: "None: a cancel reply doesn't offer sessions."; no entry: "No checks recorded." **"Answer it"** (only while it needs a person): "Reply" with one line saying how it will go ("Inside WhatsApp's 24-hour window: your words go as they are." / "Outside WhatsApp's 24-hour window: it goes as the request update template (…)." / "By text: your words go as they are." / "Your firm has no shifts line yet, so a reply can't go. Close it with a reason." / "The number was withheld, so a reply can't go. Close it with a reason." / "We don't message callers we don't know. Phone them back if you need to, then close it." (a voicemail from a number that isn't a casual's) / "They replied STOP to texts, so a reply can't go. Phone them, then close it." (a casual's own setting, or a stranger's last STOP to the line)). A reply always goes from the firm's shifts line as it is now, and WhatsApp's window runs from their last WhatsApp to that line, the box (500 characters, one line when sent) → "Send reply" → "Your reply is on its way: it goes {on WhatsApp / by text} in a moment."; "Why close it?" ("Dealt with by phone" · "Not for us" · "Duplicate" · "Spam" · "Other") → "Close without a reply" → "Closed. No reply was sent." Either way the forms go and the answer stays while the page refreshes. Closing a casual's question: "Dealt with by phone" answers it; any other reason sorts it (they see "Sorted"); they get no message. Errors: "Write a reply first.", "The reply is too long (500 characters at most).", "Your firm has no shifts line yet, so a reply can't go.", "We don't message callers we don't know. Phone them back instead.", "Someone has already answered or closed this.", "We can't find that message.", "You can't answer enquiries.", "Your session has ended. Log in again.", "Something went wrong. Try again." "Back to Enquiries". A message older than 90 days, another firm's, or a bare call: not found. | – |
 | `/office/requests` | Requests (until 12D.1) | Redirects to `/office/enquiries?view=app` (old bookmarks land there; until 12E.1 Today's "See requests" did too). | – |
 | `/office/log` | Action log | Built in Phase 5 (`src/app/office/log/page.tsx`, data from `src/lib/office/action-log.ts`, groups in `src/lib/office/log-types.ts`, words in `src/lib/office/event-words.ts`). Admins and resourcers (others: not found); "Action log" in the office menu, and "See this session in the action log" under each shift's History. "Action log", "Everything that happened, newest first." Filters (a GET form): "Worker" ("Everyone" or anyone on the books: events naming them, done by them, about them, or about their bookings, requests, credentials, pay records, login links or pay-page codes), "Session" ("All sessions" or a session starting in the chosen dates: events about it, naming it, or about its bookings or requests), "Type" ("All types", "Bookings", "Cancellations", "Changes to shifts", "Who worked", "Offers", "Messages to and from workers", "Requests", "Credentials", "Workers", "Logins" (a limit reached is filed by its name, 14.2: too many "Take shift" taps under "Bookings", too many saves of a phone under "Workers", the planner's key and the strikes team's confirmation links under "Firm settings and office team", the rest here), "Pay records and queries" (that a record was added or changed, never an amount), "Pilot metrics", "Firm settings and office team" (the firm's name, colour, logo or sign-off changed, never the values; office access given, turned off or back on, a role changed, someone logged out on every device), "Rota sheet and imports"), "From", "To" (whole days, firm time; default the last 7 days; a shift chosen with no dates shows all of its events) → "Show" · "Clear"; "A shift shows only the chosen dates here. For all of one shift, open it and choose "See this session in the action log"." Then "{Tue 27 Oct} to {Mon 2 Nov}." (a date in another year shows it: "Sat 7 Nov 2025") (+ " At most 92 days at a time.") or "Everything logged for this shift."; each line "{09:14 on Mon 2 Nov} · {type}", the words ("Ann Booker cancelled, with 4 days' notice.", "Sam Rota logged in."), and the shift ("Steward at Riverside Arena, Sat 7 Nov 08:00" → its page); newest first, 100 at a time, "Older". "Back to the dashboard". | "Nothing logged for these choices." |
@@ -3585,6 +3587,8 @@ guide", "Where everything lives, what it does and how it works." Then five glass
    - Pilot metrics: "How the pilot is going, week by week."
    - Office team: "Who can log in to the office, and their roles."
    - Settings: "The firm's settings, sites and strikes team."
+   - Automatic answers (Phase 35.3): "Your automatic answers to casuals' common questions, and where
+     they go."
    - Integrations: "API keys and webhooks for your planner."
    - Data requests: "Send someone their data, or delete it when they ask."
    - How-to guide: "Step-by-step help for every job in the office."
@@ -3837,3 +3841,261 @@ Checked against the app (the mock-up's words, changed where they weren't true):
 `/start/login?out=1` shows "You're logged out." under its intro, in the office login's slip. `/login`
 and `/office/login` opened by address still show on the demo (the walkthrough and the magic links
 use them); only `out=1` or `again=1`, which a redirect adds, sends them on.
+
+## Phase 35
+
+**The answer library** (Dylan, 2026-11-10; `PLAN.md` Phase 35; the approved mock-up:
+https://claude.ai/artifact/LKSpXGPp5XEUHnodmJEcC6). The firm's own automatic answers to common
+questions, which an admin writes and switches on; everything else is flagged for a person, as
+today. The office's page (Settings → Automatic answers), Enquiries' words and the casual's words come
+with 35.3 and 35.4; this part is the match, the fill-ins, the safeguards and the switches (35.1,
+35.2; `src/lib/answers/`; the reply words are in `docs/messaging-templates.md` "The answer library").
+
+### The match
+
+On each channel, in this order (`src/lib/inbound/reply.ts`, `src/lib/email/sort.ts`):
+
+1. STOP and START on a text, as before.
+2. **Never the library** for a message that asks to cancel ("cancel", "cancelling", "canceling",
+   "cancellation"), asks for a person ("office", "talk", "help") or says they can't make it or are
+   late (the dropout words: "can't", "cannot", "won't", "not", "unable", "sick", "ill", "late";
+   `libraryAllowed()`, `src/lib/inbound/keywords.ts`; the guardrails review, H1): steps 3 and 5's
+   answers are skipped and it goes on to the built-in keywords, the AI's four labels or the office,
+   as before Phase 35. So "sick, can't make tonight, is anyone in?" reaches a person (not Office
+   hours), "I need to cancel Saturday, what do I wear" gets the cancel reply, and "office, when do
+   we get paid" the office.
+3. **An example phrase**, in code (`matchByExample()`): one of a switched-on answer's example
+   phrases appears in the message as whole words, whatever the case and punctuation ("Where do I
+   park?" matches "where do i park"; "park" never matches inside "parking"). The longest matching
+   phrase wins; two answers tied for longest: none. Works with the AI off, and on the demo.
+4. The built-in keywords, as before, but "office" and "talk" (asking for a person by name) now come
+   first: office and talk, then cancel, pay, shifts, then help (docs/messaging-templates.md
+   "Instant replies on the shifts line"). So "Send OFFICE to reach a person" always does.
+5. **The AI**, shown the four built-in labels and the switched-on answers' names and example phrases
+   (never a fill-in's value, never anything about the casual), picks one label or none
+   (`sortMessageOrAnswer()`). None, unsure, slow, down, or a label it wasn't shown: the office, as
+   today.
+6. **The claim re-checks it** (the guardrails review, M2): inside the transaction that marks the
+   message handled, after its lock, the answer and the channel are read again: the answer's switch
+   and its words, the channel's switch, and for texts and email the owner's `auto_replies`. Switched
+   off since the first read (or the channel, or `auto_replies`): nothing goes, the message is the
+   office's with its request as usual, and `message.received` / `email.received` say
+   `answerSwitchedOff: true`. Still on: the words are filled in from the answer as it is then (an
+   edit since the first read is what goes); words that now need a fill-in not read before: the
+   office's, with `answerMissing`.
+
+Only switched-on answers, only where that channel's switch is on, and never for a message about pay
+going wrong (steps 3 and 5's answers are skipped; it goes on to the built-in pay reply or the
+office). A voicemail is always the office's.
+
+### Fill-ins
+
+An answer's words may hold these, written `{key}`; any other `{word}` is refused when the answer is
+saved. Each is filled in by code from the casual's own facts at the moment of the reply
+(`factsFor()`); the office's preview uses the made-up examples.
+
+| Fill-in (the office's name) | Key | What goes in | Example |
+|---|---|---|---|
+| First name | `first_name` | Their first name, as held | Zoe |
+| Next pay day | `next_pay_day` | The pay day for this pay period's shifts (the firm's pay calendar, or payroll's own date for exactly this period), in the firm's time zone | Friday 20 November |
+| That pay cycle | `pay_cycle` | The days that pay day covers | Mon 9 to Sun 15 Nov |
+| Next shift | `next_shift` | Their next booked shift: role (and event), day and times, venue | Steward, Sat 14 Nov, 14:00 to 22:00 at Riverside Arena |
+| Its instructions | `next_shift_instructions` | That shift's uniform, meeting point and instructions, at most 300 characters | Uniform: black trousers, hi-vis. Meet at gate B at 13:30. |
+| Licence expiry | `licence_expiry` | Their qualification with a date that runs out soonest: "{its name} runs to {date}" ("ran out on" once past). Names are the firm's data, never fixed to SIA | SIA door supervisor licence runs to 1 December 2026 |
+| Link to Pay | `pay_link` | Their pay page | https://acme.…/pay |
+| Link to Profile | `profile_link` | Their profile | https://acme.…/profile |
+| Link to Shifts | `shifts_link` | Their shifts | https://acme.…/shifts |
+
+A fill-in with no value for this casual (no shift booked, nothing on it, no qualification with a
+date): the answer isn't sent. The office gets the question as today, and the log says which fill-ins
+were missing.
+
+### Safeguards
+
+- The AI never writes a word a casual sees: it only picks one switched-on answer or none (golden
+  rule 1). Its purpose and size stay as the built-in sorting's (`classify_message`, 5 tokens).
+- A message about pay going wrong never gets a library answer (golden rule 9): words such as wrong,
+  missing, short, underpaid, overpaid, owed, not paid, haven't been paid, didn't get, hasn't come,
+  late, still waiting, haven't received, hasn't gone in, not in my account, only got, less than,
+  deducted, deduction, not right, where is my pay (or money, or wages), mistake, incorrect, dispute
+  (`PAY_TROUBLE`, over the message with apostrophes dropped; widened by the guardrails review, M1).
+  A wide net: a word too many only means the built-in reply or the office answers instead. The
+  starters' own examples ("when do we get paid", "is pay this friday") hold none of them.
+- An answer whose words use a pay fill-in (Next pay day, That pay cycle, Link to Pay) gets "If your
+  pay looks wrong, tap 'Raise a pay query' on your pay page, so payroll sees it." after its words,
+  added by code on texts, the app and email, and shown in the office's preview (M1).
+- Every reply is marked automatic and signed "[Firm name] Shift Team"; a text says "Send OFFICE to
+  reach a person", an email "reply to this email".
+- The channels' own limits hold: the app's 5 automatic answers an hour to a casual, the staffing
+  email's 3 a day, and nothing by text or email while `auto_replies` is off.
+- Answers are never deleted, only switched off: every message and email names the answer it got.
+- Every change is logged, ids only: `answer.created`, `answer.changed` {answerId, keys},
+  `answer.switched` {answerId, on}, `firm.settings_changed` {by: "firm", keys, on}; and on each
+  message `message.received` / `email.received` {…, answerId, matchedBy: example / ai,
+  answerMissing} and `message.replied` / `email.replied` {…, answerId}.
+- `message.received` / `email.received` also say `answerSwitchedOff: true` when the answer (or its
+  channel, or `auto_replies`) was switched off between the first read and the claim (step 6 above).
+  The log reads "One of your answers matched, but it was switched off before it went: it's waiting
+  for a person.", and "How it was answered" (Enquiries) "One of your answers matched, but it was
+  switched off before it went: passed to a person." and, for Filled in from your data, "Not sent: it
+  was switched off before it went, so it was passed to a person."
+- The library code never reaches the AI code (`tests/unit/ai.boundary.test.ts`).
+- From the second guardrails review (2026-11-10):
+  - Words that say a shift has gone wrong without the dropout words (unwell, poorly, emergency,
+    hospital, ambulance, injured, injury, accident, funeral, bereavement, delayed, delay, traffic,
+    stuck, breakdown, broken, broke, missed, covid, drop, dropout, swap, quit, and from the third
+    review cancelled, canceled, behind, hurt, flu, doctor, doctors, dentist, puncture, tyre, tire,
+    childcare, vomiting:
+    `LIBRARY_STOP_WORDS`) keep a message from the library too, and can't be in an example. So "I'm
+    poorly, is anyone in?" and "stuck in traffic, where do I park" reach a person.
+  - An example matches only when it is at least a third of the message's words (`EXAMPLE_COVER`):
+    "What kit do I need?" matches "what kit", but a long message that only contains "is anyone in"
+    goes on to the keywords, the AI or the office.
+  - More pay-trouble words: wasn't paid, weren't paid, haven't paid, hasn't paid, didn't pay, didn't
+    get paid, only paid, problem, issue, query, low, less.
+  - The pay hint also goes after an answer whose name or examples are about pay (pay, paid, wages,
+    payslip, payday, money, payroll, salary, rate, rates, earnings), even when its words use no pay
+    fill-in ("We pay every Friday."). Not by its words: Office hours mentions pay without being
+    about it.
+  - "Make this an answer" from an email checks its subject and body (as "No answer yet" lists it),
+    and starts the example from the body.
+
+### The switches
+
+Three, each off unless set, admins only (the `answers` area): **App messages**, **Texts** (and
+WhatsApps), **Email** (the staffing inbox). Stored in `firms.settings.answers` and written only
+through `app_set_firm_setting()` (`answers.app`, `answers.texts`, `answers.email`). The owner's
+`auto_replies` stays the master switch for texts and emails (P4.7): with it off nothing goes by text
+or email, and a message a library answer would have answered waits for a person, logged as sorted to
+that answer. The app answers whatever `auto_replies` says (decision 11). The demo firms have all
+three on, and the starters on but Parking. Each answer has its own switch too; the five starters
+come switched off for every firm, until someone has read them.
+
+| Firm's answer | Channel's switch | `auto_replies` | What happens |
+|---|---|---|---|
+| Matched, switched on | on | on | The answer goes, by the channel it came in on |
+| Matched, switched on | on | off | Texts and email: held for a person (`sortedAs` answer). The app: the answer goes |
+| Matched, switched on | off | any | As before Phase 35: keywords, the AI's built-in labels, the office |
+| Switched off | any | any | Never matched, never shown to the AI |
+
+### The office's page: Settings → Automatic answers (35.3)
+
+`/office/settings/answers` (`src/app/office/settings/answers/`; its words
+`src/lib/office/answers-copy.ts`, its reads `src/lib/office/answers-page.ts`). Admins only (the
+`answers` area): anyone else gets "not found", and the menu shows them no link. In the menu under
+"Admin and records" as **Automatic answers**, after Settings; Settings links to it too ("Your own
+answers to the questions casuals ask most, sent straight away by app, text or email. Anything else
+goes to a person." and "Open automatic answers"). Back link "Settings".
+
+- Title "Automatic answers"; intro "What the shifts line may answer by itself. The AI only picks one
+  of these, or none; it never writes its own words."
+- **Answer casuals automatically** ("Only with the answers below that are switched on. Anything else
+  goes to Enquiries for a person."): three switches, **App messages**, **Texts to the shifts line**,
+  **Emails to the staffing inbox**, each with "N answered in the last 7 days" (the firm's own answers
+  only; "None answered in the last 7 days"; "Off"). Turned: "App messages: answered automatically
+  now, with the answers that are on." / "App messages: switched off. They go to a person." With the
+  owner's `auto_replies` off, under them: "Nothing goes by text or email until the shifts line's
+  automatic replies are on. That's set on the server."
+- **Your answers**, with the page's one main button **Add an answer**: each answer (on first, then
+  by name) with its name ("Off" beside it when off), its own switch ("Use “Pay day”"), **Edit**, its
+  example questions in quotes, its words in a clear tile with each fill-in a chip by its name ("Next
+  pay day"), then "Used 23 times in the last 7 days" ("Used once…", "Not used in the last 7 days")
+  and "Edited by Sam Rota, 09:41 on Mon 2 Nov" ("One of the starter answers, not changed yet").
+  Turned: "“Pay day” is on: it answers casuals now." / "“Pay day” is off: those questions go to a
+  person." None: "No answers yet. Add one, then switch it on."
+- **Built in** ("Always the same words"): Their shifts, Cancel a shift, Pay, each with its chip
+  "Built in", its keywords, what it sends and its uses in the last 7 days; no switch.
+- **No answer yet** ("The latest questions from casuals that went to a person in the last 30 days.
+  Make one an answer, so the next is answered straight away."): the latest 10 from
+  `questionsWithNoAnswer()` (not about a session, pay going wrong, or a voicemail; nor a casual's
+  "Ask the office" after an answer, a follow-up rather than a new question; nor one no answer could
+  take: it asks to cancel or for a person, or says they can't make it or are late, H1), each in quotes
+  with its channel and time, **Make this an answer** and **Open it**. None: "No questions went to a
+  person in the last 30 days."
+- After a save, at the top: "Saved “Pay day”. It's on: it answers casuals now." / "Saved “Pay day”.
+  It's off: nothing goes until you switch it on."
+- From 1,024px two columns: the switches and No answer yet at the left (22rem), the answers and the
+  built-in ones at the right; on a phone one column: switches, your answers, built in, no answer yet.
+
+**Add and Edit** (`/office/settings/answers/new`, `/office/settings/answers/[id]`; admins only; an
+answer that isn't the firm's: not found). Back link "Automatic answers"; Add's title "Add an
+answer", Edit's the answer's name with "On"/"Off", its uses and its last edit.
+
+- **Name** ("A short name, for you and the office."), **Ways casuals ask it** ("One per line. When
+  a message has one of these in it, this answer goes. A few help the match."), **The answer**
+  ("Exactly what goes to the casual, marked as an automatic reply and signed by your team.").
+- "Add a fill-in (from your data):" one button per fill-in (its name, its hint on hover), putting its
+  `{key}` where the cursor is.
+- "A casual would get (example):" the words with their chips, then the words filled in with each
+  fill-in's made-up example (`previewAnswer()`, never a real casual's facts) and "Automatic reply. —
+  {firm} Shift Team"; a `{word}` that isn't a fill-in: "Use only the fill-ins from the list."
+- A problem shows under its field (`ANSWER_ERRORS`), with "Check the answer: see the notes above."
+  under the buttons; "Nothing changed." when nothing did. Ways casuals ask it refuses a line with a
+  word that always reaches a person or a built-in reply (whole words: cancel, cancelling, canceling,
+  cancellation, office, help, talk, stop, start, and the dropout words can't, cannot, won't, not,
+  unable, sick, ill, late): "Leave out cancel, office, help, talk, stop, start, and words like can't,
+  not, sick or late: messages with them always go to a person or a built-in reply." (a message with
+  one never gets a library answer, so the line could never match; H1). Name and Ways casuals ask it
+  refuse a phone number or an email address, found as the log's masker finds them
+  (`holdsPhoneOrEmail()`): "Take out the phone number or email address." ("Make this an answer"
+  starts from a casual's own words; L2).
+- Two notes under the words, which never stop a save (`ANSWER_NOTES`): over 300 characters as a
+  casual would get them (the preview's words): "Over 300 characters: a text sends it in several
+  parts." (L1); words that look signed by a person (a line "Thanks, Sam", "Cheers Sam", "Kind
+  regards", or a last line "— Sam"; `looksSignedByPerson()`): "Replies are signed by the firm's
+  Shift Team: don't add a person's name." (golden rule 8; L3).
+- "A casual would get (example):" shows the pay query hint too, for words with a pay fill-in or an
+  answer whose name or examples are about pay.
+- Buttons: Add, **Save and switch on** / **Save, keep off**; Edit of one that's on, **Save, keep
+  on** / **Save and switch off**; of one that's off, **Save and switch on** / **Save, keep off**.
+  Saved, back to the list, which says so.
+- `?from={message or email id}` ("Make this an answer"): Ways casuals ask it starts with that
+  question, one line, cut at a word before 100 characters: only a casual's own question that went
+  to a person (as No answer yet lists them: never one with a word an example can't hold), read
+  inside the firm, admins only; anything else starts empty.
+
+### Enquiries (35.3)
+
+- A view **Answered automatically**, between Need a person and Requests from the app, with its count
+  (the window's): a message or email from a casual sorted (by a keyword, an example question or the
+  AI) as one of the built-in answers (open shifts, cancel, the pay link) or one of the firm's own,
+  with that answer to go: its stored intent is `shifts`, `cancel`, `pay` or `answer` and it was
+  handled by `keyword` or `ai`. Not one held because automatic replies are off, one whose fill-in
+  had no value, a pay question sent to payroll, one whose answer failed on every try (each the
+  office's), nor STOP and START. Newest first. Empty: "Nothing answered automatically in the last 90
+  days."
+- The row's and the message's chip for one of the firm's own: "Answered automatically · Pay day"
+  (the answer's name now).
+- "How it was answered", after Sorted, for a message or email matched to one of the firm's answers
+  (its `answerId` in the log): **Answer chosen:** "“Pay day”, matched by one of its example
+  questions." / "“Pay day”, picked by the AI from your answers that are on." and "Switched on by Sam
+  Rota at 09:41 on Mon 2 Nov." (the last switch-on before it came; by the system: "Switched on when
+  it was set up, at …"), with "Edit “Pay day”" for admins; **Filled in from your data:** the
+  fill-ins' names ("Next pay day, That pay cycle, Link to Pay. The values are in the words that
+  went."; none: "Nothing: its words are the same for everyone."; "The answer's words have been
+  changed since." when they were), or, when one had no value: "Not sent: we have no Next shift for
+  them, so it was passed to a person."; **Reply sent:** the exact words that went, in quotes.
+- **Make this an answer** beside the casual's page link, for admins only, on a casual's question
+  with words that went to a person (not about a session, pay or a voicemail): opens Add with it.
+  Resourcers see Enquiries as before, without it or the Edit link.
+
+### The casual's Messages (35.4)
+
+- The intro, in the mock-up's words: "Ask us anything. Common questions are answered straight away;
+  anything else goes to the office. If your pay looks wrong, raise a pay query on the Pay page: it
+  goes to payroll."
+- One of the firm's answers shows as any automatic answer ("Automatic reply"). Under the latest one,
+  while she hasn't written since, the button **Not what you needed? Ask the office**: it sends, as
+  her message through Send's own checks and limit, "Please can someone from the office help?
+  (About: What to wear)", always naming the answer: "office" is the first built-in keyword and a
+  message with it never gets a library answer, so the shifts line gives it to a person whatever the
+  answer's name ("Pay day" too; until the guardrails review's H1 such a name sent "Please can
+  someone from the office help with my last question?" instead). Then "Sent to the office. They'll
+  answer here." stays there; the office gets it on Need a person, with the usual "The office will
+  see this…" reply. Gone once she writes anything else.
+- By text and WhatsApp the same answer carries the usual "Automatic reply. Send OFFICE to reach a
+  person." (docs/messaging-templates.md "The answer library").
+- The demo's story (`src/lib/db/admin/seed-story.ts`): in the app, Zoe asks "What do I wear for the
+  food festival?", answered from What to wear by its example question with her Riverside shift's
+  uniform and meeting point; Priya asks "Is there food at the festival?", which goes to the office
+  (it's on No answer yet).

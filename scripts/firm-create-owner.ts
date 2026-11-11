@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { Client } from "pg";
 import { normaliseEmail } from "../src/lib/auth/office-login";
+import { addStarterAnswers } from "../src/lib/answers/starters";
 import { applyCredentialPack } from "../src/lib/credentials/apply-pack";
 import { officeUsers, SECTORS } from "../src/lib/db/schema";
 import type { WithFirm } from "../src/lib/db/scoped";
@@ -131,6 +132,8 @@ export async function createFirm(
     const [users] = await tx.select({ n: sql<number>`count(*)::int` }).from(officeUsers);
     if ((users?.n ?? 0) > 0) return null;
     const pack = await applyCredentialPack(tx, sector, { type: "system" });
+    // The five starter answers (Phase 35), switched off until someone has read them.
+    await addStarterAnswers(tx);
     const [admin] = await tx
       .insert(officeUsers)
       .values({ firmId, email, name: adminName, role: "admin" })

@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { btn, h2, meta, notice, nums, textLink } from "@/app/ui/classes";
 import { StatusChip } from "@/app/ui/status-chip";
-import type { ConversationItem, EnquiryDetail, SessionName } from "@/lib/office/enquiries";
+import type {
+  AnswerChosen,
+  ConversationItem,
+  EmailEnquiryDetail,
+  EnquiryDetail,
+  SessionName,
+} from "@/lib/office/enquiries";
 import {
   CHANNEL_WORDS,
   builtWords,
@@ -13,8 +19,10 @@ import {
   CANCEL_CHECKS,
   CANCEL_NOT_OFFERED,
   OUTCOME_TONES,
-  OUTCOME_WORDS,
+  outcomeWords,
   PAY_LOCK,
+  answerChosenStep,
+  filledInStep,
   planLine,
   receivedStep,
   replyStep,
@@ -64,13 +72,39 @@ export function enquiryTitle(e: EnquiryDetail): string {
 export function EnquiryFacts({ e }: { e: EnquiryDetail }) {
   return (
     <p className="flex flex-wrap items-center gap-2">
-      <StatusChip tone={OUTCOME_TONES[e.outcome]}>{OUTCOME_WORDS[e.outcome]}</StatusChip>
+      <StatusChip tone={OUTCOME_TONES[e.outcome]}>
+        {outcomeWords(e.outcome, e.answer?.name ?? null)}
+      </StatusChip>
       {e.pay && <StatusChip tone="quiet">{PAY_LOCK}</StatusChip>}
       <span className={`${meta} ${nums}`}>
         Reference <Ref>{e.ref}</Ref>
       </span>
     </p>
   );
+}
+
+// "Make this an answer" (Phase 35.3), for admins (`admin`: may use Automatic answers): on a
+// casual's question with words that went to a person, not about a session, pay or a voicemail. It
+// opens Add with their question as the first example (the page reads it again, inside the firm).
+export const makesAnswer = (e: EnquiryDetail | EmailEnquiryDetail): boolean =>
+  e.who.kind === "casual" &&
+  e.text !== null &&
+  (e.outcome === "person_waiting" || e.outcome === "person_answered") &&
+  !e.pay &&
+  (e.channel === "email" || (!e.voicemail && e.about === null));
+
+export function MakeAnswerLink({
+  e,
+  admin,
+}: {
+  e: EnquiryDetail | EmailEnquiryDetail;
+  admin: boolean;
+}) {
+  return admin && makesAnswer(e) ? (
+    <Link href={`/office/settings/answers/new?from=${e.messageId}`} className={btn.secondary}>
+      Make this an answer
+    </Link>
+  ) : null;
 }
 
 // "Kieran Doyle's page" (a casual's message only).
@@ -132,14 +166,60 @@ function Bubble({ item, timeZone }: { item: ConversationItem; timeZone: string }
   );
 }
 
+// One of the firm's own answers (Phase 35.3), in "How it was answered": which, how it was chosen
+// and who switched it on (with its Edit link for admins), then what its fill-ins took from the
+// firm's data, or which had no value for the casual.
+export function AnswerSteps({
+  a,
+  at,
+  admin,
+}: {
+  a: AnswerChosen;
+  at: (d: Date) => string;
+  admin: boolean;
+}) {
+  return (
+    <>
+      <li data-answer-chosen>
+        <span className="font-semibold">Answer chosen:</span> {answerChosenStep(a, at)}
+        {admin && (
+          <>
+            {" "}
+            <Link href={`/office/settings/answers/${a.answerId}`} className={textLink}>
+              Edit “{a.name}”
+            </Link>
+          </>
+        )}
+      </li>
+      <li>
+        <span className="font-semibold">Filled in from your data:</span> {filledInStep(a)}
+      </li>
+    </>
+  );
+}
+
+// The exact words an answer went with, as the casual got them.
+export function SentWords({ words }: { words: string }) {
+  return (
+    <span
+      className="mt-1 block rounded-row glass-tile px-3 py-2 break-words whitespace-pre-wrap"
+      data-sent-words
+    >
+      “{words}”
+    </span>
+  );
+}
+
 export function EnquiryBody({
   e,
   level,
   stayOn,
+  admin = false,
 }: {
   e: EnquiryDetail;
   level: 2 | 3;
   stayOn?: string; // beside Enquiries' list: the list with this message chosen (EnquiryForms)
+  admin?: boolean; // may use Automatic answers: the answer's Edit link (Phase 35.3)
 }) {
   const H = level === 2 ? "h2" : "h3";
   const at = (d: Date) => timeOnDay(d, e.timeZone);
@@ -209,6 +289,7 @@ export function EnquiryBody({
           <li>
             <span className="font-semibold">Sorted:</span> {sortedStep(t.sorted)}
           </li>
+          {e.answer && <AnswerSteps a={e.answer} at={at} admin={admin} />}
           <li>
             <span className="font-semibold">What we checked:</span>{" "}
             {!b ? (
@@ -236,7 +317,9 @@ export function EnquiryBody({
           </li>
           <li>
             <span className="font-semibold">Reply sent:</span>{" "}
-            {b ? (
+            {e.answer?.words ? (
+              <SentWords words={e.answer.words} />
+            ) : b ? (
               <>
                 {builtWords(b.template, b.offered.length, b.more)}
                 {b.named.length > 0 && (

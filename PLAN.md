@@ -1510,22 +1510,22 @@ planner's name) until the office marks it done. The match-day sheet is a real cl
 nothing from it is copied (golden rule 7): the demo match day is made up in the same shape. Words
 in `docs/screens.md` ("## Phase 36") and `docs/messaging-templates.md`.
 
-- [ ] Two fixes (UI): every floating menu and pop-over in the office solid (the session menu on
+- [x] Two fixes (UI): every floating menu and pop-over in the office solid (the session menu on
       Events & sessions first), still readable in light and dark; "Casuals ask, you choose"'s
       switch on an event's Interested tab (the event's one setting; still on each session's page),
       the tab's words saying what it does (UI) (36.1)
-- [ ] Updates you can filter (UI): how far back (today, 3, 7 or 30 days), which event (or all), and
+- [x] Updates you can filter (UI): how far back (today, 3, 7 or 30 days), which event (or all), and
       which kinds (needs action, client requests, still to fill, cancellations, pay queries,
       uploads, enquiries, everything), kept in the address so a link opens the same view; "Low on
       cover": the next 7 days' events, least covered first; "Tell me about: client requests" (a
       notification for urgent ones) (UI; M) (36.2)
-- [ ] Client logins (S, A, T): client contacts on a contract (name, work email, on or off; admins
+- [x] Client logins (S, A, T): client contacts on a contract (name, work email, on or off; admins
       add, switch off and send a link on the contract's page), a magic-link login at
       `/client/login` (the office login's rules: one-time link, 15 minutes, hashed, rate-limited, the
       same answer for any address) and its own session cookie; the client's pages: their contract's
       events to come with places needed, booked and to fill per session, and their requests, never a
       casual's name or details; firm and contract enforced on the server (S, A, T; UI) (36.3)
-- [ ] Client requests (S, M, R): a client asks for a new event (date, venue, sessions with role,
+- [x] Client requests (S, M, R): a client asks for a new event (date, venue, sessions with role,
       places and times, notes) or a change to a session (more or fewer places, new times, cancel, or
       something else); urgency by the rules; the office's Client requests page (waiting, accepted,
       declined, to do in the planner; what accepting does; accept, decline with a reason the client
@@ -1536,7 +1536,7 @@ in `docs/screens.md` ("## Phase 36") and `docs/messaging-templates.md`.
       email; in Updates, the bell, the top bar's count, the 08:00 summary and, when urgent, a
       notification to the resourcers on that contract; every step logged, ids only (S, M, R; UI)
       (36.4)
-- [ ] A match day to play with (demo seed): "Demo Rovers v Visitors FC" at a made-up Demo Stadium
+- [x] A match day to play with (demo seed): "Demo Rovers v Visitors FC" at a made-up Demo Stadium
       (address, postcode, map pin), kick-off 16:30 on the demo's coming Saturday, shaped like the
       sheet (locations, roles including supervisors, SIA stewards, stewards, CSAS and Chapter 8,
       shifts from kick-off, descriptions, redeployment notes), partly booked, with cancellations, an

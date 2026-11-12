@@ -3,22 +3,25 @@ import { authParts, type AuthContext } from "../auth/link-login";
 import { createSession, findSession } from "../auth/sessions";
 import { LIMITS, refundLimit, throttle } from "../auth/throttle";
 import { looksLikeToken } from "../auth/tokens";
-import { officeUsers, workers } from "../db/schema";
+import { clientContacts, officeUsers, workers } from "../db/schema";
 import { recordEvent } from "../events/record";
 import {
   DEMO_CASUAL_ID,
   DEMO_CASUAL_VIEW_ACTION,
+  DEMO_CLIENT_CONTACT_ID,
+  DEMO_CLIENT_VIEW_ACTION,
   STAFF_DEMO_USER,
   STAFF_LOGIN_HASH,
   staffDemoOn,
   staffLoginMatches,
 } from "./staff-login";
 
-// The staffing demo's two ways in (Phase 31; demo servers only): the login (31.1), which starts an
-// office session for the made-up staffing admin, and "Casual mobile view" (31.2), which, from an
-// office session, starts a casual's session for the demo story's Zoe. Both check demo mode and the
-// firm here, on the server, whatever the page showed. The pages and actions in src/app/start only
-// read and write the cookies.
+// The staffing demo's ways in (Phase 31; demo servers only): the login (31.1), which starts an
+// office session for the made-up staffing admin; "Casual mobile view" (31.2), which, from an office
+// session, starts a casual's session for the demo story's Zoe; and "Client view" (36.5), which, from
+// an office session, starts a client's session for the match day's client login. Each checks demo
+// mode and the firm here, on the server, whatever the page showed. The pages and actions in
+// src/app/start only read and write the cookies.
 
 export interface StaffDemoContext extends AuthContext {
   demoMode: string | undefined;
@@ -129,6 +132,48 @@ export async function openCasualView(
       token: session.token,
       expiresAt: session.expiresAt,
       workerId: casual.id,
+    } as const;
+  });
+}
+
+export type ClientViewResult =
+  | { status: "ok"; token: string; expiresAt: Date; clientContactId: string }
+  | { status: "logged_out" }
+  | { status: "no_client" }
+  | { status: "off" };
+
+// "Client view" (Phase 36.5): from an office session (any office user's, on the demo firm), a
+// client's session for the match day's made-up client login, switched on, as their own login link
+// would start (its own kind and cookie). Guarded exactly as the casual view.
+export async function openClientView(
+  ctx: StaffDemoContext,
+  officeToken: string | undefined,
+): Promise<ClientViewResult> {
+  if (!staffDemoOn(ctx.demoMode, ctx.firm.id)) return { status: "off" };
+  if (!officeToken || !looksLikeToken(officeToken)) return { status: "logged_out" };
+  const { now, run } = authParts(ctx);
+  return run(ctx.firm.id, async (tx) => {
+    const office = await findSession(tx, { kind: "office", token: officeToken, now });
+    if (!office) return { status: "logged_out" } as const;
+    const [contact] = await tx
+      .select({ id: clientContacts.id, contractId: clientContacts.contractId })
+      .from(clientContacts)
+      .where(and(eq(clientContacts.id, DEMO_CLIENT_CONTACT_ID), eq(clientContacts.isOn, true)));
+    if (!contact) return { status: "no_client" } as const;
+    const session = await createSession(tx, { kind: "client", subjectId: contact.id, now });
+    await recordEvent(tx, {
+      actorType: "office",
+      actorId: office.subjectId,
+      action: DEMO_CLIENT_VIEW_ACTION,
+      entityType: "session",
+      entityId: session.id,
+      data: { kind: "client", clientContactId: contact.id, contractId: contact.contractId },
+    });
+    return {
+      status: "ok",
+      token: session.token,
+      expiresAt: session.expiresAt,
+      clientContactId: contact.id,
     } as const;
   });
 }

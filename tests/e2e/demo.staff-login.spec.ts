@@ -107,6 +107,20 @@ test("on a laptop: log in, choose the office, then the casual's phone view", asy
   await expect(page).toHaveURL(`${acme}/start`);
 });
 
+// Phase 36.5: the third card, "Client view", logs this browser in as the match day's client login
+// and opens the client's pages.
+test("Client view opens the client's pages as Hannah Price of Demo Stadium Ltd", async ({
+  browser,
+}) => {
+  const page = await windowOf(browser, "laptop");
+  await logIn(page);
+  await expect(page.getByRole("heading", { name: "Choose a view", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: /Client view/ }).click();
+  await expect(page).toHaveURL(`${acme}/client`);
+  await expect(page.getByText(/Hannah Price/).first()).toBeVisible();
+  await expect(page.getByText(/Demo Stadium Ltd/).first()).toBeVisible();
+});
+
 test("the quick guide: its five sections, and its links work", async ({ browser }) => {
   const page = await windowOf(browser, "laptop");
   await logIn(page);

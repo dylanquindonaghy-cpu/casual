@@ -2558,3 +2558,19 @@ Each task adds what it left out here as its wave is merged.
   summary and its count too.
 - **Updates' event filter needs JavaScript** (it waits for the page, as every office field does): a
   plain form with a "Show" button would work without it.
+
+## Phase 36, deferred while building (36.5; 2026-11-12)
+
+- **Demo mode's people check doesn't count client logins.** `realPeopleIn()`
+  (`src/lib/demo/people.ts`, the demo worker's guard) counts casuals' and the office's numbers and
+  emails, not `client_contacts`' emails. The seed's client login is on a reserved example domain
+  (tests check it), but an admin on a demo server could add a real address as a client login; the
+  guard would then let its login emails go to the outbox unnoticed. Add client contacts to the
+  check (and its test).
+- **The match day moves only with a reset.** Like the story, its ids are fixed and undated: a plain
+  `npm run db:seed` in a later week leaves last week's match where it was (the nightly reset and
+  `npm run db:reset` move it). Dated ids, as the Saturday's, would add a match each week instead.
+- **The North Gate request is urgent only within 2 days.** By the rules (`urgentWhy`), "4 more SIA
+  stewards" is urgent only when the session starts within 48 hours: from Thursday 12:30 before the
+  match. Earlier in the week it waits as not urgent. A second waiting request urgent by
+  "affects booked" (fewer places or new times on a booked session) would show one every day.

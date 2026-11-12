@@ -27,6 +27,7 @@ const { GuideView, officePages } = await import("@/app/start/guide/guide-view");
 const { ChooserView } = await import("@/app/start/chooser-view");
 const { StaffLoginForm, loginProblem } = await import("@/app/start/login/staff-login-form");
 const { casualViewProblem } = await import("@/app/start/casual-view-button");
+const { clientViewProblem } = await import("@/app/start/client-view-button");
 const { StaffDemoLink } = await import("@/app/start/staff-demo-link");
 
 const squash = (text: string) => text.replace(/\s+/g, " ").trim();
@@ -134,16 +135,29 @@ describe("the guide's page", () => {
 });
 
 describe("Choose a view, the login and the demo link", () => {
-  it("two big cards: the office, and the casual's phone; and the guide's link", () => {
+  it("three big cards: the office, the casual's phone and the client's view (36.5); and the guide's link", () => {
     const markup = html(createElement(ChooserView, { name: "Staffing (demo)" }));
     const words = text(markup);
     expect(markup).toMatch(/<h1[^>]*>Choose a view<\/h1>/);
     expect(words).toContain(CHOOSER_COPY.office.title);
     expect(words).toContain(CHOOSER_COPY.casual.title);
+    expect(words).toContain(CHOOSER_COPY.client.title);
+    expect(words).toContain(CHOOSER_COPY.client.body);
     expect(words).toContain("Logged in as Staffing (demo).");
     expect(markup).toContain('href="/office"');
     expect(markup).toContain('href="/start/guide"');
-    expect(markup).toMatch(/<button type="button"[^>]*>/);
+    // The casual's and the client's: each a button (it logs this browser in first).
+    expect(markup.match(/<button type="button"[^>]*>/g)).toHaveLength(2);
+    expect(markup.match(/<li>/g)).toHaveLength(3);
+  });
+
+  it("the client view's problems, in plain words", () => {
+    expect(clientViewProblem({ status: "logged_out" })).toBe(CHOOSER_COPY.client.loggedOut);
+    expect(clientViewProblem({ status: "no_client" })).toBe(CHOOSER_COPY.client.noClient);
+    expect(clientViewProblem({ status: "off" })).toBe("Something went wrong. Try again.");
+    expect(clientViewProblem({ status: "error" })).toBe("Something went wrong. Try again.");
+    expect(clientViewProblem({ status: "idle" })).toBeNull();
+    expect(clientViewProblem({ status: "ok" })).toBeNull();
   });
 
   it("the login form: email, password, one button", () => {

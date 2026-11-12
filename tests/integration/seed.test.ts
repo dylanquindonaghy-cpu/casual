@@ -10,6 +10,7 @@ import { superuserPool, urls } from "../helpers/db";
 import { createTenant, type Tenant } from "../helpers/tenant-rows";
 import { seedFirms, weekOffers } from "@/lib/db/admin/seed-data";
 import { acmeSaturday } from "@/lib/db/admin/seed-saturday";
+import { acmeMatchDay } from "@/lib/db/admin/seed-match";
 import { acmeStory } from "@/lib/db/admin/seed-story";
 import { DAILY_OFFER_CAP } from "@/lib/rules/offer-cap";
 import { mayMessageNow, quietHours, quietUntil } from "@/lib/rules/quiet-hours";
@@ -22,9 +23,15 @@ const NORTHLINE = seedId("firm/northline");
 const run = () => seed({ adminUrl: urls.admin, appUrl: urls.app, nodeEnv: "test" });
 // The demo story's own rows (seed-story.ts, 12I.1; its ids are fixed and undated): the tests of the
 // Saturday and the walkthrough's other states leave them out, and the story has tests of its own.
+// The match day's too (seed-match.ts, Phase 36.5; fixed, undated ids): its own tests are
+// tests/integration/seed.match.test.ts.
 const STORY = acmeStory(seedFirms().find((f) => f.slug === "acme") ?? seedFirms()[0]!, new Date());
-const STORY_SHIFTS = STORY.sessions.map((x) => x.id);
-const STORY_PAY = STORY.payQueries.map((x) => x.id);
+const MATCH = acmeMatchDay(
+  seedFirms().find((f) => f.slug === "acme")!,
+  new Date(),
+);
+const STORY_SHIFTS = [...STORY.sessions, ...MATCH.sessions].map((x) => x.id);
+const STORY_PAY = [...STORY.payQueries.map((x) => x.id), MATCH.payQuery.id];
 const LONDON = "Europe/London";
 // Never offered a shift by the seed: the five kept free for demo logins and the four the
 // walkthrough logs in as.
@@ -86,7 +93,7 @@ describe("the demo seed", () => {
     expect(otherAfter.rows).toEqual(otherBefore.rows);
   });
 
-  it("Acme Events: 60 workers (5 with an expired SIA licence, 3 applied) and the story's 8, 3 sites and the story's 4, 3 office roles and the staffing demo login's admin", async () => {
+  it("Acme Events: 60 workers (5 with an expired SIA licence, 3 applied), the story's 8 and the match day's 75, 3 sites, the story's 4 and the match day's stadium, 3 office roles and the staffing demo login's admin", async () => {
     const { rows } = await su.query(
       `select
          (select count(*)::int from workers where firm_id = $1) as workers,
@@ -99,8 +106,8 @@ describe("the demo seed", () => {
       [ACME],
     );
     expect(rows[0]).toEqual({
-      workers: 68,
-      sites: 7,
+      workers: 143,
+      sites: 8,
       // Phase 31.1: the staffing demo login's account is a second admin ("Staffing (demo)").
       roles: ["admin", "admin", "payroll", "resourcer"],
       expired_sia: 5,
@@ -159,7 +166,7 @@ describe("the demo seed", () => {
     const northline = await withFirm(NORTHLINE, (tx) =>
       tx.execute<{ n: number }>(sql`select count(*)::int as n from workers`),
     );
-    expect([acme.rows[0]?.n, northline.rows[0]?.n]).toEqual([68, 30]);
+    expect([acme.rows[0]?.n, northline.rows[0]?.n]).toEqual([143, 30]);
     expect((await resolveFirmBySlug("acme"))?.signOff).toBe("Acme Events Shift Team");
     expect((await resolveFirmBySlug("northline"))?.signOff).toBe(
       "Northline Rail Labour Shift Team",
@@ -200,7 +207,8 @@ describe("the demo seed", () => {
     expect(rows).toHaveLength(2);
     for (const r of rows) {
       expect(r.names).toBe(r.people);
-      expect(r.sites.every((name) => name.includes(" Demo "))).toBe(true);
+      // "Demo" as a word of its own in every name ("Acme Demo Arena", the match day's "Demo Stadium").
+      expect(r.sites.every((name) => /(^| )Demo /.test(name))).toBe(true);
     }
   });
 
@@ -908,7 +916,7 @@ describe("Acme's Saturday event day", () => {
 
   it("gives every Acme worker pay lines for the last 8 complete weeks, as payroll would", async () => {
     // The Saturday's 60 workers (the story's Zoe and Ben have their own, in its test: Phase 24).
-    const storyPay = STORY.pay.map((p) => p.id);
+    const storyPay = [...STORY.pay, ...MATCH.pay].map((p) => p.id);
     const [pay] = (
       await su.query<{
         workers_paid: number;

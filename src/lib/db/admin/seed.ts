@@ -35,6 +35,8 @@ import { noticeHours } from "../../roster/notice";
 import { quietHours } from "../../rules/quiet-hours";
 import { hoursToStart, insideUrgentWindow, urgentWindowHours } from "../../rules/urgent";
 import { fakePoint } from "../../travel/geocoder";
+import { acmeMatchDay, type MatchSeed } from "./seed-match";
+import { loadMatchDay } from "./seed-match-load";
 import { acmeStory } from "./seed-story";
 import { answerStoryMessages, loadStory } from "./seed-story-load";
 import { isLocalHost } from "./urls";
@@ -59,6 +61,7 @@ export interface SeedSummary {
     shifts: number; // on the event day (Acme only)
     eventDay: string | null;
     urgentShiftId: string | null; // the dropout's shift
+    matchDay: string | null; // the match day's Saturday, yyyy-mm-dd (Acme only: seed-match.ts)
   }[];
 }
 
@@ -92,6 +95,8 @@ export async function seed(opts: {
       const saturday = firm.slug === "acme" ? acmeSaturday(firm.workers, firm.sites, now) : null;
       // The mock-up's story (seed-story.ts, 12I.1): Acme only.
       const story = firm.slug === "acme" ? acmeStory(firm, now) : null;
+      // The match day to play with (seed-match.ts, Phase 36.5): Acme only.
+      const match = firm.slug === "acme" ? acmeMatchDay(firm, now) : null;
       await withFirm(firm.id, async (tx) => {
         // The firm's log entries, written in the order they happened once its rows are in
         // (Phase 26.10, fix-8: ./seed-log.ts).
@@ -107,6 +112,10 @@ export async function seed(opts: {
           await loadPayQueries(tx, acmePayQueries(firm.workers, past, now), log);
         }
         if (story) await loadStory(tx, firm, story, now, log);
+        if (match) {
+          const freshMatch = await loadMatchDay(tx, firm, match, now, log);
+          await loadMatchOffers(tx, firm, { match, fresh: freshMatch, log });
+        }
         // This week's offers (the dashboard's offers chart, Phase 23), once the bookings are in.
         if (saturday) await loadWeekOffers(tx, firm, { saturday, fresh: freshSaturday, now, log });
         if (firm.slug === "northline") {
@@ -130,6 +139,7 @@ export async function seed(opts: {
         shifts: saturday?.shifts.length ?? 0,
         eventDay: saturday?.day ?? null,
         urgentShiftId: saturday?.urgentShiftId ?? null,
+        matchDay: match?.day ?? null,
       });
     }
     return summary;
@@ -518,6 +528,62 @@ export async function loadWeekOffers(
           shiftId: p.shiftId,
           workerId: p.workerId,
           offeredBy: resourcer.id,
+          noticeHours: startsAt ? noticeHours(startsAt, p.sentAt) : null,
+          channel: "sms",
+        },
+      },
+      p.sentAt,
+    );
+  }
+}
+
+// The match day's two offers waiting (seed-match.ts), only on its sessions added just now: sent by
+// Acme's admin this week, outside quiet hours, to the two SIA stewards of the match's squad nobody
+// has booked, whom the booking rules allow (tests/integration/seed.match.test.ts checks, and that
+// nothing is sent). Added once (fixed ids) and logged once as the app logs a sent offer. It takes
+// the offer-count lock before its insert, like every offer writer. Nothing is sent.
+export async function loadMatchOffers(
+  tx: FirmTx,
+  firm: SeedFirm,
+  o: { match: MatchSeed; fresh: Set<string>; log: SeedLog },
+): Promise<void> {
+  const admin = firm.officeUsers.find((u) => u.role === "admin");
+  if (!admin) throw new Error(`${firm.slug} has no admin to send offers`);
+  const planned = o.match.offers.filter((x) => o.fresh.has(x.shiftId));
+  if (planned.length === 0) return;
+  await lockOfferCounts(
+    tx,
+    planned.map((p) => p.workerId),
+  );
+  const added = await tx
+    .insert(offers)
+    .values(
+      planned.map((p) => ({
+        id: p.id,
+        firmId: firm.id,
+        shiftId: p.shiftId,
+        workerId: p.workerId,
+        offeredBy: admin.id,
+        channel: "sms" as const,
+        sentAt: p.sentAt,
+      })),
+    )
+    .onConflictDoNothing()
+    .returning({ id: offers.id });
+  const newlyAdded = new Set(added.map((a) => a.id));
+  for (const p of planned) {
+    if (!newlyAdded.has(p.id)) continue;
+    const startsAt = o.match.sessions.find((s) => s.id === p.shiftId)?.startsAt;
+    o.log.add(
+      {
+        actorType: "system",
+        action: "offer.sent",
+        entityType: "offer",
+        entityId: p.id,
+        data: {
+          shiftId: p.shiftId,
+          workerId: p.workerId,
+          offeredBy: admin.id,
           noticeHours: startsAt ? noticeHours(startsAt, p.sentAt) : null,
           channel: "sms",
         },

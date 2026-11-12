@@ -231,6 +231,8 @@ export const LOG_TYPES = {
       "auth.demo_login",
       "auth.demo_login_failed",
       "auth.demo_casual_view",
+      // Phase 36.5 (demo servers only): the client view ({kind, clientContactId, contractId}).
+      "auth.demo_client_view",
       // Phase 33.1: someone finished or skipped their first-login tour ({kind}, ids only).
       "tour.finished",
       "tour.skipped",

@@ -44,6 +44,13 @@ export const DEMO_CASUAL_ID = seedId("acme/story/worker/zoe");
 // seen from it): the log is append-only, and nothing else writes this action.
 export const DEMO_CASUAL_VIEW_ACTION = "auth.demo_casual_view";
 
+// The client contact "Client view" (Phase 36.5) opens as: Hannah Price of Demo Stadium Ltd, the
+// match day's made-up client login (hannah.price@demo-stadium.example;
+// src/lib/db/admin/seed-match.ts, the same fixed id). Its log entry, written with the client's
+// session it starts, as the casual view's is.
+export const DEMO_CLIENT_CONTACT_ID = seedId("acme/match/client-contact/hannah");
+export const DEMO_CLIENT_VIEW_ACTION = "auth.demo_client_view";
+
 // Whether the staffing demo pages and actions exist here: a demo server (DEMO_MODE=on), on Acme
 // Events, the demo firm the login opens. Anywhere else they're not found.
 export const staffDemoOn = (demoMode: string | undefined, firmId: string | null): boolean =>

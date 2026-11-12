@@ -18,5 +18,11 @@ export function printSeedSummary(summary: SeedSummary): void {
   console.log(
     "The mock-up's story: Zoe Adeyemi 07700 900400, Kieran Doyle 900401, Ben Fraser 900402, Priya Shah 900403, Leah Ward 900404, Jamal Morgan 900405, Mo Rahman 900406, Tom Hale 900407",
   );
+  const match = summary.firms.find((f) => f.matchDay);
+  if (match) {
+    console.log(
+      `The match day: Demo Rovers v Visitors FC at Demo Stadium, Saturday ${match.matchDay ?? ""} 16:30. Its client login: hannah.price@demo-stadium.example (http://${match.slug}.localhost:3000/client/login)`,
+    );
+  }
   console.log("Seed loaded. Try http://acme.localhost:3000 and http://northline.localhost:3000");
 }

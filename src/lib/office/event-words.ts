@@ -1147,6 +1147,11 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return d.workerId
         ? `${who} opened the casual view as ${worker}.`
         : `${who} opened the casual view.`;
+    // Phase 36.5 (demo servers only): a client's session for the demo's client login.
+    case "auth.demo_client_view":
+      return d.clientContactId
+        ? `${who} opened the client view as ${names.client?.(d.clientContactId) ?? "a client"} (${contract}).`
+        : `${who} opened the client view.`;
     // Phase 33.1: the first-login tour, the office's or a casual's.
     case "tour.finished":
       return `${who} finished the welcome tour.`;

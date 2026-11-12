@@ -1849,3 +1849,70 @@ export async function setCasualTourSeen(
     await pool.end();
   }
 }
+
+// Updates you can filter (Phase 36.2), a scene of a spec's own: the venue of its session (`shiftId`)
+// becomes a contract of its own that the office user `email` looks after, so their Updates and "Low
+// on cover" show only it, whatever else the other specs and the seed have; and `workerId` holds one
+// of its places. Returns the contract's id, for endContractScene.
+export async function contractScene(
+  slug: string,
+  o: { tag: string; email: string; shiftId: string; workerId: string },
+): Promise<{ clientId: string }> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      const [client] = await tx
+        .insert(clients)
+        .values({ firmId, name: `Filter Council ${o.tag}` })
+        .returning({ id: clients.id });
+      const [me] = await tx
+        .select({ id: officeUsers.id })
+        .from(officeUsers)
+        .where(eq(officeUsers.email, o.email));
+      const [shift] = await tx
+        .select({ siteId: shifts.siteId })
+        .from(shifts)
+        .where(eq(shifts.id, o.shiftId));
+      if (!client || !me || !shift?.siteId) throw new Error("no contract, office user or venue");
+      await tx.update(sites).set({ clientId: client.id }).where(eq(sites.id, shift.siteId));
+      await tx
+        .insert(officeUserClients)
+        .values({ firmId, officeUserId: me.id, clientId: client.id });
+      await tx.insert(assignments).values({
+        firmId,
+        shiftId: o.shiftId,
+        slot: 1,
+        workerId: o.workerId,
+        status: "confirmed",
+        confirmedAt: new Date(),
+      });
+      return { clientId: client.id };
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
+// Ends a contract scene: its session cancelled (so no later spec sees its open places) and its
+// contract removed (its venue stays, as Settings' "Remove" leaves it).
+export async function endContractScene(
+  slug: string,
+  scene: { shiftId: string; clientId: string },
+): Promise<void> {
+  await cancelOwnShift(slug, scene.shiftId);
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    await createWithFirm(pool)(seedId(`firm/${slug}`), async (tx) => {
+      await tx.delete(officeUserClients).where(eq(officeUserClients.clientId, scene.clientId));
+      await tx.update(sites).set({ clientId: null }).where(eq(sites.clientId, scene.clientId));
+      await tx.delete(clients).where(eq(clients.id, scene.clientId));
+    });
+  } finally {
+    await pool.end();
+  }
+}

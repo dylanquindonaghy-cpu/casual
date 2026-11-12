@@ -124,10 +124,14 @@ describe("each update's lines, button and whether it needs action", () => {
       label: "Check",
       href: "/office/casuals/w1",
     });
+    // Phase 36.2: the period is chosen now (today, 3, 7 or 30 days), so the page's line no longer
+    // says "in the last 7 days": it says what can be chosen; the list's heading says the period.
     expect(updatesLine(true)).toBe(
-      "What's happened on your contracts in the last 7 days, newest first.",
+      "What's happened on your contracts, newest first. Choose how far back, which event and what kind.",
     );
-    expect(updatesLine(false)).toBe("What's happened in the last 7 days, newest first.");
+    expect(updatesLine(false)).toBe(
+      "What's happened, newest first. Choose how far back, which event and what kind.",
+    );
   });
 
   it("new since Mark all as seen: places taken, cancellations, and uploads when asked for (never seen: all)", () => {

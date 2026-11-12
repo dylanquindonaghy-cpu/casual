@@ -8,6 +8,9 @@
 // - open_push: a notification for places still open 6 hours before the start (decision 5).
 // - uploads: photos and certificates to check counted as new in Updates (the bell and the dots).
 // - summary: an email at 08:00 (the firm's time) with what needs action and what happened.
+// Updates' panel draws one switch per kind, in this order, from TELL_ME_ROWS: a new kind (Phase
+// 36.4's "client_requests": "Client requests", "A notification for urgent ones") goes here, in
+// TELL_ME_ROWS, and in the schema's check on office_users.tell_me (a migration).
 export const TELL_ME_KINDS = ["popup", "cancel_push", "open_push", "uploads", "summary"] as const;
 export type TellMeKind = (typeof TELL_ME_KINDS)[number];
 

@@ -141,6 +141,8 @@ export type Update =
       site: string | null;
       startsAt: Date;
       placesFree: number;
+      eventId?: string; // its event (Updates' event filter, Phase 36.2)
+      event?: string; // the event's name
     }
   | {
       kind: "cancelled";
@@ -154,6 +156,8 @@ export type Update =
       noticeHours: number;
       strike: "live" | "withdrawn" | null;
       reopened: boolean; // the place is open again (not filled since)
+      eventId?: string;
+      event?: string;
     }
   | {
       kind: "upload";
@@ -178,13 +182,14 @@ export async function loadUpdates(
   // not a venue's: they show whatever the contracts.
   mine: string[] | null = null,
   // The dashboard's column: the last two days, six shown, no uploads (Phase 27.9). The Updates page
-  // (Phase 26.4): a week, every kind.
-  opts: { hours?: number; shown?: number; uploads?: boolean } = {},
+  // (Phase 26.4): a week, every kind; since Phase 36.2 from the start of the period chosen
+  // (`since`: today's midnight, or 3, 7 or 30 days back).
+  opts: { hours?: number; since?: Date; shown?: number; uploads?: boolean } = {},
 ): Promise<{ items: Update[]; more: boolean }> {
   const hours = opts.hours ?? UPDATES_HOURS;
   const shown = opts.shown ?? UPDATES_SHOWN;
   const withUploads = opts.uploads ?? true;
-  const since = new Date(now.getTime() - hours * 3_600_000);
+  const since = opts.since ?? new Date(now.getTime() - hours * 3_600_000);
   const limit = shown + 1;
   const site = sql`coalesce(si.name, esi.name)`;
   const sites = sql`
@@ -199,9 +204,12 @@ export async function loadUpdates(
     site: string | null;
     starts_at: string | Date;
     places_free: number;
+    event_id: string;
+    event: string;
   }>(sql`
     select o.responded_at as at, s.id::text as shift_id, w.first_name, w.last_name, s.role,
-           ${site} as site, s.starts_at, greatest(s.headcount - b.booked, 0)::int as places_free
+           ${site} as site, s.starts_at, greatest(s.headcount - b.booked, 0)::int as places_free,
+           e.id::text as event_id, e.name as event
       from offers o
       join shifts s on s.firm_id = o.firm_id and s.id = o.shift_id
       join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
@@ -225,9 +233,12 @@ export async function loadUpdates(
     notice_hours: string | number;
     strike: "live" | "withdrawn" | null;
     reopened: boolean;
+    event_id: string;
+    event: string;
   }>(sql`
     select a.cancelled_at as at, s.id::text as shift_id, a.id::text as assignment_id,
            w.first_name, w.last_name, s.role, ${site} as site, s.starts_at, a.notice_hours,
+           e.id::text as event_id, e.name as event,
            (select st.status from strikes st
              where st.firm_id = a.firm_id and st.assignment_id = a.id
              order by st.issued_at desc limit 1) as strike,
@@ -284,6 +295,8 @@ export async function loadUpdates(
       site: r.site,
       startsAt: date(r.starts_at),
       placesFree: r.places_free,
+      eventId: r.event_id,
+      event: r.event,
     })),
     ...cancelled.map((r): Update => ({
       kind: "cancelled",
@@ -297,6 +310,8 @@ export async function loadUpdates(
       noticeHours: Number(r.notice_hours),
       strike: r.strike,
       reopened: r.reopened,
+      eventId: r.event_id,
+      event: r.event,
     })),
     ...uploads.map((r): Update => ({
       kind: "upload",

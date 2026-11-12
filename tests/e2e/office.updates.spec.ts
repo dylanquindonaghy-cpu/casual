@@ -90,7 +90,8 @@ test("a casual's cancellation pops up by itself; Updates lists it under Needs ac
     await expect(page.getByRole("heading", { name: "Updates", level: 1 })).toBeVisible();
     await expect(popup).toHaveCount(0);
     const list = page.locator("section#updates-list");
-    const views = list.getByRole("navigation", { name: "Show" });
+    // Phase 36.2: the kinds are chips over the list ("What kind"), Needs action the default.
+    const views = page.getByRole("navigation", { name: "What kind" });
     await expect(views.getByRole("link", { name: /^Needs action \d+$/ })).toHaveAttribute(
       "aria-current",
       "page",
@@ -128,9 +129,9 @@ test("a casual's cancellation pops up by itself; Updates lists it under Needs ac
     await expect(row.getByRole("link", { name: /^Una Updates cancelled · / })).toBeVisible();
     expect(await updatesSeenAt("acme", email)).not.toBeNull();
 
-    // Everything: the same row, under the other view.
+    // Everything: the same row, under that kind (kept in the address since Phase 36.2).
     await views.getByRole("link", { name: "Everything" }).click();
-    await expect(page).toHaveURL(`${acme}/office/updates?view=everything`);
+    await expect(page).toHaveURL(`${acme}/office/updates?kind=everything`);
     await expect(views.getByRole("link", { name: "Everything" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -236,7 +237,13 @@ test.describe("on a phone", () => {
       .click();
     await expect(page).toHaveURL(`${acme}/office/updates`);
     await expect(page.getByRole("heading", { name: "Updates", level: 1 })).toBeVisible();
-    const views = page.locator("section#updates-list").getByRole("navigation", { name: "Show" });
+    // Phase 36.2: seven kinds now, so the row scrolls sideways inside its own track (never the
+    // page): its first chip shows, the row fits the screen, and Everything is a scroll away.
+    const views = page.getByRole("navigation", { name: "What kind" });
+    await expect(views.getByRole("link", { name: /^Needs action/ })).toBeInViewport({ ratio: 1 });
+    const row = await views.boundingBox();
+    expect((row?.x ?? 0) + (row?.width ?? 0)).toBeLessThanOrEqual(390);
+    await views.getByRole("link", { name: "Everything" }).scrollIntoViewIfNeeded();
     await expect(views.getByRole("link", { name: "Everything" })).toBeInViewport({ ratio: 1 });
     await noSidewaysScroll(page);
   });

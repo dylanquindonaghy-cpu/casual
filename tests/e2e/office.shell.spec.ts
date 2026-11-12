@@ -34,7 +34,10 @@ const acme = "http://acme.localhost:3100";
 const CANVAS = { dark: "rgb(15, 15, 16)", light: "rgb(242, 242, 240)" }; // #0f0f10, #f2f2f0
 const SECTION = { dark: "rgba(255, 255, 255, 0.04)", light: "rgba(255, 255, 255, 0.55)" };
 const SECTION_FROST = { dark: "blur(3px) saturate(1.15)", light: "blur(6px) saturate(1.15)" };
-const FLOAT = { dark: "rgba(24, 24, 26, 0.7)", light: "rgba(255, 255, 255, 0.92)" };
+// What floats is solid since Phase 36.1 (Dylan, 2026-11-11: "the pop up shouldnt be transparent";
+// it was 70% charcoal in dark and 92% white in light, and the rows behind a menu showed through):
+// #1d1d20 in dark, white in light, still with its frost, shadow and ring.
+const FLOAT = { dark: "rgb(29, 29, 32)", light: "rgb(255, 255, 255)" };
 // The office with no choice made: dark, on either device.
 const START = "dark";
 const NONE = "rgba(0, 0, 0, 0)";

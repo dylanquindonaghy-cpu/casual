@@ -339,7 +339,12 @@ for (const device of ["light", "dark"] as const) {
         ...(await bar.locator("[data-bar-counts] a").all()),
         bar.getByRole("searchbox").locator("xpath=.."),
       ];
-      expect(chips.length).toBe(5);
+      // A resourcer's four counts, "Client requests" (Phase 36.4: the seeded match day's two
+      // waiting requests) and the search.
+      await expect(
+        bar.locator("[data-bar-counts]").getByRole("link", { name: /^Client requests \d+$/ }),
+      ).toBeVisible();
+      expect(chips.length).toBe(6);
       for (const chip of chips) {
         const glass = await surface(chip);
         expect(glass.frost).toBe("none");

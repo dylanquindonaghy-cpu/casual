@@ -226,7 +226,7 @@ test("a client logs in, asks for places and gets answers; the office accepts, de
     await expect(panel).toContainText("What accepting does");
     await expect(panel).toContainText("4 places become 6 (2 booked, 4 to fill).");
     await expect(panel).toContainText("Urgent · starts within 2 days");
-    await expect(panel).toContainText('Their note: “Category raised to B.”');
+    await expect(panel).toContainText("Their note: “Category raised to B.”");
     await noSidewaysScroll(office);
     await shot(office, "built-office-requests-laptop-dark");
     await panel.getByRole("button", { name: "Accept and offer the places" }).click();
@@ -244,7 +244,7 @@ test("a client logs in, asks for places and gets answers; the office accepts, de
         .fill("Can you bring radios?");
     });
     let chosen = await choose(office, null, "Something else");
-    await expect(chosen).toContainText('They asked: “Can you bring radios?”');
+    await expect(chosen).toContainText("They asked: “Can you bring radios?”");
     await chosen.getByRole("button", { name: "Decline…" }).click();
     await chosen.getByLabel("Why? The client sees this.").fill("We don't supply radios.");
     await chosen.getByRole("button", { name: "Decline the request" }).click();
@@ -283,7 +283,7 @@ test("a client logs in, asks for places and gets answers; the office accepts, de
         .filter({ hasText: "Sent. Acme Events will look at your request again." }),
     ).toBeVisible();
     chosen = await choose(office, null, "Something else");
-    await expect(chosen).toContainText('Their note: “North Gate.”');
+    await expect(chosen).toContainText("Their note: “North Gate.”");
 
     // --- A planner's session: "To do in …", then Mark done. ---------------------------------------
     await ask(client, scene.eventId, "More places on a session", async (p) => {

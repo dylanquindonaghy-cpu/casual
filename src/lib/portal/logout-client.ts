@@ -10,10 +10,7 @@ const WAIT_MS = 10_000;
 
 // Either the request never got anywhere, or no answer came within the limit (weak venue signal can
 // hang rather than fail). In both it may or may not have reached us.
-export async function logOut(
-  kind: LogoutKind,
-  waitMs: number = WAIT_MS,
-): Promise<LogoutOutcome> {
+export async function logOut(kind: LogoutKind, waitMs: number = WAIT_MS): Promise<LogoutOutcome> {
   let response: Response;
   try {
     response = await fetch("/api/logout", {

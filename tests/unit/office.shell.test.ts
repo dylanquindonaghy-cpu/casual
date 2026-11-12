@@ -940,7 +940,7 @@ describe("the rail", () => {
   it("shut: the firm's mark, its own button, and icons named by their words alone", () => {
     const html = render("/office");
     expect(html).toMatch(
-      /^<div id="office-rail" data-rail="shut" data-tour="menu" class="glass sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card px-2 py-4 transition-\[width\] duration-200 ease-sd lg:flex scrollbar-none w-18 items-center \[@media\(height&lt;40rem\)\]:max-h-\[calc\(100dvh-1.5rem\)\] \[@media\(height&lt;40rem\)\]:overflow-y-auto">/,
+      /^<div id="office-rail" data-rail="shut" data-tour="menu" class="glass sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card px-2 py-3 transition-\[width\] duration-200 ease-sd lg:flex scrollbar-none w-18 items-center \[@media\(height&lt;40rem\)\]:max-h-\[calc\(100dvh-1.5rem\)\] \[@media\(height&lt;40rem\)\]:overflow-y-auto">/,
     );
     // The mark (the firm's initial in hi-vis: round 8's brand-bar in the office); its name for
     // screen readers.
@@ -1012,7 +1012,7 @@ describe("the rail", () => {
     }
     // Admin and records under a line.
     expect(html).toMatch(
-      /<div class="mt-4 border-t border-line pt-3"><div class="group\/tip [^"]*"><button [^>]*aria-controls="rail-admin-and-records"/,
+      /<div class="mt-3 border-t border-line pt-2"><div class="group\/tip [^"]*"><button [^>]*aria-controls="rail-admin-and-records"/,
     );
     // Plain links and buttons: nothing the page tests count.
     expect(html).not.toMatch(/<(li|ul|ol|h[1-6]|details|summary|fieldset|section|output)\b/);

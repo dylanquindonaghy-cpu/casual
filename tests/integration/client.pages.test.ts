@@ -58,9 +58,8 @@ const {
   askClientAction,
   markPlannerDoneAction,
 } = await import("@/app/office/client-requests/actions");
-const { addClientContactAction, setClientContactOnAction, sendClientLinkAction } = await import(
-  "@/app/office/settings/contracts/actions"
-);
+const { addClientContactAction, setClientContactOnAction, sendClientLinkAction } =
+  await import("@/app/office/settings/contracts/actions");
 const { default: ClientEventsPage } = await import("@/app/client/(in)/page");
 const { default: ClientEventPage } = await import("@/app/client/(in)/events/[id]/page");
 
@@ -97,9 +96,10 @@ async function scene() {
   const admin = await f.office("admin");
   const resourcer = await f.office("resourcer");
   const payroll = await f.office("payroll");
-  const contract = await one("insert into clients (firm_id, name) values ($1, 'Demo Stadium Ltd')", [
-    f.firmId,
-  ]);
+  const contract = await one(
+    "insert into clients (firm_id, name) values ($1, 'Demo Stadium Ltd')",
+    [f.firmId],
+  );
   const venue = await one(
     "insert into sites (firm_id, name, client_id) values ($1, 'Demo Stadium', $2)",
     [f.firmId, contract],
@@ -119,7 +119,12 @@ async function scene() {
     "insert into shift_events (firm_id, name, site_id) values ($1, 'Other Gala', $2)",
     [f.firmId, otherVenue],
   );
-  const session = await f.shift({ eventId: event, startsAt: fromNow(72), headcount: 4, role: "steward" });
+  const session = await f.shift({
+    eventId: event,
+    startsAt: fromNow(72),
+    headcount: 4,
+    role: "steward",
+  });
   const otherSession = await f.shift({
     eventId: otherEvent,
     startsAt: fromNow(72),
@@ -154,7 +159,8 @@ const as = (t: Scene, cookies: Partial<Record<"client" | "office" | "worker", st
   request.deleted = [];
 };
 const asClient = async (t: Scene) => as(t, { client: await tokenFor(t, "client", t.contact) });
-const asOffice = async (t: Scene, who: string) => as(t, { office: await tokenFor(t, "office", who) });
+const asOffice = async (t: Scene, who: string) =>
+  as(t, { office: await tokenFor(t, "office", who) });
 
 const logout = (t: Scene, kind: string) =>
   logoutPost(
@@ -269,7 +275,11 @@ describe("the office's answers (admins and resourcers)", () => {
   it("a resourcer accepts (the places offered) and declines; payroll may not; a planner's to-do is marked done", async () => {
     const t = await scene();
     await asClient(t);
-    await sendClientRequestAction({ kind: "more_places", shiftId: t.session, payload: { places: 2 } });
+    await sendClientRequestAction({
+      kind: "more_places",
+      shiftId: t.session,
+      payload: { places: 2 },
+    });
     await sendClientRequestAction({ kind: "other", payload: { text: "Radios?" } });
     const ids = (
       await su.query<{ id: string; kind: string }>(
@@ -330,8 +340,14 @@ describe("a contract's client logins (admins only)", () => {
     });
     const tom = added.status === "added" ? added.clientContactId : "";
     expect(await sendClientLinkAction(tom)).toEqual({ status: "sent" });
-    expect(await setClientContactOnAction(tom, false)).toMatchObject({ status: "switched", on: false });
+    expect(await setClientContactOnAction(tom, false)).toMatchObject({
+      status: "switched",
+      on: false,
+    });
     expect(await sendClientLinkAction(tom)).toEqual({ status: "off" });
-    expect(await setClientContactOnAction(tom, true)).toMatchObject({ status: "switched", on: true });
+    expect(await setClientContactOnAction(tom, true)).toMatchObject({
+      status: "switched",
+      on: true,
+    });
   });
 });

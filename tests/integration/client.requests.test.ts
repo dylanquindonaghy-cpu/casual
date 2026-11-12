@@ -27,6 +27,8 @@ import { passesLogCheck } from "@/lib/events/record";
 import type { MessagingTransport, OutboundMessage } from "@/lib/messaging/transport";
 import { countNeedsAction, countSince, loadUpdatesPage } from "@/lib/office/updates";
 import { loadOfficeFrame } from "@/lib/office/frame";
+import { runOfficeAlertsTick } from "@/lib/office/alerts";
+import { loadNeedsAttention } from "@/lib/office/dashboard";
 import type { PushPayload, PushTransport } from "@/lib/push/transport";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
@@ -595,10 +597,19 @@ describe("accepting", () => {
       { status: "cancelled_firm", cancel_asked_by: "client" },
       { status: "cancelled_firm", cancel_asked_by: "client" },
     ]);
+    // The event-cancelled reason (not "fewer staff"), on the log and on each booking (L1).
     expect((await eventsOf(t.f.firmId, "shift.cancelled_by_firm"))[0]?.data).toMatchObject({
-      reason: "The client needs fewer staff",
+      reason: "The event was cancelled",
       bookings: 2,
     });
+    const { rows: why } = await su.query<{ cancel_reason: string }>(
+      "select cancel_reason from assignments where shift_id = $1 and worker_id is not null",
+      [s],
+    );
+    expect(why.map((w) => w.cancel_reason)).toEqual([
+      "The event was cancelled",
+      "The event was cancelled",
+    ]);
   });
 
   it("a session from the firm's planner or sheet: unchanged here, on 'To do in <planner>' until marked done", async () => {
@@ -652,13 +663,26 @@ describe("accepting", () => {
       showing_to_casuals: false,
       site_id: t.venue,
     });
-    const { rows: ss } = await su.query<{ role: string; headcount: number; post: string | null }>(
-      "select role, headcount, post from shifts where event_id = $1 order by role",
+    // Each session's notes are its instructions (M4: never squeezed into the 200-character post).
+    const { rows: ss } = await su.query<{
+      role: string;
+      headcount: number;
+      post: string | null;
+      instructions: string | null;
+      site_id: string;
+    }>(
+      "select role, headcount, post, instructions, site_id::text from shifts where event_id = $1 order by role",
       [eventId],
     );
     expect(ss).toEqual([
-      { role: "door_supervisor", headcount: 2, post: null },
-      { role: "steward", headcount: 8, post: "North Gate" },
+      { role: "door_supervisor", headcount: 2, post: null, instructions: null, site_id: t.venue },
+      {
+        role: "steward",
+        headcount: 8,
+        post: null,
+        instructions: "North Gate",
+        site_id: t.venue,
+      },
     ]);
     expect((await requestRow(r.requestId))?.event_id).toBe(eventId);
     expect(await eventsOf(t.f.firmId, "event.hidden")).toHaveLength(1);
@@ -894,5 +918,398 @@ describe("the client's email and the office's notification", () => {
     );
     expect(rows.length).toBeGreaterThan(0);
     for (const r of rows) expect(passesLogCheck(r.data), r.action).toBe(true);
+  });
+});
+
+// The guardrails review's findings on 36.3/36.4's back end, each held by a test.
+describe("the review's fixes", () => {
+  function fakes(at: Date) {
+    const pushes: { endpoint: string; payload: PushPayload }[] = [];
+    const mail: OutboundMessage[] = [];
+    const deps: ClientNotifyDeps = {
+      push: {
+        name: "test",
+        send: async (target, payload) => {
+          pushes.push({ endpoint: target.endpoint, payload });
+          return { status: "sent" };
+        },
+      },
+      transport: {
+        name: "test",
+        send: async (m) => {
+          mail.push(m);
+          return { providerMessageId: `m${mail.length}` };
+        },
+      },
+      baseDomain: "shiftdesk.test",
+      clock: clockAt(at),
+    };
+    return { pushes, mail, deps };
+  }
+  const newEvent = (
+    venue: { siteId: string } | { address: string },
+    sessions: { role: string; places: number; start: string; end: string; notes?: string }[] = [
+      { role: "steward", places: 4, start: "10:00", end: "16:00" },
+    ],
+  ) => ({
+    kind: "new_event",
+    payload: { name: "Winter Fair", venue, date: "2026-11-28", sessions },
+  });
+  const otherVenueOf = async (t: Awaited<ReturnType<typeof clientFirm>>) => {
+    const { rows } = await su.query<{ id: string }>(
+      "select site_id::text as id from shift_events where id = $1",
+      [t.otherEvent],
+    );
+    return rows[0]?.id ?? "";
+  };
+  const winterFairs = async (firmId: string) =>
+    (
+      await su.query("select 1 from shift_events where firm_id = $1 and name = 'Winter Fair'", [
+        firmId,
+      ])
+    ).rowCount;
+
+  it("M2: a new event at a typed address needs one of the contract's venues chosen; the client then sees it", async () => {
+    const t = await clientFirm();
+    const r = await sent(t, newEvent({ address: "Winter Park, 9 Frost Lane, ZZ9 9ZZ" }));
+    // The preview says a venue must be chosen, and lists the contract's to choose from.
+    expect((await officeClientRequestPreview(t.office(), r.requestId))?.accept).toMatchObject({
+      kind: "new_event",
+      venue: { address: "Winter Park, 9 Frost Lane, ZZ9 9ZZ" },
+      venues: [{ siteId: t.venue, name: "Demo Stadium" }],
+      problems: ["choose_venue"],
+    });
+    // Without one, another contract's, another firm's or none at all: refused, nothing made.
+    const other = await clientFirm();
+    for (const siteId of [undefined, await otherVenueOf(t), other.venue, randomUUID()]) {
+      expect(
+        await acceptClientRequest(t.office(), {
+          requestId: r.requestId,
+          ...(siteId ? { siteId } : {}),
+        }),
+      ).toEqual({ status: "invalid", problem: "venue" });
+    }
+    expect(await winterFairs(t.f.firmId)).toBe(0);
+    expect((await requestRow(r.requestId))?.status).toBe("waiting");
+    // One of theirs: made there, and the client sees it.
+    const accepted = await acceptClientRequest(t.office(), {
+      requestId: r.requestId,
+      siteId: t.venue,
+    });
+    if (accepted.status !== "accepted" || accepted.applied.kind !== "new_event")
+      throw new Error(JSON.stringify(accepted));
+    const { rows } = await su.query<{ site_id: string }>(
+      "select site_id::text from shift_events where id = $1",
+      [accepted.applied.eventId],
+    );
+    expect(rows[0]?.site_id).toBe(t.venue);
+    expect((await clientEvent(t.client(), accepted.applied.eventId))?.places).toBe(4);
+  });
+
+  it("M3: a venue that's no longer the contract's when accepting: refused, nothing made", async () => {
+    const t = await clientFirm();
+    const r = await sent(t, newEvent({ siteId: t.venue }));
+    // The venue moves to the other contract after the request was sent.
+    await su.query("update sites set client_id = $2 where id = $1", [t.venue, t.otherContract]);
+    expect((await officeClientRequestPreview(t.office(), r.requestId))?.accept).toMatchObject({
+      kind: "new_event",
+      problems: ["bad_venue"],
+      venues: [],
+    });
+    expect(await acceptClientRequest(t.office(), { requestId: r.requestId })).toEqual({
+      status: "invalid",
+      problem: "new_event",
+      problems: [{ line: null, problem: "bad_site" }],
+    });
+    expect(await winterFairs(t.f.firmId)).toBe(0);
+    expect((await requestRow(r.requestId))?.status).toBe("waiting");
+  });
+
+  it("M4: notes up to 500 characters become each session's instructions, all in one event", async () => {
+    const t = await clientFirm();
+    const long = "Meet at the North Gate steward point; bring hi-vis and ID. ".repeat(9).trim();
+    const notes = long.slice(0, 500);
+    expect([...notes].length).toBe(500);
+    const r = await sent(
+      t,
+      newEvent({ siteId: t.venue }, [
+        { role: "steward", places: 4, start: "10:00", end: "16:00", notes },
+        { role: "steward", places: 2, start: "12:00", end: "18:00" },
+        { role: "door_supervisor", places: 1, start: "10:00", end: "16:00", notes: "Main door" },
+      ]),
+    );
+    const preview = await officeClientRequestPreview(t.office(), r.requestId);
+    if (preview?.accept.kind !== "new_event") throw new Error("not a new event");
+    expect(preview.accept.sessions.map((x) => x.instructions)).toEqual([notes, null, "Main door"]);
+    expect(preview.accept.problems).toEqual([]);
+    const accepted = await acceptClientRequest(t.office(), { requestId: r.requestId });
+    if (accepted.status !== "accepted" || accepted.applied.kind !== "new_event")
+      throw new Error(JSON.stringify(accepted));
+    expect(accepted.applied.shiftIds).toHaveLength(3);
+    const { rows } = await su.query<{
+      event_id: string;
+      headcount: number;
+      post: string | null;
+      instructions: string | null;
+    }>(
+      `select event_id::text, headcount, post, instructions from shifts
+        where id = any($1::uuid[]) order by headcount desc`,
+      [accepted.applied.shiftIds],
+    );
+    expect(rows.map((x) => [x.headcount, x.post, x.instructions])).toEqual([
+      [4, null, notes],
+      [2, null, null],
+      [1, null, "Main door"],
+    ]);
+    expect(new Set(rows.map((x) => x.event_id))).toEqual(new Set([accepted.applied.eventId]));
+    expect(await winterFairs(t.f.firmId)).toBe(1);
+    expect(await eventsOf(t.f.firmId, "event.hidden")).toHaveLength(1);
+  });
+
+  it("M5: a reply putting an urgent request back, and the tick for one that's become urgent, alert each person once", async () => {
+    const t = await clientFirm();
+    await su.query(
+      `insert into office_push_subscriptions (firm_id, office_user_id, endpoint, p256dh, auth)
+       values ($1, $2, $3, 'k', 'a')`,
+      [t.f.firmId, t.resourcer, `https://fcm.googleapis.com/fcm/send/client-${randomUUID()}`],
+    );
+    const alertJobs = async () =>
+      (await jobsOf(t.f.firmId, "client-request-alert")).map((j) => ({
+        firmId: t.f.firmId,
+        idempotencyKey: String(j.idempotencyKey),
+        requestId: String(j.requestId),
+      }));
+    const later = hoursFromNow(60);
+    const tick = (at: Date) =>
+      runOfficeAlertsTick({
+        listFirmIds: async () => [t.f.firmId],
+        run: withFirm,
+        clock: clockAt(at),
+      });
+
+    // Urgent when sent (20 hours away): alerted then; asked, replied: queued again, nobody twice.
+    const soon = await t.session({ startsAt: hoursFromNow(20) });
+    const a = await sent(t, { kind: "more_places", shiftId: soon, payload: { places: 1 } });
+    const [created] = await alertJobs();
+    if (!created) throw new Error("no alert");
+    expect(await runClientRequestAlert(created, withFirm, fakes(NOW).deps)).toMatchObject({
+      status: "sent",
+      people: 1,
+    });
+    await askClient(t.office(), { requestId: a.requestId, question: "Which gate?" });
+    expect(
+      await replyToClientQuestion(t.client(), { requestId: a.requestId, note: "North." }),
+    ).toEqual({ status: "sent" });
+    const afterReply = (await alertJobs()).filter(
+      (j) => j.idempotencyKey !== created.idempotencyKey,
+    );
+    expect(afterReply.map((j) => j.requestId)).toEqual([a.requestId]);
+    expect(afterReply[0]?.idempotencyKey).toMatch(/:reply-\d+$/);
+    expect(
+      await runClientRequestAlert(afterReply[0] ?? created, withFirm, fakes(NOW).deps),
+    ).toEqual({
+      status: "not_needed",
+    });
+
+    // Not urgent when sent (100 hours away); asked; replied 60 hours later, when it starts within
+    // 48: queued on the reply, and the resourcer told.
+    const far = await t.session({ startsAt: hoursFromNow(100) });
+    const b = await sent(t, { kind: "more_places", shiftId: far, payload: { places: 1 } });
+    expect(b.urgent).toBeNull();
+    await askClient(t.office(), { requestId: b.requestId, question: "How many?" });
+    expect(
+      await replyToClientQuestion(t.client(t.contact, later), {
+        requestId: b.requestId,
+        note: "1.",
+      }),
+    ).toEqual({ status: "sent" });
+    const forB = (await alertJobs()).filter((j) => j.requestId === b.requestId);
+    expect(forB).toHaveLength(1);
+    const { pushes, deps } = fakes(later);
+    expect(await runClientRequestAlert(forB[0] ?? created, withFirm, deps)).toMatchObject({
+      status: "sent",
+      people: 1,
+    });
+    expect(pushes).toHaveLength(1);
+
+    // Waiting all along, not urgent when sent: the tick queues it once it starts within 48 hours.
+    const far2 = await t.session({ startsAt: hoursFromNow(100) });
+    const c = await sent(t, { kind: "more_places", shiftId: far2, payload: { places: 1 } });
+    expect(c.urgent).toBeNull();
+    expect((await tick(NOW)).clientRequests).toBe(0); // not urgent yet; a and b told already
+    expect((await tick(later)).clientRequests).toBe(1);
+    const forC = (await alertJobs()).filter((j) => j.requestId === c.requestId);
+    expect(forC).toHaveLength(1);
+    expect(forC[0]?.idempotencyKey).toMatch(/:tick-\d+$/);
+    expect(
+      await runClientRequestAlert(forC[0] ?? created, withFirm, fakes(later).deps),
+    ).toMatchObject({ status: "sent", people: 1 });
+    // Told: the next slot queues nothing more.
+    expect((await tick(new Date(later.getTime() + 5 * 60_000))).clientRequests).toBe(0);
+    expect(
+      (await eventsOf(t.f.firmId, "office.alerted")).filter(
+        (e) => e.data.kind === "client_requests",
+      ),
+    ).toHaveLength(3);
+  });
+
+  it("M6: 20 requests and 20 replies an hour per contact, then rate_limited with nothing stored", async () => {
+    const t = await clientFirm();
+    const other = (text: string) => ({ kind: "other", payload: { text } });
+    for (let i = 0; i < 20; i++) await sent(t, other(`Question ${i}`));
+    expect(await createClientRequest(t.client(), other("One more"))).toEqual({
+      status: "rate_limited",
+      retryAfterMinutes: 60,
+    });
+    expect(await createClientRequest(t.client(), other("And another"))).toEqual({
+      status: "rate_limited",
+      retryAfterMinutes: 60,
+    });
+    const count = async () =>
+      (
+        await su.query<{ n: number }>(
+          "select count(*)::int as n from client_requests where firm_id = $1",
+          [t.f.firmId],
+        )
+      ).rows[0]?.n;
+    expect(await count()).toBe(20);
+    // Logged once, when first reached, with the contact's id only.
+    const limited = await eventsOf(t.f.firmId, "auth.rate_limited");
+    expect(limited).toEqual([
+      { entity_id: t.contact, actor_type: "system", data: { limit: "client_request:contact" } },
+    ]);
+    // A colleague on the same contract has their own; an hour on, theirs again.
+    const colleague = await one(
+      `insert into client_contacts (firm_id, contract_id, name, email, created_by)
+       values ($1, $2, 'Sam Lee', $3, $4)`,
+      [t.f.firmId, t.contract, `sam.${randomUUID().slice(0, 6)}@example.com`, t.admin],
+    );
+    expect((await createClientRequest(t.client(colleague), other("Hi"))).status).toBe("sent");
+    expect(
+      (await createClientRequest(t.client(t.contact, hoursFromNow(1)), other("Later"))).status,
+    ).toBe("sent");
+
+    // Replies: every try counts (an answer to nothing asked too); over 20, nothing changes.
+    const [first] = (await clientRequestList(t.client())) ?? [];
+    if (!first) throw new Error("no request");
+    await askClient(t.office(), { requestId: first.id, question: "When?" });
+    const asked = (await clientRequestList(t.client()))?.find((x) => x.status === "asked");
+    const notAsked = (await clientRequestList(t.client()))?.find((x) => x.status === "waiting");
+    if (!asked || !notAsked) throw new Error("no requests");
+    for (let i = 0; i < 20; i++) {
+      expect(
+        await replyToClientQuestion(t.client(), { requestId: notAsked.id, note: "Hello" }),
+      ).toEqual({ status: "not_asked" });
+    }
+    expect(
+      await replyToClientQuestion(t.client(), { requestId: asked.id, note: "Friday." }),
+    ).toEqual({ status: "rate_limited", retryAfterMinutes: 60 });
+    expect((await requestRow(asked.id))?.status).toBe("asked");
+    expect(
+      await replyToClientQuestion(t.client(t.contact, hoursFromNow(1)), {
+        requestId: asked.id,
+        note: "Friday.",
+      }),
+    ).toEqual({ status: "sent" });
+  });
+
+  it("L2: the client's list and the office's queue agree on urgency (new times within 48 hours)", async () => {
+    const t = await clientFirm();
+    const s = await t.session({ startsAt: hoursFromNow(100) }); // nobody booked
+    const r = await sent(t, {
+      kind: "new_times",
+      shiftId: s,
+      payload: { date: "2026-11-03", start: "10:00", end: "15:00" }, // 25 hours away
+    });
+    expect(r.urgent).toBe("starts_soon");
+    expect((await clientRequestList(t.client()))?.[0]?.urgent).toBe("starts_soon");
+    expect((await officeClientRequests(t.office()))?.requests[0]?.urgent).toBe("starts_soon");
+  });
+
+  it("L3: a session at their venue in another contract's event shows their venue, never the other's name or address", async () => {
+    const t = await clientFirm();
+    await su.query(
+      "update sites set address_line1 = '99 Hidden Street', postcode = 'ZZ2 2ZZ' where name = 'Other Hall' and firm_id = $1",
+      [t.f.firmId],
+    );
+    const s = await t.session({ eventId: t.otherEvent });
+    await su.query("update shifts set site_id = $2 where id = $1", [s, t.venue]);
+    const events = await clientEvents(t.client());
+    expect(events?.map((e) => [e.name, e.site, e.address])).toEqual([
+      ["Demo Stadium", "Demo Stadium", "1 Demo Road, ZZ1 4AA"],
+    ]);
+    expect(events?.[0]?.sessions.map((x) => x.site)).toEqual(["Demo Stadium"]);
+    const text = JSON.stringify(events);
+    expect(text).not.toMatch(/Other Gala|Other Hall|Hidden Street|ZZ2 2ZZ/);
+    // Their own event still shows its own name.
+    await t.session();
+    expect((await clientEvents(t.client()))?.map((e) => e.name)).toContain(
+      "Demo Rovers v Visitors FC",
+    );
+  });
+
+  it("L4: a request's contact must be on the request's own contract (the database holds it)", async () => {
+    const t = await clientFirm();
+    const elsewhere = await one(
+      `insert into client_contacts (firm_id, contract_id, name, email, created_by)
+       values ($1, $2, 'Other Person', $3, $4)`,
+      [t.f.firmId, t.otherContract, `other.${randomUUID().slice(0, 6)}@example.com`, t.admin],
+    );
+    const err = await su
+      .query(
+        `insert into client_requests (firm_id, contract_id, client_contact_id, kind, payload)
+         values ($1, $2, $3, 'other', '{"text": "Probe"}'::jsonb)`,
+        [t.f.firmId, t.contract, elsewhere],
+      )
+      .then(
+        () => null,
+        (e: { code?: string; constraint?: string }) => e,
+      );
+    expect(err).toMatchObject({ code: "23503", constraint: "client_requests_contact_fk" });
+  });
+
+  it("L5: the answer email links to the firm's verified own domain, else its portal", async () => {
+    const t = await clientFirm();
+    const domain = `shifts-${randomUUID().slice(0, 8)}.example.test`;
+    const answer = async () => {
+      const r = await sent(t, { kind: "other", payload: { text: "Hello" } });
+      await declineClientRequest(t.office(), { requestId: r.requestId, reason: "Not this time." });
+      const job = (await jobsOf(t.f.firmId, "client-request-answer")).find(
+        (j) => j.requestId === r.requestId,
+      );
+      const { mail, deps } = fakes(NOW);
+      await runClientRequestAnswer(
+        {
+          firmId: t.f.firmId,
+          idempotencyKey: String(job?.idempotencyKey),
+          requestId: r.requestId,
+          answerEventId: Number(job?.answerEventId),
+        },
+        withFirm,
+        deps,
+      );
+      return (mail[0] as Extract<OutboundMessage, { channel: "email" }> | undefined)?.body ?? "";
+    };
+    // Set but not verified: the portal.
+    await su.query("update firms set custom_domain = $2 where id = $1", [t.f.firmId, domain]);
+    const { rows } = await su.query<{ slug: string }>("select slug from firms where id = $1", [
+      t.f.firmId,
+    ]);
+    expect(await answer()).toContain(`https://${rows[0]?.slug}.shiftdesk.test/client/requests`);
+    await su.query("update firms set domain_verified = true where id = $1", [t.f.firmId]);
+    const body = await answer();
+    expect(body).toContain(`https://${domain}/client/requests`);
+    expect(body).not.toContain("shiftdesk.test");
+  });
+
+  it("L6: Needs attention counts client requests only for someone who may use them", async () => {
+    const t = await clientFirm();
+    await sent(t, { kind: "other", payload: { text: "Hello" } });
+    const needs = (clientRequests: boolean) =>
+      withFirm(t.f.firmId, (tx) =>
+        loadNeedsAttention(tx, NOW, "Europe/London", { clientRequests }),
+      );
+    expect((await needs(true)).clientRequests).toEqual({ waiting: 1, urgent: 0, plannerToDo: 0 });
+    expect((await needs(false)).clientRequests).toEqual({ waiting: 0, urgent: 0, plannerToDo: 0 });
   });
 });

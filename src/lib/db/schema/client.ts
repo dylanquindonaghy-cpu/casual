@@ -44,6 +44,8 @@ export const clientContacts = pgTable(
   },
   (t) => [
     unique("client_contacts_firm_id_id_key").on(t.firmId, t.id),
+    // For the requests' link to a contact on the request's own contract (client_requests_contact_fk).
+    unique("client_contacts_firm_id_contract_id_id_key").on(t.firmId, t.contractId, t.id),
     unique("client_contacts_firm_id_email_key").on(t.firmId, t.email),
     foreignKey({
       name: "client_contacts_contract_fk",
@@ -136,7 +138,8 @@ export const clientRequests = pgTable(
   },
   (t) => [
     unique("client_requests_firm_id_id_key").on(t.firmId, t.id),
-    // The request goes with its contract (and its contact, who goes with the contract too).
+    // The request goes with its contract (and its contact, who goes with the contract too). Its
+    // contact is one on the request's own contract (the database holds it, not only the code).
     foreignKey({
       name: "client_requests_contract_fk",
       columns: [t.firmId, t.contractId],
@@ -144,8 +147,8 @@ export const clientRequests = pgTable(
     }).onDelete("cascade"),
     foreignKey({
       name: "client_requests_contact_fk",
-      columns: [t.firmId, t.clientContactId],
-      foreignColumns: [clientContacts.firmId, clientContacts.id],
+      columns: [t.firmId, t.contractId, t.clientContactId],
+      foreignColumns: [clientContacts.firmId, clientContacts.contractId, clientContacts.id],
     }).onDelete("cascade"),
     foreignKey({
       name: "client_requests_shift_fk",

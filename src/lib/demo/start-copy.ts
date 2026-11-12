@@ -124,6 +124,7 @@ export const OFFICE_PAGE_LINES: Record<string, string> = {
   "/office/needs-attention": "Things that need a person to look at them.",
   "/office/events": "Every event and its sessions. Show or hide them from casuals.",
   "/office/enquiries": "Messages from the shifts line and requests from the casual app.",
+  "/office/client-requests": "What your clients ask for from their logins. Accept or decline each.",
   "/office/cancellations": "Every cancellation, with its notice and reason.",
   "/office/pay": "Pay at a glance for payroll.",
   "/office/pay-queries": "Casuals' pay questions, grouped for payroll.",

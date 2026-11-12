@@ -181,9 +181,10 @@ describe("the view in the address", () => {
 });
 
 describe("the kinds", () => {
-  it("the chips in order (the next builder adds client requests after Needs action), each with its words", () => {
+  it("the chips in order (client requests after Needs action: Phase 36.4), each with its words", () => {
     expect(UPDATE_KINDS).toEqual([
       "action",
+      "client-requests",
       "to-fill",
       "cancellations",
       "pay",
@@ -193,6 +194,7 @@ describe("the kinds", () => {
     ]);
     expect(UPDATE_KINDS.map((k) => KIND_WORDS[k])).toEqual([
       "Needs action",
+      "Client requests",
       "Still to fill",
       "Cancellations",
       "Pay queries",
@@ -234,8 +236,10 @@ describe("the kinds", () => {
     expect(kindsFor({ pay: true, enquiries: true })).toEqual([...UPDATE_KINDS]);
     // A resourcer: no pay queries.
     expect(kindsFor({ pay: false, enquiries: true })).not.toContain("pay");
+    // Client requests: everyone who sees Updates may answer them (admins and resourcers).
     expect(kindsFor({ pay: false, enquiries: false })).toEqual([
       "action",
+      "client-requests",
       "to-fill",
       "cancellations",
       "uploads",

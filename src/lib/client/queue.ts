@@ -10,8 +10,8 @@ import { isoDate, timesOn } from "../roster/shift-times";
 import { isVisibleToCasuals } from "../roster/visibility";
 import { payloadOf, type ClientPayload } from "./payloads";
 import { placesChange, type PlacesChange } from "./preview-math";
-import { firmTimeZone, firstStartOf, placesOf } from "./reads";
-import { urgentWhy, type UrgentWhy } from "./urgency";
+import { firmTimeZone, placesOf, requestUrgency } from "./reads";
+import type { UrgentWhy } from "./urgency";
 import { OFFICE_TABS, requestTitle, type OfficeTab } from "./words";
 
 // The office's side of client requests (Phase 36.4; the mock-up's "Client requests"): the queue
@@ -150,13 +150,6 @@ export function requestOf(r: RequestSql, now: Date, timeZone: string): OfficeCli
           isUrgent: r.is_urgent ?? false,
         }
       : null;
-  const open = r.status === "waiting" || r.status === "asked";
-  let newStartsAt: Date | null = null;
-  if (r.kind === "new_times" && payload) {
-    const t = payload as ClientPayload["new_times"];
-    const day = isoDate(t.date);
-    newStartsAt = day ? (timesOn(day, t.start, t.end, timeZone)?.startsAt ?? null) : null;
-  }
   return {
     id: r.id,
     kind: r.kind,
@@ -183,17 +176,7 @@ export function requestOf(r: RequestSql, now: Date, timeZone: string): OfficeCli
     plannerDoneAt: r.planner_done_at ? date(r.planner_done_at) : null,
     createdAt: date(r.created_at),
     updatedAt: date(r.updated_at),
-    urgent: open
-      ? urgentWhy({
-          kind: r.kind,
-          now,
-          startsAt: session?.startsAt ?? firstStartOf(r.kind, payload, timeZone),
-          newStartsAt,
-          booked: session?.booked ?? 0,
-          free: session ? Math.max(0, session.headcount - session.booked) : 0,
-          places: placesOf(payload),
-        })
-      : null,
+    urgent: requestUrgency({ kind: r.kind, status: r.status, payload, now, timeZone, session }),
     session,
     eventId: r.event_id ?? session?.eventId ?? null,
   };
@@ -341,6 +324,10 @@ export interface BookedCasual {
   noticeHours: number; // the notice this change gives them
 }
 
+// What stops a new event being made as it stands: a date or time that doesn't make a session, one
+// that has started, the client's venue no longer the contract's, or an address (no venue chosen yet).
+export type NewEventProblem = "bad_time" | "in_past" | "bad_venue" | "choose_venue";
+
 export type AcceptPreview =
   // More or fewer places: the numbers, who a cut cancels (the latest booked first, unless the
   // office chooses), and whether the new places are offered now.
@@ -364,19 +351,22 @@ export type AcceptPreview =
     }
   // Cancel: every booked casual is cancelled by the firm with notice, no offers.
   | { kind: "cancel"; booked: BookedCasual[] }
-  // A new event: made here, hidden from casuals until the office shows it.
+  // A new event: made here, hidden from casuals until the office shows it, at one of the contract's
+  // venues: the client's, or (an address the firm has no venue for yet) one the office chooses from
+  // `venues` ("choose_venue": accepting needs one). Each session's notes become its instructions.
   | {
       kind: "new_event";
       name: string;
       venue: { siteId: string; name: string } | { address: string };
+      venues: { siteId: string; name: string }[]; // the contract's venues, to choose from
       sessions: {
         role: string;
         places: number;
         startsAt: Date;
         endsAt: Date;
-        post: string | null;
+        instructions: string | null; // the client's notes for the session
       }[];
-      problems: ("bad_time" | "in_past" | "bad_venue")[];
+      problems: NewEventProblem[];
     }
   // A planner's, sheet's or connector's session: not changed here; "To do in <planner>".
   | { kind: "planner"; owner: SessionOwner; plannerName: string | null }
@@ -419,6 +409,18 @@ export async function bookedOn(
   }));
 }
 
+// A contract's venues (its sites), by name: where a new event of theirs can be made.
+export async function contractVenues(
+  tx: FirmTx,
+  contractId: string,
+): Promise<{ siteId: string; name: string }[]> {
+  const { rows } = await tx.execute<{ site_id: string; name: string }>(sql`
+    select id::text as site_id, name from sites
+     where client_id = ${contractId}::uuid order by lower(name), id
+  `);
+  return rows.map((v) => ({ siteId: v.site_id, name: v.name }));
+}
+
 export async function previewAccept(
   tx: FirmTx,
   now: Date,
@@ -429,17 +431,17 @@ export async function previewAccept(
   if (r.kind === "new_event") {
     const p = r.payload as ClientPayload["new_event"] | null;
     if (!p) return { kind: "gone", why: "missing" };
-    const problems: ("bad_time" | "in_past" | "bad_venue")[] = [];
+    const problems: NewEventProblem[] = [];
+    const venues = await contractVenues(tx, r.contractId);
     let venue: { siteId: string; name: string } | { address: string };
     if ("siteId" in p.venue) {
-      const { rows } = await tx.execute<{ name: string }>(sql`
-        select name from sites where id = ${p.venue.siteId}::uuid
-           and client_id = ${r.contractId}::uuid
-      `);
-      venue = { siteId: p.venue.siteId, name: rows[0]?.name ?? "" };
-      if (!rows[0]) problems.push("bad_venue");
+      const siteId = p.venue.siteId;
+      const found = venues.find((v) => v.siteId === siteId);
+      venue = { siteId, name: found?.name ?? "" };
+      if (!found) problems.push("bad_venue");
     } else {
       venue = { address: p.venue.address };
+      problems.push("choose_venue");
     }
     const day = isoDate(p.date);
     const sessions = p.sessions.flatMap((s) => {
@@ -449,9 +451,16 @@ export async function previewAccept(
         return [];
       }
       if (times.startsAt.getTime() <= now.getTime()) problems.push("in_past");
-      return [{ role: s.role, places: s.places, ...times, post: s.notes ?? null }];
+      return [{ role: s.role, places: s.places, ...times, instructions: s.notes ?? null }];
     });
-    return { kind: "new_event", name: p.name, venue, sessions, problems: [...new Set(problems)] };
+    return {
+      kind: "new_event",
+      name: p.name,
+      venue,
+      venues,
+      sessions,
+      problems: [...new Set(problems)],
+    };
   }
   const s = r.session;
   if (!s) return { kind: "gone", why: "missing" };

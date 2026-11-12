@@ -482,6 +482,8 @@ test.describe("on a laptop window (1280 × 640) with a mouse", () => {
         "Needs attention",
         "Events & sessions",
         "Enquiries",
+        // Phase 36.4: what clients sent from their logins.
+        "Client requests",
         "Cancellations",
         "Pay",
         "People",

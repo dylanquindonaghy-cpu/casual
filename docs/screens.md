@@ -3175,7 +3175,7 @@ shows the way: each page still checks who can open it.
   session", "Enquiries", "Enquiry", "Strikes", "Casuals", "Action log", "Notice and cancellation report", "Pilot metrics",
   "Pay queries", "Import pay records", "Office team", "Settings", "Integrations", "Data requests",
   "How-to guide", "Customise" (Phase 26.3), "Updates" (Phase 26.4), "Automatic answers", "Add an
-  answer", "Edit an answer" (Phase 35.3). A shift's, an event's, a casual's and a worker's data page keep "{firm} shifts".
+  answer", "Edit an answer" (Phase 35.3), "Client requests", "A contract" (Phase 36.4, 36.3). A shift's, an event's, a casual's and a worker's data page keep "{firm} shifts".
   `tests/unit/office.titles.test.ts` holds the pages to this list; the browser test checks "Events
   & sessions · Acme Events shifts".
 
@@ -3576,6 +3576,8 @@ guide", "Where everything lives, what it does and how it works." Then five glass
    - Needs attention: "Things that need a person to look at them."
    - Events & sessions: "Every event and its sessions. Show or hide them from casuals."
    - Enquiries: "Messages from the shifts line and requests from the casual app."
+   - Client requests (Phase 36.4): "What your clients ask for from their logins. Accept or decline
+     each."
    - Cancellations: "Every cancellation, with its notice and reason."
    - Pay dashboard: "Pay at a glance for payroll."
    - Pay queries: "Casuals' pay questions, grouped for payroll."
@@ -4232,11 +4234,20 @@ sections.
   nothing), each with an optional note (up to 1,000 characters). Only their own sessions, to come
   and not cancelled; anything else reads as not found. Sent: "Sent to {firm}. You'll get an answer
   here and by email." (urgent: "… It starts soon or affects people already booked, so they'll treat
-  it as urgent. …").
+  it as urgent. …"). A session's notes (up to 500 characters) become its instructions when the
+  office accepts.
+- **Limits** (`LIMITS.clientRequestPerContact`, `.clientReplyPerContact`): 20 requests and 20
+  replies an hour per client login, every try counted. Over it, nothing is sent and the answer is
+  `{status: "rate_limited", retryAfterMinutes}`; the page says "Too many requests. Nothing was
+  sent. Try again in {n minutes | an hour}." (`tooManyRequestsWords()`). Logged once a window
+  (`auth.rate_limited`: "Too many client requests from one client login: sending them was paused
+  for a while.").
 - **Urgency, by the rules** (`urgentWhy()`): urgent when it starts within 48 hours (a new event's
   first session, the session, or new times asked for), or when it takes places or hours from
   casuals already booked (fewer places than are free, new times or a cancel with anyone booked).
-  Stored when sent and worked out again whenever it's read. The form says before sending: "This
+  Stored when sent and worked out again whenever it's read, by one helper (`requestUrgency()`), so
+  the client's list, the office's queue, Updates and the alerts always agree. The form says before
+  sending: "This
   starts within 2 days. {firm} will treat it as urgent. You'll get an answer here and by email."
   The office's chip: "Urgent · starts within 2 days" / "Urgent · casuals are booked on it".
 - **Statuses:** waiting (for the office), asked (the office asked the client something; their reply
@@ -4255,12 +4266,20 @@ sections.
   with the notice they'd get; new times: from and to, a shortening or a move, each booked casual's
   notice (the rules are run for each when accepted: a move someone can't work is refused as a
   whole and the request still waits); cancel: every booking cancelled with notice; a new event: its
-  sessions, made hidden from casuals until the office shows it (an address instead of a venue: no
-  venue yet); a session from the firm's planner, sheet or connector: nothing changes here, it goes
-  on "To do in {planner}"; something else: nothing changes by itself.
+  sessions (each with the client's notes as its instructions), made hidden from casuals until the
+  office shows it, at the client's venue, or for an address the firm has no venue for yet, one the
+  office chooses from the contract's venues (the preview's `choose_venue` and `venues`: required; a
+  venue that's no longer the contract's is `bad_venue`); a session from the firm's planner, sheet or
+  connector: nothing changes here, it goes on "To do in {planner}"; something else: nothing changes
+  by itself.
 - **Accepting** applies it through the office's own paths in one transaction (golden rules 4, 5 and
-  12): cancellations "The client needs fewer staff" asked by the client, moves "The event's times or
-  place changed" (the office may pick another reason from its list), each booked casual told.
+  12): fewer places' cancellations "The client needs fewer staff", a cancelled session "The event
+  was cancelled", moves "The event's times or place changed" (for a cancel or a move the office may
+  pick another reason from its list), each asked by the client, each booked casual told. A new
+  event is made only at one of the contract's venues (checked in the transaction), so the client
+  always sees it; otherwise nothing is made and the answer is `{status: "invalid", problem:
+  "venue"}` (no venue chosen for an address, or a chosen one that isn't the contract's) or
+  `problem: "new_event"` with `bad_site` (the client's venue has left the contract).
   Declining needs a reason (1 to 1,000 characters), asking needs the question. Each answer emails
   the client who sent it (docs/messaging-templates.md "Client logins and requests").
 - **Notifications:** Updates lists open requests ("Client request: {request}" / "{contract} ·
@@ -4270,4 +4289,11 @@ sections.
   Needs attention; the top bar's "Client requests {n}" (waiting); the 08:00 summary lists them and
   counts those sent ("…, 2 client requests."); an urgent one pushes to the admins and resourcers on
   its contract with "Tell me about: Client requests" on (the default): "A notification on my phone
-  or computer when one is urgent".
+  or computer when one is urgent", when it's sent urgent, when the client's reply puts an urgent one
+  back with the office, and when it becomes urgent later (the 5-minute tick); each person once.
+  Needs attention counts client requests only for those who may answer them (admins and
+  resourcers). The answer email's link is on the firm's verified own domain when it has one, else
+  its portal.
+- **What the client sees of a venue:** an event's name and venue only when its venue is the
+  contract's; a session at their venue in an event at another contract's venue shows its own venue
+  (name and address), never the other contract's.

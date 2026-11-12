@@ -1,11 +1,14 @@
 import { sql } from "drizzle-orm";
 import { z } from "zod";
+import { hitLimit, LIMITS, logLimitReached, toMinutes, type Limit } from "../auth/throttle";
+import { appEnv } from "../env";
 import type { ClientRequestKind } from "../db/schema/client";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { isoDate, timesOn } from "../roster/shift-times";
 import { queueClientRequestAlert } from "./jobs";
 import { clientRequestInput, CLIENT_NOTE_MAX, type ClientRequestInput } from "./payloads";
+import { loadClientRequest } from "./queue";
 import {
   clientParts,
   clientScope,
@@ -24,12 +27,39 @@ import { urgentWhy, type UrgentWhy } from "./urgency";
 // the urgency (urgency.ts); nothing changes a session here: the office answers each request.
 // Logged with ids, the kind and the flags only (client_request.created {contractId, kind, shiftId,
 // eventId, urgent}): the client's words stay on the row. An urgent one queues a notification to
-// the resourcers on the contract who asked for one (jobs.ts).
+// the resourcers on the contract who asked for one (jobs.ts); so does a reply that puts an urgent
+// one back with the office (and the office alerts' tick catches one that becomes urgent later:
+// notify.ts). Each send and each reply counts against the contact's limit
+// (LIMITS.clientRequestPerContact, .clientReplyPerContact: 20 an hour each), in the same
+// transaction: over it, nothing is stored and the answer is "rate_limited".
+
+// Over a limit: the page says "Too many requests. Try again in {n} minutes." (words.ts).
+export type RateLimited = { status: "rate_limited"; retryAfterMinutes: number };
+
+async function overLimit(
+  tx: FirmTx,
+  limit: Limit,
+  contactId: string,
+  now: Date,
+  secret: string | undefined,
+): Promise<RateLimited | null> {
+  const hit = await hitLimit(tx, {
+    limit,
+    value: contactId,
+    now,
+    secret: secret ?? appEnv().SESSION_SECRET,
+  });
+  if (hit.allowed) return null;
+  // Logged once a window, when it's first reached (the log never floods).
+  if (hit.hits === limit.max + 1) await logLimitReached(tx, limit, "client_contact", contactId);
+  return { status: "rate_limited", retryAfterMinutes: toMinutes(hit.retryAfterMs) };
+}
 
 export type CreateClientRequestResult =
   | { status: "sent"; requestId: string; urgent: UrgentWhy | null }
   | { status: "invalid"; problem: CreateProblem }
   | { status: "not_found" } // no such session, venue or event of theirs (or no longer to come)
+  | RateLimited // 20 an hour (LIMITS.clientRequestPerContact)
   | { status: "not_allowed" }; // not a live client login
 
 export type CreateProblem =
@@ -49,7 +79,10 @@ interface SessionFacts {
   status: string;
 }
 
-// The contract's session, to come and not cancelled, held so it can't change under the check.
+// The contract's session, to come and not cancelled, as it is now. Not locked: nothing here changes
+// it, and nothing stored depends on it staying so: the office's answer reads the session afresh
+// and re-checks everything (answer.ts), and the urgency is worked out again whenever it's read. A
+// lock would only make a client's request wait on (and hold up) the session's bookings.
 async function contractSession(
   tx: FirmTx,
   contractId: string,
@@ -117,6 +150,14 @@ export async function createClientRequest(
   return run(ctx.firm.id, async (tx): Promise<CreateClientRequestResult> => {
     const scope = await clientScope(tx, ctx.clientContactId);
     if (!scope) return { status: "not_allowed" };
+    const limited = await overLimit(
+      tx,
+      LIMITS.clientRequestPerContact,
+      scope.contactId,
+      now,
+      ctx.secret,
+    );
+    if (limited) return limited;
     const timeZone = await firmTimeZone(tx);
     let shiftId: string | null = null;
     let eventId: string | null = null;
@@ -225,13 +266,16 @@ export type ReplyResult =
   | { status: "sent" }
   | { status: "invalid" }
   | { status: "not_asked" } // the office hasn't asked anything (or has answered since)
+  | RateLimited // 20 an hour (LIMITS.clientReplyPerContact)
   | { status: "not_found" }
   | { status: "not_allowed" };
 
 const replySchema = z.string().trim().min(1).max(CLIENT_NOTE_MAX);
 
 // The client's answer to the office's question: their note becomes this, and the request is back
-// with the office (waiting). Only on one of their contract's requests the office asked about.
+// with the office (waiting). Only on one of their contract's requests the office asked about. Back
+// with the office and urgent by the rules now: the urgent alert is queued again (each person is
+// still told once: the alert's claim, notify.ts).
 export async function replyToClientQuestion(
   ctx: ClientContext,
   input: { requestId: string; note: unknown },
@@ -243,6 +287,14 @@ export async function replyToClientQuestion(
   return run(ctx.firm.id, async (tx): Promise<ReplyResult> => {
     const scope = await clientScope(tx, ctx.clientContactId);
     if (!scope) return { status: "not_allowed" };
+    const limited = await overLimit(
+      tx,
+      LIMITS.clientReplyPerContact,
+      scope.contactId,
+      now,
+      ctx.secret,
+    );
+    if (limited) return limited;
     const { rows } = await tx.execute<{ status: string }>(sql`
       select status from client_requests
        where id = ${input.requestId}::uuid and contract_id = ${scope.contractId}::uuid
@@ -256,7 +308,7 @@ export async function replyToClientQuestion(
          set client_note = ${note.data}, status = 'waiting', updated_at = ${now}
        where id = ${input.requestId}::uuid
     `);
-    await recordEvent(tx, {
+    const replied = await recordEvent(tx, {
       actorType: "client",
       actorId: scope.contactId,
       action: "client_request.replied",
@@ -264,6 +316,10 @@ export async function replyToClientQuestion(
       entityId: input.requestId,
       data: { contractId: scope.contractId },
     });
+    const back = await loadClientRequest(tx, now, input.requestId);
+    if (back?.urgent) {
+      await queueClientRequestAlert(tx, { requestId: input.requestId, key: `reply-${replied}` });
+    }
     return { status: "sent" };
   });
 }

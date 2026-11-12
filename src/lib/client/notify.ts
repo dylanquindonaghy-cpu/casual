@@ -1,5 +1,7 @@
-import { sql } from "drizzle-orm";
+import { eq, sql, type SQL } from "drizzle-orm";
 import { systemClock, type Clock } from "../auth/clock";
+import { uuidArray } from "../db/arrays";
+import { firms } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
@@ -13,8 +15,9 @@ import { firmVoice } from "../offers/waves";
 import { forgetOfficePushTarget, officePushTargets } from "../push/office-subscriptions";
 import { getPushTransport, type PushTransport } from "../push/transport";
 import { wantsSql } from "../office/tell-me";
-import { portalUrl } from "../tenancy/portal-url";
+import { ownDomainUrl, portalUrl } from "../tenancy/portal-url";
 import {
+  queueClientRequestAlert,
   CLIENT_REQUEST_ALERT_QUEUE,
   CLIENT_REQUEST_ANSWER_QUEUE,
   clientRequestAlertPayload,
@@ -22,7 +25,7 @@ import {
   type ClientRequestAlertPayload,
   type ClientRequestAnswerPayload,
 } from "./jobs";
-import { loadClientRequest } from "./queue";
+import { loadClientRequest, loadOpenClientRequests, OPEN_REQUESTS_READ } from "./queue";
 
 // Client requests' messages (Phase 36.4), each claimed once (a log entry committed before anything
 // goes) and sent with no transaction open, as the office alerts are (src/lib/office/alerts.ts):
@@ -35,7 +38,11 @@ import { loadClientRequest } from "./queue";
 //   what was asked for.
 // - The answer: an email to the client contact who sent the request, while they're switched on,
 //   saying the office accepted it, declined it (with the reason) or asked something, with a link to
-//   their requests page.
+//   their requests page: on the firm's own domain when it has a verified one (as login links are,
+//   src/lib/auth/send-portal-link.ts), otherwise its portal.
+// - A request that has become urgent since it was sent (a session now within 48 hours, a casual
+//   booked since): the office alerts' tick (src/lib/office/alerts.ts) queues the alert for it while
+//   someone it would tell hasn't been (queueBecameUrgentAlerts).
 
 export interface ClientNotifyDeps {
   push: PushTransport;
@@ -54,24 +61,62 @@ const OFFICE_BROWSERS = {
 export const CLIENT_REQUESTS_PAGE = "/office/client-requests";
 export const CLIENT_REQUESTS_OWN_PAGE = "/client/requests";
 
-// Who is told about an urgent request on this contract: active admins and resourcers who want it,
-// with a browser, who look after the contract or none at all. In id order.
+// "The office user `ou` is told about an urgent request on `contract`": active admins and resourcers
+// who want it, with a browser, who look after the contract or none at all.
+const recipientSql = (contract: SQL) => sql`
+  ou.status = 'active' and ou.role in ('admin', 'resourcer')
+  and ${wantsSql("client_requests")}
+  and (not exists (select 1 from office_user_clients oc
+                    where oc.firm_id = ou.firm_id and oc.office_user_id = ou.id)
+       or exists (select 1 from office_user_clients oc
+                   where oc.firm_id = ou.firm_id and oc.office_user_id = ou.id
+                     and oc.client_id = ${contract}))
+  and exists (select 1 from office_push_subscriptions p
+               where p.firm_id = ou.firm_id and p.office_user_id = ou.id)`;
+
+// "... and hasn't been told about request `request` yet" (the alert's claim, below).
+const notToldSql = (request: SQL) => sql`
+  not exists (select 1 from events
+               where action = 'office.alerted' and entity_id = ${request}
+                 and data ->> 'officeUserId' = ou.id::text and data ->> 'kind' = 'client_requests')`;
+
+// Who is told about an urgent request on this contract. In id order.
 async function alertRecipients(tx: FirmTx, contractId: string): Promise<string[]> {
   const { rows } = await tx.execute<{ id: string }>(sql`
-    select ou.id::text as id
-      from office_users ou
-     where ou.status = 'active' and ou.role in ('admin', 'resourcer')
-       and ${wantsSql("client_requests")}
-       and (not exists (select 1 from office_user_clients oc
-                         where oc.firm_id = ou.firm_id and oc.office_user_id = ou.id)
-            or exists (select 1 from office_user_clients oc
-                        where oc.firm_id = ou.firm_id and oc.office_user_id = ou.id
-                          and oc.client_id = ${contractId}::uuid))
-       and exists (select 1 from office_push_subscriptions p
-                    where p.firm_id = ou.firm_id and p.office_user_id = ou.id)
+    select ou.id::text as id from office_users ou
+     where ${recipientSql(sql`${contractId}::uuid`)}
      order by ou.id
   `);
   return rows.map((r) => r.id);
+}
+
+// The tick's part (every 5 minutes, in the firm's transaction): each waiting request the rules find
+// urgent now that someone it would tell hasn't been told about (one urgent when sent was queued
+// then; this catches one that has become urgent since, or someone who turned notifications on
+// since), queued once for this slot. The job claims each person, so nobody is told twice. Returns
+// how many were queued.
+export async function queueBecameUrgentAlerts(
+  tx: FirmTx,
+  now: Date,
+  slot: number,
+): Promise<number> {
+  const urgent = (await loadOpenClientRequests(tx, now, null, OPEN_REQUESTS_READ)).filter(
+    (r) => r.status === "waiting" && r.urgent !== null,
+  );
+  if (urgent.length === 0) return 0;
+  const { rows } = await tx.execute<{ id: string }>(sql`
+    select r.id::text as id from client_requests r
+     where r.id = any(${uuidArray(urgent.map((r) => r.id))})
+       and exists (select 1 from office_users ou
+                    where ${recipientSql(sql`r.contract_id`)} and ${notToldSql(sql`r.id`)})
+     order by r.id
+  `);
+  let queued = 0;
+  for (const r of rows) {
+    await queueClientRequestAlert(tx, { requestId: r.id, key: `tick-${slot}` });
+    queued += 1;
+  }
+  return queued;
 }
 
 export type ClientAlertResult =
@@ -185,6 +230,15 @@ export async function runClientRequestAnswer(
     `);
     if (Number(latest[0]?.id) !== payload.answerEventId) return { status: "superseded" as const };
     const firm = await firmVoice(tx, payload.firmId);
+    // The firm's own domain when it has a verified one (from the firm's own record), else its portal.
+    const [own] = await tx
+      .select({ domain: firms.customDomain, verified: firms.domainVerified })
+      .from(firms)
+      .where(eq(firms.id, payload.firmId));
+    const site =
+      own?.verified && own.domain
+        ? ownDomainUrl(own.domain)
+        : portalUrl(firm.slug, deps.baseDomain);
     await recordEvent(tx, {
       actorType: "system",
       action: "client_request.email_sending",
@@ -199,7 +253,7 @@ export async function runClientRequestAnswer(
         answer: kind,
         title: r.title,
         words: r.officeAnswer,
-        link: `${portalUrl(firm.slug, deps.baseDomain)}${CLIENT_REQUESTS_OWN_PAGE}`,
+        link: `${site}${CLIENT_REQUESTS_OWN_PAGE}`,
       }),
     };
   });

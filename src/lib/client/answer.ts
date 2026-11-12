@@ -40,9 +40,12 @@ import { firmTimeZone, placesOf } from "./reads";
 //   (lowerPlacesTo);
 // - new times: the firm's move or shortening (moveShiftInTx: the rules re-run for everyone booked,
 //   notice per casual, each told; refused as a whole when someone can't work the new time);
-// - cancel: the firm cancels the session (cancelShiftInTx: every booking cancelled with notice);
-// - a new event: made here as "Shifts for an event" makes one (createShifts), hidden from casuals
-//   until the office shows it (setShowing);
+// - cancel: the firm cancels the session (cancelShiftInTx: every booking cancelled with notice,
+//   "The event was cancelled" unless the office picks another reason);
+// - a new event: made here as "Shifts for an event" makes one (createShifts), at one of the
+//   contract's venues (the client's, or one the office chooses: required for a typed address,
+//   checked to be the contract's in the transaction), each session's notes as its instructions,
+//   hidden from casuals until the office shows it (setShowing);
 // - something else: nothing changes by itself (the office does what was asked);
 // - a session from the firm's planner, sheet or connector: never changed here (the next sync or
 //   PUT would undo it). The request is accepted as "done_in_planner": listed "To do in <planner>"
@@ -60,13 +63,17 @@ export const acceptInputSchema = z.strictObject({
   requestId: z.uuid(),
   // More places: offer them at once (default yes, the mock-up's "Accept and offer the places").
   offer: z.boolean().optional(),
-  // New times, fewer places, cancel: the firm's reason from its list (defaults: the event's times
-  // changed; the client needs fewer staff).
+  // New times, cancel: the firm's reason from its list (defaults: the event's times or place
+  // changed; the event was cancelled). Fewer places always says the client needs fewer staff.
   reason: z.enum(SHIFT_CHANGE_REASON_CODES).optional(),
   // Fewer places: which bookings go (exactly as many as the cut needs). Default: the latest booked.
   cancel: z.array(z.uuid()).max(1000).optional(),
   // A word to the client with the acceptance (optional).
   note: z.string().trim().max(1000).optional(),
+  // A new event: the contract's venue it's made at. Required when the client typed an address (the
+  // firm has no venue for it yet); otherwise the client's venue unless the office chooses another
+  // of the contract's. Checked inside the transaction to be one of the contract's venues.
+  siteId: z.uuid().optional(),
 });
 export type AcceptInput = z.input<typeof acceptInputSchema>;
 
@@ -102,6 +109,7 @@ export type AcceptResult =
         | "choose" // the bookings chosen to cancel aren't the session's, or not as many as needed
         | "too_many_places" // more than 1,000 places on one session
         | "times" // the new times don't make a session, or have started
+        | "venue" // a new event: no venue chosen for an address, or one that isn't the contract's
         | "new_event"; // the event's details don't make sessions (see `problems`)
       problems?: { line: number | null; problem: ShiftProblem }[];
     }
@@ -168,38 +176,81 @@ async function apply(
   if (r.kind === "new_event") {
     const p = r.payload as ClientPayload["new_event"] | null;
     if (!p) throw new Refused({ status: "invalid", problem: "new_event" });
-    const made = await createShifts(
-      { ...ctx, run: inTx(tx), clock: { now: () => now } },
-      {
+    // The venue: the office's choice, else the client's; an address alone can't make an event the
+    // client would ever see (they see their contract's venues only), so one must be chosen.
+    const chosen = input.siteId ?? null;
+    const siteId = chosen ?? ("siteId" in p.venue ? p.venue.siteId : null);
+    if (!siteId) throw new Refused({ status: "invalid", problem: "venue" });
+    // Still one of the contract's venues, held so it can't move to another contract meanwhile.
+    const { rows: venue } = await tx.execute(sql`
+      select 1 from sites where id = ${siteId}::uuid and client_id = ${r.contractId}::uuid
+         for share
+    `);
+    if (venue.length === 0) {
+      throw new Refused(
+        chosen
+          ? { status: "invalid", problem: "venue" }
+          : {
+              status: "invalid",
+              problem: "new_event",
+              problems: [{ line: null, problem: "bad_site" }],
+            },
+      );
+    }
+    const octx = { ...ctx, run: inTx(tx), clock: { now: () => now } };
+    // Each session's notes are its instructions (the editor's instructions are one per call, and a
+    // post holds only 200 characters): the sessions with the same notes are made together, the
+    // first lot making the event and the rest joining it.
+    const lots = new Map<string, { line: number; s: (typeof p.sessions)[number] }[]>();
+    p.sessions.forEach((s, i) => {
+      const notes = s.notes ?? "";
+      lots.set(notes, [...(lots.get(notes) ?? []), { line: i + 1, s }]);
+    });
+    let eventId: string | null = null;
+    const shiftIds: string[] = [];
+    for (const [notes, lot] of lots) {
+      const made = await createShifts(octx, {
         date: p.date,
-        siteId: "siteId" in p.venue ? p.venue.siteId : "",
-        instructions: "",
-        eventName: p.name,
-        lines: p.sessions.map((s) => ({
+        siteId,
+        instructions: notes,
+        ...(eventId ? { eventId } : { eventName: p.name }),
+        lines: lot.map(({ s }) => ({
           role: s.role,
           start: s.start,
           end: s.end,
           headcount: String(s.places),
-          post: s.notes ?? "",
         })),
-      },
-    );
-    if (made.status === "not_allowed") throw new Refused({ status: "not_allowed" });
-    if (made.status === "invalid") {
-      throw new Refused({ status: "invalid", problem: "new_event", problems: made.problems });
+      });
+      if (made.status === "not_allowed") throw new Refused({ status: "not_allowed" });
+      if (made.status === "invalid") {
+        throw new Refused({
+          status: "invalid",
+          problem: "new_event",
+          // The client's session numbers, not the lot's.
+          problems: made.problems.map((x) => ({
+            line: x.line === null ? null : (lot[x.line - 1]?.line ?? null),
+            problem: x.problem,
+          })),
+        });
+      }
+      shiftIds.push(...made.shiftIds);
+      if (!eventId) {
+        const [first] = made.shiftIds;
+        const [shift] = first
+          ? await tx
+              .select({ eventId: shifts.shiftEventId })
+              .from(shifts)
+              .where(eq(shifts.id, first))
+          : [];
+        if (!shift) throw new Error("the new event's sessions weren't found");
+        eventId = shift.eventId;
+      }
     }
-    const [first] = made.shiftIds;
-    const [shift] = first
-      ? await tx.select({ eventId: shifts.shiftEventId }).from(shifts).where(eq(shifts.id, first))
-      : [];
-    if (!shift) throw new Error("the new event's sessions weren't found");
+    if (!eventId) throw new Error("a new event with no sessions");
     // Hidden from casuals until the office shows it (the event's switch, logged event.hidden).
-    const hidden = await setShowing(
-      { ...ctx, run: inTx(tx), clock: { now: () => now } },
-      { target: "event", id: shift.eventId, showing: false },
-    );
+    const hidden = await setShowing(octx, { target: "event", id: eventId, showing: false });
     if (hidden.status !== "hidden") throw new Error(`hiding the new event: ${hidden.status}`);
-    return { kind: "new_event", eventId: shift.eventId, shiftIds: made.shiftIds };
+    return { kind: "new_event", eventId, shiftIds };
   }
 
   const s = r.session;
@@ -226,8 +277,15 @@ async function apply(
        and status not in ('cancelled_worker', 'cancelled_firm') and slot <= ${shift.headcount}
   `);
   const booked = held[0]?.booked ?? 0;
+  // The firm's reason from its list: the office's, else the one for what was asked (cancellations
+  // and casuals' notices say it: golden rule 12).
   const reason: FirmChangeReason =
-    input.reason ?? (r.kind === "new_times" ? "event_changed" : "fewer_staff");
+    input.reason ??
+    (r.kind === "new_times"
+      ? "event_changed"
+      : r.kind === "cancel_session"
+        ? "event_cancelled"
+        : "fewer_staff");
 
   switch (r.kind) {
     case "more_places": {

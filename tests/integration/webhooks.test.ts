@@ -977,7 +977,9 @@ describe("what the office sees", () => {
       return plannerText(found.record.row.planner, "Europe/London");
     };
     const needs = (firm: WebhookFirm) =>
-      withFirm(firm.f.firmId, (tx) => loadNeedsAttention(tx, NOW, "Europe/London"));
+      withFirm(firm.f.firmId, (tx) =>
+        loadNeedsAttention(tx, NOW, "Europe/London", { clientRequests: true }),
+      );
 
     const n = await takenBooking(none);
     await cancelMyShift(none.portal(), n.worker, n.shiftId, "Travel problem", saw("notice"));
@@ -1088,7 +1090,9 @@ describe("through a real pg-boss worker", () => {
     expect(
       (await failedJobCounts(boss)).find((c) => c.queue === WEBHOOK_DELIVER_QUEUE)?.count ?? 0,
     ).toBe(failedBefore);
-    const items = await withFirm(t.f.firmId, (tx) => loadNeedsAttention(tx, NOW, "Europe/London"));
+    const items = await withFirm(t.f.firmId, (tx) =>
+      loadNeedsAttention(tx, NOW, "Europe/London", { clientRequests: true }),
+    );
     expect(items.webhookFailing).not.toBeNull();
     expect(needsCount(items)).toBe(needsCount({ ...items, webhookFailing: null }) + 1);
   }, 60_000);

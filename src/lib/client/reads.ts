@@ -12,15 +12,18 @@ import { urgentWhy, type UrgentWhy } from "./urgency";
 // never casuals' names"). Every read takes the contact's contract from their row inside the firm's
 // transaction (a contact switched off reads nothing), and every query is over sessions, events,
 // venues and counts only: no query here selects from workers, reads an assignment's worker_id, or
-// returns any column that holds a person (tests/integration/client.reads.test.ts checks the
-// answers hold no casual's id or name). A session is the contract's when its venue (its own site,
-// else its event's) is one of the contract's sites.
+// returns any column that holds a person (tests/integration/client.requests.test.ts, "what a client
+// sees", checks the answers hold no casual's id or name). A session is the contract's when its venue
+// (its own site, else its event's) is one of the contract's sites. A venue's name or address is
+// shown only when that venue is the contract's: a session at their venue in an event at another
+// contract's venue shows its own venue, never the other contract's event name or address.
 
 export interface ClientContext {
   firm: { id: string };
   clientContactId: string;
   run?: WithFirm; // tests pass a withFirm on their own pool
   clock?: Clock;
+  secret?: string; // for the rate limits' buckets (SESSION_SECRET by default)
 }
 
 export const clientParts = (ctx: ClientContext) => ({
@@ -108,18 +111,30 @@ async function contractSessions(
   now: Date,
   only: { eventId?: string } = {},
 ): Promise<SessionSql[]> {
+  // The event's name and venue only when its venue is the contract's; otherwise (a session at
+  // their venue in an event at another contract's venue, or at none) the session's own venue, which
+  // is theirs (contractSessionSql), never the other contract's.
   const { rows } = await tx.execute<SessionSql>(sql`
-    select s.id::text as shift_id, e.id::text as event_id, e.name as event_name,
-           ev.name as event_site,
-           nullif(concat_ws(', ', ev.address_line1, ev.address_line2, ev.town, ev.postcode), '')
-             as address,
-           s.role, s.post, coalesce(sv.name, ev.name) as site, s.starts_at, s.ends_at,
-           s.headcount, b.booked, s.status, s.is_urgent
+    select s.id::text as shift_id, e.id::text as event_id,
+           case when ours.event_is_ours then e.name else coalesce(sv.name, e.name) end
+             as event_name,
+           case when ours.event_is_ours then ev.name else sv.name end as event_site,
+           nullif(case when ours.event_is_ours
+                    then concat_ws(', ', ev.address_line1, ev.address_line2, ev.town, ev.postcode)
+                    else concat_ws(', ', sv.address_line1, sv.address_line2, sv.town, sv.postcode)
+                  end, '') as address,
+           s.role, s.post,
+           coalesce(case when sv.client_id = ${contractId}::uuid then sv.name end,
+                    case when ours.event_is_ours then ev.name end) as site,
+           s.starts_at, s.ends_at, s.headcount, b.booked, s.status, s.is_urgent
       from shifts s
       join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
       ${bookedJoin}
       left join sites sv on sv.firm_id = s.firm_id and sv.id = s.site_id
       left join sites ev on ev.firm_id = e.firm_id and ev.id = e.site_id
+      cross join lateral (
+        select coalesce(ev.client_id = ${contractId}::uuid, false) as event_is_ours
+      ) ours
      where s.ends_at > ${now} and s.status <> 'draft'
        and ${contractSessionSql(contractId)}
        ${only.eventId ? sql`and e.id = ${only.eventId}::uuid` : sql``}
@@ -282,7 +297,10 @@ export async function clientRequestList(ctx: ClientContext): Promise<ClientReque
       select r.id::text as id, r.kind, r.status, r.payload, r.client_note, r.office_answer,
              r.answered_at, r.created_at, r.client_contact_id::text as contact_id,
              r.shift_id::text as shift_id, r.event_id::text as event_id,
-             s.role, coalesce(sv.name, ev.name) as site, s.starts_at, s.headcount, b.booked
+             s.role,
+             coalesce(case when sv.client_id = r.contract_id then sv.name end,
+                      case when ev.client_id = r.contract_id then ev.name end) as site,
+             s.starts_at, s.headcount, b.booked
         from client_requests r
         left join shifts s on s.firm_id = r.firm_id and s.id = r.shift_id
         left join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
@@ -299,11 +317,6 @@ export async function clientRequestList(ctx: ClientContext): Promise<ClientReque
     `);
     return rows.map((r) => {
       const payload = payloadOf(r.kind, r.payload);
-      const startsAt = r.starts_at
-        ? new Date(r.starts_at)
-        : firstStartOf(r.kind, payload, timeZone);
-      const booked = r.booked ?? 0;
-      const open = r.status === "waiting" || r.status === "asked";
       return {
         id: r.id,
         kind: r.kind,
@@ -314,16 +327,20 @@ export async function clientRequestList(ctx: ClientContext): Promise<ClientReque
         answeredAt: r.answered_at ? new Date(r.answered_at) : null,
         createdAt: new Date(r.created_at),
         byYou: r.contact_id === scope.contactId,
-        urgent: open
-          ? urgentWhy({
-              kind: r.kind,
-              now,
-              startsAt,
-              booked,
-              free: Math.max(0, (r.headcount ?? 0) - booked),
-              places: placesOf(payload),
-            })
-          : null,
+        urgent: requestUrgency({
+          kind: r.kind,
+          status: r.status,
+          payload,
+          now,
+          timeZone,
+          session: r.starts_at
+            ? {
+                startsAt: new Date(r.starts_at),
+                headcount: r.headcount ?? 0,
+                booked: r.booked ?? 0,
+              }
+            : null,
+        }),
         session:
           r.shift_id && r.role && r.starts_at
             ? {
@@ -355,6 +372,41 @@ export function firstStartOf(
     .filter((d): d is Date => d !== undefined)
     .sort((a, b) => a.getTime() - b.getTime());
   return starts[0] ?? null;
+}
+
+// New times' start, in the firm's time zone (null: not new times, or ones that don't make a session).
+export function newStartsOf(
+  kind: ClientRequestKind,
+  payload: ClientPayload[ClientRequestKind] | null,
+  timeZone: string,
+): Date | null {
+  if (kind !== "new_times" || !payload) return null;
+  const t = payload as ClientPayload["new_times"];
+  const day = isoDate(t.date);
+  return day ? (timesOn(day, t.start, t.end, timeZone)?.startsAt ?? null) : null;
+}
+
+// A request's urgency now, by the rules (urgency.ts), from the session as it is now: the one answer
+// the client's list, the office's queue, Updates and the alerts all give (null once it's answered).
+export function requestUrgency(r: {
+  kind: ClientRequestKind;
+  status: ClientRequestStatus;
+  payload: ClientPayload[ClientRequestKind] | null;
+  now: Date;
+  timeZone: string;
+  session: { startsAt: Date; headcount: number; booked: number } | null;
+}): UrgentWhy | null {
+  if (r.status !== "waiting" && r.status !== "asked") return null;
+  const s = r.session;
+  return urgentWhy({
+    kind: r.kind,
+    now: r.now,
+    startsAt: s?.startsAt ?? firstStartOf(r.kind, r.payload, r.timeZone),
+    newStartsAt: newStartsOf(r.kind, r.payload, r.timeZone),
+    booked: s?.booked ?? 0,
+    free: s ? Math.max(0, s.headcount - s.booked) : 0,
+    places: placesOf(r.payload),
+  });
 }
 
 export async function firmTimeZone(tx: FirmTx): Promise<string> {

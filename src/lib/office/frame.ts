@@ -56,7 +56,7 @@ export async function loadOfficeFrame(ctx: OfficeContext): Promise<OfficeFrame> 
       needPerson: may("enquiries")
         ? await part(tx, "need-person", (sp) => needPersonCount(sp, now))
         : null,
-      needs: may("today") ? await needsOf(tx, now) : null,
+      needs: may("today") ? await needsOf(tx, now, may("client_requests")) : null,
       shell: may("shifts") ? await part(tx, "shell", (sp) => loadShellCounts(sp, now)) : null,
       updates: may("today")
         ? await part(tx, "updates bell", (sp) => loadUpdatesBell(sp, now, ctx.officeUserId))
@@ -76,11 +76,17 @@ async function payQueriesWaiting(tx: FirmTx): Promise<number> {
   return rows[0]?.n ?? 0;
 }
 
-async function needsOf(tx: FirmTx, now: Date): Promise<NonNullable<OfficeFrame["needs"]>> {
+async function needsOf(
+  tx: FirmTx,
+  now: Date,
+  clientRequests: boolean,
+): Promise<NonNullable<OfficeFrame["needs"]>> {
   const { timeZone } = await firmFacts(tx);
   return {
     timeZone,
     today: localDateOf(now, timeZone),
-    needs: await part(tx, "needs", (sp) => loadNeedsAttention(sp, now, timeZone)),
+    needs: await part(tx, "needs", (sp) =>
+      loadNeedsAttention(sp, now, timeZone, { clientRequests }),
+    ),
   };
 }

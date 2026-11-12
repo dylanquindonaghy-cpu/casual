@@ -45,6 +45,13 @@ const MENU: {
       { area: "shifts", href: "/office/events", label: "Events & sessions", icon: "shifts" },
       // The Need a person badge (12D.1); /office/requests redirects to its "Requests from the app".
       { area: "enquiries", href: "/office/enquiries", label: "Enquiries", icon: "requests" },
+      // Client requests (Phase 36.4): what clients sent from their logins; its count the waiting.
+      {
+        area: "client_requests",
+        href: "/office/client-requests",
+        label: "Client requests",
+        icon: "list",
+      },
       {
         area: "cancellations",
         href: "/office/cancellations",
@@ -121,9 +128,10 @@ export function menuBadges(
     needPerson: number;
     uploads: number;
     attention?: { count: number; more: boolean } | null;
+    clientRequests?: number; // client requests waiting for the office (Phase 36.4)
   },
 ): Partial<Record<string, MenuBadge>> {
-  const { payQueries, needPerson, uploads, attention } = counts;
+  const { payQueries, needPerson, uploads, attention, clientRequests = 0 } = counts;
   return {
     ...(attention && attention.count > 0
       ? {
@@ -155,6 +163,15 @@ export function menuBadges(
       : {}),
     ...(uploads
       ? { "/office/casuals": { count: uploads, words: `${uploads} to check`, needs: true } }
+      : {}),
+    ...(clientRequests > 0
+      ? {
+          "/office/client-requests": {
+            count: clientRequests,
+            words: `${clientRequests} waiting`,
+            needs: true,
+          },
+        }
       : {}),
   };
 }
@@ -191,7 +208,7 @@ export function officeMenu(
 // since round 8; its Offered column in Phase 24's 24.3), what Needs attention holds (its one count, named as in the menu since the launch review) and the pay queries
 // waiting. `count` null: it couldn't be read (the words show with no number).
 export type BarCount = {
-  key: "toFill" | "urgent" | "offersOut" | "toCheck" | "payQueries";
+  key: "toFill" | "urgent" | "offersOut" | "toCheck" | "payQueries" | "clientRequests";
   label: string;
   href: string;
   icon: IconName;
@@ -206,9 +223,11 @@ export function barCounts(
     shell: { toFill: number; urgent: number; offersOut: number } | null;
     attention: { count: number | null; more: boolean } | null;
     payQueries: number | null;
+    // Client requests waiting for the office (Phase 36.4): a chip only while there are any.
+    clientRequests?: number | null;
   },
 ): BarCount[] {
-  const { shell, attention, payQueries } = counts;
+  const { shell, attention, payQueries, clientRequests = null } = counts;
   const out: BarCount[] = [];
   if (canAccess(role, "shifts")) {
     out.push(
@@ -254,6 +273,15 @@ export function barCounts(
       href: "/office/pay-queries",
       icon: "pay",
       count: payQueries,
+    });
+  }
+  if (canAccess(role, "client_requests") && clientRequests !== null && clientRequests > 0) {
+    out.push({
+      key: "clientRequests",
+      label: "Client requests",
+      href: "/office/client-requests",
+      icon: "list",
+      count: clientRequests,
     });
   }
   return out;

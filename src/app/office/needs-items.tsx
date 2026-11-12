@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { NeedsAttention } from "@/lib/office/dashboard";
 import { evidenceItems, needsCount } from "@/lib/office/dashboard";
 import {
+  clientRequestsNeedText,
   COUNT_ERROR,
   expiredText,
   NEEDS_HEADINGS,
@@ -301,6 +302,17 @@ export function NeedsItems({
               </li>
             ))}
           </ul>
+        </Need>
+      )}
+
+      {n.clientRequests.waiting + n.clientRequests.plannerToDo > 0 && (
+        <Need id="client-requests" n={n.clientRequests.waiting + n.clientRequests.plannerToDo}>
+          <div className={`${item} mt-3 flex flex-col gap-2`}>
+            <p className={nums}>{clientRequestsNeedText(n.clientRequests)}</p>
+            <Link href="/office/client-requests" className={`${textLink} self-start`}>
+              Open client requests
+            </Link>
+          </div>
         </Need>
       )}
 

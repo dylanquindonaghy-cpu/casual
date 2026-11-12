@@ -498,10 +498,13 @@ development and tests (`EMAIL_TRANSPORT`, `PUSH_TRANSPORT`).
   Sat 14 Nov 12:30") / "Why: {reason}" (a decline: the reason the office typed) or "{question}" (a
   question) or "Our note: {note}" (an acceptance, when the office added one) / "See your events and
   requests: {link}" ("Reply on your requests page: {link}" for a question) / "— {firm} Shift Team".
+  {link} is `https://<the firm's verified own domain, else its portal>/client/requests`.
 - Urgent client request (`office_client_request_push`, push, Phase 36.4,
   `officeClientRequestPush()`: a request the rules call urgent, to each admin or resourcer who left
   "Client requests" on under Tell me about (on by default), looks after its contract (or no
-  contracts) and turned notifications on in a browser; once each): title "Urgent client request ·
+  contracts) and turned notifications on in a browser; once each, however often it's queued: when
+  it's sent urgent, when the client's reply puts an urgent one back with the office, or when the
+  5-minute tick finds it has become urgent since): title "Urgent client request ·
   {Demo Stadium Ltd}"; body "{+4 places · SIA steward · North Gate · Sat 14 Nov 12:30}.". Tapping it
   opens Client requests.
 

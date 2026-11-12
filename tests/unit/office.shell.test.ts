@@ -59,7 +59,7 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
   it("admins see every link, in groups: the dashboard and Needs attention first, then today's, the records and settings folded", () => {
     expect(labels("admin")).toEqual([
       ["Home", ["Dashboard", "Updates", "Needs attention"]],
-      ["Today", ["Events & sessions", "Enquiries", "Cancellations"]],
+      ["Today", ["Events & sessions", "Enquiries", "Client requests", "Cancellations"]],
       ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
       ["People", ["Casuals", "Strikes", "Notice report"]],
       [
@@ -99,7 +99,7 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
   it("resourcers don't see pay or configuration links", () => {
     expect(labels("resourcer")).toEqual([
       ["Home", ["Dashboard", "Updates", "Needs attention"]],
-      ["Today", ["Events & sessions", "Enquiries", "Cancellations"]],
+      ["Today", ["Events & sessions", "Enquiries", "Client requests", "Cancellations"]],
       ["People", ["Casuals", "Strikes", "Notice report"]],
       ["Admin and records", ["Action log", "Pilot metrics"]],
       ["Help", ["How-to guide"]],
@@ -878,6 +878,8 @@ describe("the rail", () => {
       "Needs attention",
       "Events & sessions",
       "Enquiries",
+      // Phase 36.4: what clients sent from their logins.
+      "Client requests",
       "Cancellations",
       "fold:Pay:false",
       "fold:People:false",
@@ -893,6 +895,8 @@ describe("the rail", () => {
       "Needs attention",
       "Events & sessions",
       "Enquiries",
+      // Phase 36.4: what clients sent from their logins.
+      "Client requests",
       "Cancellations",
       "fold:People",
       "fold:Admin and records",
@@ -954,6 +958,8 @@ describe("the rail", () => {
       "Needs attention",
       "Events & sessions",
       "Enquiries",
+      // Phase 36.4: what clients sent from their logins.
+      "Client requests",
       "Cancellations",
       "Pay",
       "Pay dashboard",

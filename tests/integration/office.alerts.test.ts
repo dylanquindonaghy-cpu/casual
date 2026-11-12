@@ -487,14 +487,34 @@ describe("the tick", () => {
         clock: clockAt(at),
       });
     // 07:55 London: the open places only.
-    expect(await tick(new Date("2026-11-02T07:55:00Z"))).toEqual({ open: 1, summaries: 0 });
+    expect(await tick(new Date("2026-11-02T07:55:00Z"))).toEqual({
+      open: 1,
+      summaries: 0,
+      clientRequests: 0,
+    });
     // 08:00: the summary too; 08:05: the next slot's open places, the same day's summary not again.
-    expect(await tick(new Date("2026-11-02T08:00:00Z"))).toEqual({ open: 1, summaries: 1 });
-    expect(await tick(new Date("2026-11-02T08:05:00Z"))).toEqual({ open: 1, summaries: 0 });
+    expect(await tick(new Date("2026-11-02T08:00:00Z"))).toEqual({
+      open: 1,
+      summaries: 1,
+      clientRequests: 0,
+    });
+    expect(await tick(new Date("2026-11-02T08:05:00Z"))).toEqual({
+      open: 1,
+      summaries: 0,
+      clientRequests: 0,
+    });
     // The same slot twice: once.
-    expect(await tick(new Date("2026-11-02T08:06:00Z"))).toEqual({ open: 0, summaries: 0 });
+    expect(await tick(new Date("2026-11-02T08:06:00Z"))).toEqual({
+      open: 0,
+      summaries: 0,
+      clientRequests: 0,
+    });
     // 11:00 the next day: too late for that day's summary.
-    expect(await tick(new Date("2026-11-03T11:00:00Z"))).toEqual({ open: 1, summaries: 0 });
+    expect(await tick(new Date("2026-11-03T11:00:00Z"))).toEqual({
+      open: 1,
+      summaries: 0,
+      clientRequests: 0,
+    });
     expect(await jobsOf(t.f, "office-summary")).toEqual([
       { firmId: t.f.firmId, idempotencyKey: "office-summary:2026-11-02", date: "2026-11-02" },
     ]);

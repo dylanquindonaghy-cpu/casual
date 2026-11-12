@@ -349,6 +349,7 @@ create table client_contacts (
   last_login_at timestamptz,
   created_at timestamptz not null default now(),
   unique (firm_id, id),
+  unique (firm_id, contract_id, id),     -- for client_requests' contact on its own contract (0077)
   unique (firm_id, email)
 );
 
@@ -362,7 +363,9 @@ create table client_requests (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
   contract_id uuid not null,             -- (firm_id, contract_id) -> clients, on delete cascade
-  client_contact_id uuid not null,       -- (firm_id, ...) -> client_contacts, on delete cascade
+  client_contact_id uuid not null,       -- (firm_id, contract_id, client_contact_id) ->
+                                         -- client_contacts (firm_id, contract_id, id), on delete
+                                         -- cascade: a contact on the request's own contract
   kind text not null,                    -- new_event | more_places | fewer_places | new_times |
                                          -- cancel_session | other
   shift_id uuid,                         -- (firm_id, shift_id) -> shifts

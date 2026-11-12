@@ -9,7 +9,9 @@ import {
   plannerTabWords,
   requestTitle,
   sentWords,
+  tooManyRequestsWords,
 } from "@/lib/client/words";
+import { LIMITS } from "@/lib/auth/throttle";
 import { CLIENT_REQUEST_KINDS, CLIENT_REQUEST_STATUSES } from "@/lib/db/schema";
 import { passesLogCheck } from "@/lib/events/record";
 import {
@@ -446,5 +448,48 @@ describe("the action log", () => {
     expect(say("client.removed", "office", { sites: 1, clientLogins: 2 })).toBe(
       "Olu Office removed a contract and its 2 client logins.",
     );
+  });
+});
+
+describe("the limits on a client's requests and replies (M6)", () => {
+  it("20 an hour each, per contact, and plain words when it's reached", () => {
+    expect(LIMITS.clientRequestPerContact).toEqual({
+      name: "client_request:contact",
+      max: 20,
+      windowMs: 3_600_000,
+    });
+    expect(LIMITS.clientReplyPerContact).toEqual({
+      name: "client_reply:contact",
+      max: 20,
+      windowMs: 3_600_000,
+    });
+    expect(tooManyRequestsWords(1)).toBe(
+      "Too many requests. Nothing was sent. Try again in 1 minute.",
+    );
+    expect(tooManyRequestsWords(25)).toBe(
+      "Too many requests. Nothing was sent. Try again in 25 minutes.",
+    );
+    expect(tooManyRequestsWords(60)).toBe(
+      "Too many requests. Nothing was sent. Try again in an hour.",
+    );
+  });
+
+  it("the action log says whose limit it was", () => {
+    const names: Names = {
+      worker: () => "Ann Booker",
+      office: () => "Olu Office",
+      client: () => "Priya Shah",
+      contract: () => "Demo Stadium Ltd",
+    };
+    for (const limit of ["client_request:contact", "client_reply:contact"]) {
+      expect(
+        eventWords(
+          { action: "auth.rate_limited", actorType: "system", actorId: null, data: { limit } },
+          names,
+        ),
+      ).toBe(
+        "Too many client requests from one client login: sending them was paused for a while.",
+      );
+    }
   });
 });

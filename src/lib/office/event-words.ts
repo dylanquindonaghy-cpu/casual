@@ -1160,6 +1160,10 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       if (d.limit === "take:worker") {
         return "Too many taps on Take shift: taking shifts was paused for a while.";
       }
+      // A client contact's (Phase 36.4).
+      if (d.limit === "client_request:contact" || d.limit === "client_reply:contact") {
+        return "Too many client requests from one client login: sending them was paused for a while.";
+      }
       if (d.limit === "push:worker") {
         return "Too many changes to phone notifications: saving them was paused for a while.";
       }

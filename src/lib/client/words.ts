@@ -111,3 +111,13 @@ export function coverWords(s: { toFill: number; offering: boolean; cancelled: bo
   if (s.offering) return "Offers going out";
   return `${s.toFill} to fill`;
 }
+
+// Over the limit on sending requests or replies (20 an hour each, LIMITS.clientRequestPerContact and
+// .clientReplyPerContact): nothing was sent.
+export const tooManyRequestsWords = (retryAfterMinutes: number) => {
+  const wait =
+    retryAfterMinutes < 60
+      ? `${retryAfterMinutes} ${retryAfterMinutes === 1 ? "minute" : "minutes"}`
+      : "an hour";
+  return `Too many requests. Nothing was sent. Try again in ${wait}.`;
+};

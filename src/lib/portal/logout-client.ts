@@ -3,13 +3,15 @@
 // Browser-safe: no imports (tests/unit/client-boundary.test.ts); the page's own steps are passed in.
 
 export type LogoutOutcome = "done" | "no_signal" | "error";
+// Whose session: a casual's, an office user's or (Phase 36.3) a client contact's.
+export type LogoutKind = "worker" | "office" | "client";
 
 const WAIT_MS = 10_000;
 
 // Either the request never got anywhere, or no answer came within the limit (weak venue signal can
 // hang rather than fail). In both it may or may not have reached us.
 export async function logOut(
-  kind: "worker" | "office",
+  kind: LogoutKind,
   waitMs: number = WAIT_MS,
 ): Promise<LogoutOutcome> {
   let response: Response;
@@ -33,13 +35,13 @@ export async function logOut(
 // between (the session was still live, so it was answered with the page) is never kept (the
 // review of audit M27).
 export async function logOutOfThisPhone(
-  kind: "worker" | "office",
+  kind: LogoutKind,
   steps: {
     clearCopy: () => Promise<boolean>;
     forgetPush: () => Promise<void>;
     // The first-login tours' "Not now" kept on this device (Phase 33.2): forgotten first too.
     forgetTour?: () => void;
-    logOut: (kind: "worker" | "office") => Promise<LogoutOutcome>;
+    logOut: (kind: LogoutKind) => Promise<LogoutOutcome>;
   },
 ): Promise<{ outcome: LogoutOutcome; copyCleared: boolean }> {
   steps.forgetTour?.();
@@ -53,7 +55,7 @@ export async function logOutOfThisPhone(
 // What the button says when it couldn't log out (docs/screens.md, "Log out"): short, and only what
 // we know (audit L91).
 export function logoutProblemText(
-  kind: "worker" | "office",
+  kind: LogoutKind,
   outcome: "no_signal" | "error",
   copyCleared: boolean,
 ): string {

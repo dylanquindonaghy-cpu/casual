@@ -756,6 +756,8 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
            values ($1, $2, $3, 'other', '{"text": "Probe"}'::jsonb)`,
     values: [firmId, other.rows.clients, own.rows.client_contacts],
   }),
+  // The contact, on the request's own contract ((firm_id, contract_id, client_contact_id), 0077):
+  // firm B's contact on firm B's contract, under firm A with firm A's contract.
   client_requests_contact_fk: (firmId, own, other) => ({
     text: `insert into client_requests (firm_id, contract_id, client_contact_id, kind, payload)
            values ($1, $2, $3, 'other', '{"text": "Probe"}'::jsonb)`,

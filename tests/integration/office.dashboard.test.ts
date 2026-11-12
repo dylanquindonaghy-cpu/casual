@@ -67,7 +67,8 @@ const TZ = "Europe/London"; // the firms' calendar (the default)
 
 async function dashFirm() {
   const f = await bookingFirm(su, withFirm);
-  const load = () => withFirm(f.firmId, (tx) => loadNeedsAttention(tx, NOW, TZ));
+  const load = () =>
+    withFirm(f.firmId, (tx) => loadNeedsAttention(tx, NOW, TZ, { clientRequests: true }));
   const set = (table: string, id: string, cells: Record<string, unknown>) =>
     su.query(
       `update ${table} set ${Object.keys(cells)
@@ -396,7 +397,8 @@ describe("Needs attention: your planner's change was refused", () => {
       if (made.status !== 201 || !id) throw new Error(`not created: ${made.status}`);
       return id;
     };
-    const needs = async (at = NOW) => withFirm(t.firmId, (tx) => loadNeedsAttention(tx, at, TZ));
+    const needs = async (at = NOW) =>
+      withFirm(t.firmId, (tx) => loadNeedsAttention(tx, at, TZ, { clientRequests: true }));
     const refused = async (at = NOW) =>
       (await needs(at)).plannerRefused.map((r) => [r.shiftId, r.why, r.casuals]);
     const bell = async () =>

@@ -36,7 +36,22 @@ export const NEEDS_HEADINGS = {
   webhook: "Your planner's webhook is failing",
   // Phase 20: counted with Needs attention's items (the one count).
   enquiries: "Enquiries that need a person",
+  // Phase 36.4: client requests waiting for the office, and accepted ones to do in the planner.
+  "client-requests": "Client requests",
 } as const;
+
+// "2 waiting for you (1 urgent) · 1 to do in your planner" (Phase 36.4).
+export function clientRequestsNeedText(c: {
+  waiting: number;
+  urgent: number;
+  plannerToDo: number;
+}): string {
+  const parts: string[] = [];
+  if (c.waiting > 0)
+    parts.push(`${c.waiting} waiting for you${c.urgent > 0 ? ` (${c.urgent} urgent)` : ""}`);
+  if (c.plannerToDo > 0) parts.push(`${c.plannerToDo} to do in your planner`);
+  return parts.join(" · ");
+}
 export type NeedsKey = keyof typeof NEEDS_HEADINGS;
 
 // "Ben Example's SIA door supervisor licence expired on Sat 3 Oct, before their steward session on

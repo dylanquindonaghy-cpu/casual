@@ -210,6 +210,8 @@ describe("Updates you can filter", () => {
       // The match still to fill near its start, and the three cancellations: each one's place is
       // open again (the match has 8 to fill, the arena's night 1).
       action: 4,
+      // No client requests in this firm (Phase 36.4's chip, counted like the rest).
+      "client-requests": 0,
       "to-fill": 1,
       cancellations: 3,
       pay: 2,
@@ -270,6 +272,7 @@ describe("Updates you can filter", () => {
     const resourcer = await t.page(t.resourcer, { period: "30", kind: "everything" });
     expect(resourcer?.kinds).toEqual([
       "action",
+      "client-requests",
       "to-fill",
       "cancellations",
       "uploads",

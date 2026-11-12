@@ -2574,3 +2574,22 @@ Each task adds what it left out here as its wave is merged.
   stewards" is urgent only when the session starts within 48 hours: from Thursday 12:30 before the
   match. Earlier in the week it waits as not urgent. A second waiting request urgent by
   "affects booked" (fewer places or new times on a booked session) would show one every day.
+
+## Phase 36, deferred after the guardrails review and the screens (36.3, 36.4; 2026-11-12)
+
+- **A client's reply overwrites their original note** (review N4). `replyToClientQuestion`
+  (`src/lib/client/requests.ts`) writes the reply into `client_note`, so the note the office's
+  question was about is lost. Keep the reply in its own column (a schema change: needs approval)
+  or a reply history.
+- **Client tables in retention and erasure** (review N5). `client_contacts` (names, emails) and
+  `client_requests`' free text (`client_note`, `office_answer`) are not in `src/lib/gdpr/retention.ts`
+  or an erase path; a contact can only be switched off. Also: the office's decline reason, question
+  or note goes to the client word for word, so it could name a casual against the "numbers only"
+  rule; warn when it contains a booked casual's name.
+- **"Who can work it" on a client request.** The mock-up's count of casuals who could take the
+  requested places isn't shown: nothing in the back end supplies it yet.
+- **Choosing who goes when a client cuts places.** Accepting "fewer places" cancels the latest
+  booked; choosing needs every booking listed in the preview (`src/lib/client/queue.ts`).
+- **A client's request title names the venue, not the post.** `ClientRequestView.session` has no
+  post (`src/lib/client/reads.ts`), so two requests on different posts of one event read the same.
+- **The office's request detail on a phone** sits under the list, not on a page of its own.

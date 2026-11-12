@@ -3,6 +3,9 @@ import { systemClock } from "../auth/clock";
 import type { FirmTx } from "../db/scoped";
 import { officeUsers } from "../db/schema";
 import { localDateOf } from "../time/zoned";
+import type { ClientRequestKind } from "../db/schema/client";
+import { loadOpenClientRequests, requestSitesSql } from "../client/queue";
+import type { UrgentWhy } from "../client/urgency";
 import { sitesSql } from "./contract-scope";
 import { loadUpdates, type Update } from "./dashboard-map";
 import { bookedJoin, placeFree } from "./events";
@@ -50,20 +53,36 @@ export interface ToMark {
   startsAt: Date;
   unmarked: number;
 }
-export type PageUpdate = Update | OpenSoon | ToMark;
+// A client's request (Phase 36.4): waiting for the office (needs action, urgent ones first), asked
+// about (waiting for the client), or accepted but still to do in the firm's planner (needs action).
+export interface ClientRequestUpdate {
+  kind: "client-request";
+  at: Date; // when it was sent, or the client last replied
+  requestId: string;
+  requestKind: ClientRequestKind;
+  status: "waiting" | "asked" | "done_in_planner";
+  contract: string; // the contract's name
+  title: string; // what was asked for, in words (src/lib/client/words.ts requestTitle)
+  urgent: UrgentWhy | null; // the rules' answer now
+}
+export type PageUpdate = Update | OpenSoon | ToMark | ClientRequestUpdate;
 
 // What needs someone to act now.
 export const needsAction = (u: PageUpdate): boolean =>
   u.kind === "open-soon" ||
   u.kind === "to-mark" ||
   u.kind === "upload" ||
-  (u.kind === "cancelled" && u.reopened);
+  (u.kind === "cancelled" && u.reopened) ||
+  (u.kind === "client-request" && u.status !== "asked");
 
 // New since the person last marked Updates seen (what the bell counts): places taken, casuals'
 // cancellations, and uploads when they asked for them ("Tell me about"). Places still open and
 // offers with no reply are states, not news.
 export const isNew = (u: PageUpdate, seenAt: Date | null, uploads: boolean): boolean =>
-  (u.kind === "took" || u.kind === "cancelled" || (u.kind === "upload" && uploads)) &&
+  (u.kind === "took" ||
+    u.kind === "cancelled" ||
+    (u.kind === "upload" && uploads) ||
+    (u.kind === "client-request" && u.status === "waiting")) &&
   (seenAt === null || u.at.getTime() > seenAt.getTime());
 
 export interface UpdatesPage {
@@ -167,6 +186,29 @@ async function loadToMark(tx: FirmTx, now: Date, sites: string[] | null): Promis
   }));
 }
 
+// Client requests still open on the person's contracts (Phase 36.4): waiting ones (urgent first),
+// asked ones and the planner's to-dos, as Updates items.
+async function loadClientRequestUpdates(
+  tx: FirmTx,
+  now: Date,
+  sites: string[] | null,
+): Promise<ClientRequestUpdate[]> {
+  const open = await loadOpenClientRequests(tx, now, sites, UPDATES_PAGE_SHOWN);
+  const items = open.map((r): ClientRequestUpdate => ({
+    kind: "client-request",
+    at: r.status === "waiting" && r.updatedAt > r.createdAt ? r.updatedAt : r.createdAt,
+    requestId: r.id,
+    requestKind: r.kind,
+    status: r.status === "asked" || r.status === "done_in_planner" ? r.status : "waiting",
+    contract: r.contractName,
+    title: r.title,
+    urgent: r.urgent,
+  }));
+  const rank = (u: ClientRequestUpdate) =>
+    u.status === "waiting" ? (u.urgent ? 0 : 1) : u.status === "done_in_planner" ? 2 : 3;
+  return items.sort((a, b) => rank(a) - rank(b) || b.at.getTime() - a.at.getTime());
+}
+
 async function firmTimeZone(tx: FirmTx): Promise<string> {
   const { rows } = await tx.execute<{ timezone: string }>(
     sql`select timezone from firms where id = app_current_firm_id()`,
@@ -182,8 +224,9 @@ async function seenAtOf(tx: FirmTx, officeUserId: string): Promise<Date | null> 
   return me?.seen ?? null;
 }
 
-// What the bell counts: places taken, casuals' cancellations and (when they asked) uploads since
-// the person last marked Updates seen (at most the last week), on their contracts' venues.
+// What the bell counts: places taken, casuals' cancellations, (when they asked) uploads and client
+// requests waiting for the office (sent or replied to since: Phase 36.4) since the person last
+// marked Updates seen (at most the last week), on their contracts' venues.
 async function countNew(
   tx: FirmTx,
   now: Date,
@@ -206,6 +249,9 @@ async function countNew(
     + (select count(*) from uploads u
         where ${uploads}::boolean and u.status = 'waiting' and u.created_at > ${since}
           and u.created_at <= ${now})
+    + (select count(*) from client_requests r
+        where r.status = 'waiting' and r.updated_at > ${since} and r.updated_at <= ${now}
+          and ${requestSitesSql(sites)})
     as n
   `);
   return Number(rows[0]?.n ?? 0);
@@ -220,10 +266,11 @@ export async function loadUpdatesPage(
   const sites = await mySites(tx, officeUserId);
   const seenAt = await seenAtOf(tx, officeUserId);
   const tellMe = await loadTellMe(tx, officeUserId);
-  const [events, soon, toMark] = [
+  const [events, soon, toMark, requests] = [
     await loadUpdates(tx, now, sites, { hours: UPDATES_PAGE_HOURS, shown: UPDATES_PAGE_SHOWN }),
     await loadOpenSoon(tx, now, sites),
     await loadToMark(tx, now, sites),
+    await loadClientRequestUpdates(tx, now, sites),
   ];
   const today = localDateOf(now, timeZone);
   return {
@@ -234,9 +281,15 @@ export async function loadUpdatesPage(
     tellMe,
     newCount: await countNew(tx, now, seenAt, sites, tellMe.includes("uploads")),
     today: events.items.filter((u) => localDateOf(u.at, timeZone) === today).length,
-    // Places still open, soonest start first; then the rest, newest first (as loadUpdates sorts).
-    needsAction: [...soon, ...toMark, ...events.items.filter(needsAction)],
-    everything: [...soon, ...toMark, ...events.items],
+    // Places still open, soonest start first; client requests (urgent first, Phase 36.4); then the
+    // rest, newest first (as loadUpdates sorts).
+    needsAction: [
+      ...soon,
+      ...toMark,
+      ...requests.filter(needsAction),
+      ...events.items.filter(needsAction),
+    ],
+    everything: [...soon, ...toMark, ...requests, ...events.items],
     more: events.more,
   };
 }
@@ -275,6 +328,7 @@ export interface SummaryCounts {
   cancelled: number; // casuals' cancellations
   under48: number; // of those, under 48 hours' notice
   uploads: number; // photos and certificates sent and still waiting
+  clientRequests: number; // client requests sent (Phase 36.4)
 }
 
 // What happened on the person's contracts in (from, now].
@@ -289,6 +343,7 @@ export async function countSince(
     cancelled: number;
     under48: number;
     uploads: number;
+    client_requests: number;
   }>(sql`
     with c as (
       select a.notice_hours from assignments a
@@ -303,7 +358,10 @@ export async function countSince(
       (select count(*)::int from c) as cancelled,
       (select count(*)::int from c where c.notice_hours < 48) as under48,
       (select count(*)::int from uploads u
-        where u.status = 'waiting' and u.created_at > ${from} and u.created_at <= ${now}) as uploads
+        where u.status = 'waiting' and u.created_at > ${from} and u.created_at <= ${now}) as uploads,
+      (select count(*)::int from client_requests r
+        where r.created_at > ${from} and r.created_at <= ${now}
+          and ${requestSitesSql(sites)}) as client_requests
   `);
   const r = rows[0];
   return {
@@ -311,12 +369,14 @@ export async function countSince(
     cancelled: r?.cancelled ?? 0,
     under48: r?.under48 ?? 0,
     uploads: r?.uploads ?? 0,
+    clientRequests: r?.client_requests ?? 0,
   };
 }
 
 // How many things need action now, as Updates' "Needs action" lists them (every one, uncapped):
-// places still to fill near their start, the week's cancellations whose place is open again, and
-// the week's uploads waiting for a check.
+// places still to fill near their start, the week's cancellations whose place is open again, the
+// week's uploads waiting for a check, sessions to mark, and client requests waiting for the office
+// or still to do in the planner (Phase 36.4).
 export async function countNeedsAction(
   tx: FirmTx,
   now: Date,
@@ -344,6 +404,10 @@ export async function countNeedsAction(
           and exists (select 1 from assignments a
                        where a.firm_id = s.firm_id and a.shift_id = s.id
                          and a.worker_id is not null and a.status = 'confirmed'))
+    + (select count(*) from client_requests r
+        where (r.status = 'waiting'
+               or (r.status = 'done_in_planner' and r.planner_done_at is null))
+          and ${requestSitesSql(sites)})
     as n
   `);
   return Number(rows[0]?.n ?? 0);

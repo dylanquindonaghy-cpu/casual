@@ -159,6 +159,20 @@ turning it back on revives nothing (they log in afresh), and a role is read agai
 request. A worker whose mobile or status changes is likewise logged out everywhere. Every change is
 logged, and the firm always keeps an active admin.
 
+**Client contacts (Phase 36.3):** a person at one of the firm's contracts (`client_contacts`),
+added, switched off or on by an admin. The office's flow and limits exactly, as a third session
+kind, `client` (`src/lib/client/login.ts` on the shared `link-login.ts`): work email at
+`/client/login` → the same answer whether or not it's known or switched on → `send-portal-link`
+(purpose `client_login`) emails a one-time link to `/client/l#<token>` (15 minutes, single use,
+hashed, used by a POST) → a 30-day session in its own `__Host-sd_client` cookie, its token renewed
+daily. Limits: 3 links per address and 10 per IP every 15 minutes, 10 per address a day (counted
+apart from the office's); an admin's "Send link" at most 3 every 15 minutes per contact. A client
+link or session never works as an office or worker one, nor the reverse. Every lookup checks the
+contact is still switched on; switching one off ends their sessions and unused links at once.
+Pages use `requireClient()` and actions `getClientSession()` (`src/lib/client/current-client.ts`);
+the contract is always read from the contact's own row inside the firm's transaction, and a client
+reads counts only, never a casual (`src/lib/client/reads.ts`).
+
 ## Roster plugs
 
 The firm's rota can live in different places. The app talks to all of them the same way:

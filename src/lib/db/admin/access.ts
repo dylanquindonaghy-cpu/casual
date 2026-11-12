@@ -116,6 +116,15 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // on or off (COLUMN_UPDATES: the words and who changed them, never whose it is, which firm's or
   // which starter); never deleted (messages and emails name the answer that went).
   answers: ["SELECT", "INSERT"],
+  // Client logins (Phase 36.3): added by an admin, then switched off or on and renamed
+  // (COLUMN_UPDATES), and their last login noted; never whose contract or address it is. Gone only
+  // with their contract (the cascade).
+  client_contacts: ["SELECT", "INSERT"],
+  // Client requests (Phase 36.4): added by a client contact; then only the answer, the status, the
+  // client's note (their reply to a question) and the event a new event became change
+  // (COLUMN_UPDATES): never what was asked for, by whom, or which contract's. Gone only with their
+  // contract.
+  client_requests: ["SELECT", "INSERT"],
 };
 
 // Columns the app role may update on a table it can't update as a whole (a column-level grant).
@@ -159,6 +168,19 @@ export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
   uploads: ["status", "checked_by", "checked_at", "reject_reason"],
   inbound_emails: ["handled_at", "handled_as", "intent", "draft_reply", "answer_id"],
   answers: ["name", "examples", "body", "is_on", "updated_by", "updated_at"],
+  client_contacts: ["name", "is_on", "last_login_at"],
+  client_requests: [
+    "status",
+    "urgent",
+    "office_answer",
+    "answered_by",
+    "answered_at",
+    "planner_done_at",
+    "planner_done_by",
+    "client_note",
+    "updated_at",
+    "event_id",
+  ],
 };
 
 export function schemaTableNames(): string[] {

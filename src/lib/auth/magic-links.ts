@@ -2,7 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import { activeFirmId, type FirmTx } from "../db/scoped";
 import { magicLinks } from "../db/schema";
 import { addMs, MINUTE } from "./clock";
-import type { SubjectKind } from "./sessions";
+import { subjectActiveSql, subjectColumn, type SubjectKind } from "./sessions";
 import { hashToken, newToken } from "./tokens";
 
 // One-time login links (docs/architecture.md, Login): 32 random bytes, stored as a sha256,
@@ -28,6 +28,7 @@ export async function issueMagicLink(
       kind: opts.kind,
       workerId: opts.kind === "worker" ? opts.subjectId : null,
       officeUserId: opts.kind === "office" ? opts.subjectId : null,
+      clientContactId: opts.kind === "client" ? opts.subjectId : null,
       tokenHash: hashToken(token),
       requestId: opts.requestId,
       expiresAt: addMs(opts.now, LINK_LIFETIME_MS),
@@ -58,13 +59,8 @@ export async function spendMagicLink(
        and ml.kind = ${opts.kind}
        and ml.used_at is null
        and ml.expires_at > ${opts.now}
-       and case ml.kind
-             when 'worker' then exists (select 1 from workers w
-                                         where w.id = ml.worker_id and w.status = 'active')
-             else exists (select 1 from office_users o
-                           where o.id = ml.office_user_id and o.status = 'active')
-           end
-    returning ml.id, coalesce(ml.worker_id, ml.office_user_id) as subject_id
+       and ${subjectActiveSql("ml")}
+    returning ml.id, coalesce(ml.worker_id, ml.office_user_id, ml.client_contact_id) as subject_id
   `);
   const row = rows[0];
   return row ? { id: row.id, subjectId: row.subject_id } : null;
@@ -78,7 +74,7 @@ export async function retireOtherLinks(
   tx: FirmTx,
   opts: { kind: SubjectKind; subjectId: string; now: Date },
 ): Promise<void> {
-  const column = opts.kind === "worker" ? sql`worker_id` : sql`office_user_id`;
+  const column = sql.raw(subjectColumn(opts.kind));
   await tx.execute(sql`
     update magic_links set used_at = ${opts.now}
      where id in (select id from magic_links

@@ -4099,3 +4099,81 @@ answer", Edit's the answer's name with "On"/"Off", its uses and its last edit.
   food festival?", answered from What to wear by its example question with her Riverside shift's
   uniform and meeting point; Priya asks "Is there food at the festival?", which goes to the office
   (it's on No answer yet).
+
+## Phase 36
+
+Updates you can filter, client logins and client requests (PLAN.md "## Phase 36"; the mock-up
+approved by Dylan on 2026-11-11). The sections below are the back end's rules for 36.3 and 36.4
+(`src/lib/client/`); the client's pages and the office's Client requests page are built on them.
+
+### 36.3 Client logins (the rules)
+
+- **Who:** a client contact is a person at one of the firm's contracts (Settings → Contracts):
+  name, work email (lower case, one per firm), on or off. Admins only (`client_logins`) add one,
+  switch one off or on, and send one a login link from the contract's page ("Client logins": "Who
+  at the client may send requests. They log in with a link to their email, see their events'
+  numbers, and nothing about your casuals."). Switching one off ends every session and unused link
+  of theirs at once; on again, they log in afresh. Removing a contract removes its client logins and
+  their requests.
+- **Login** (`/client/login`, `/client/l#<token>`): the office login's rules exactly
+  (docs/architecture.md "Login"). "Log in to your client account" / "For {firm}'s clients. Type your
+  work email and we'll send you a login link." / "Your work email" / "Send me a link" / "Not set up
+  yet? Ask your contact at {firm} to add you." Sent: "Check your email." / "If {firm} has set this
+  address up, we've sent a login link. It works for 15 minutes." The same answer for any address.
+  The link page: "Tap the button to see your events with {firm}." / "Log me in" (a POST).
+- **What they see** (`clientEvents()`, `clientEvent()`): their contract's events to come (a session
+  not yet ended, at one of the contract's venues: its own site, else its event's), soonest first;
+  each session's role, location (post), times, places, booked and to fill; the chip "{n} to fill",
+  "Offers going out" (urgent, with places free), "Covered" or "Cancelled" (`coverWords()`).
+  Numbers only: no query selects a casual's name, id or any detail. The contract always comes from
+  the contact's own row, never from the page.
+
+### 36.4 Client requests (the rules)
+
+- **What they can ask** (`clientRequestInput`, one zod schema per kind): "A new event" (name,
+  venue: one of their venues or an address, date, 1 to 12 sessions of role, places, start, finish
+  and notes), "More places on a session" (1 to 200), "Fewer places" (fewer than the session has:
+  down to none is "Cancel a session"), "Different times" (date, start, finish; a finish before the
+  start is the next day), "Cancel a session", "Something else" (text, about a session, an event or
+  nothing), each with an optional note (up to 1,000 characters). Only their own sessions, to come
+  and not cancelled; anything else reads as not found. Sent: "Sent to {firm}. You'll get an answer
+  here and by email." (urgent: "… It starts soon or affects people already booked, so they'll treat
+  it as urgent. …").
+- **Urgency, by the rules** (`urgentWhy()`): urgent when it starts within 48 hours (a new event's
+  first session, the session, or new times asked for), or when it takes places or hours from
+  casuals already booked (fewer places than are free, new times or a cancel with anyone booked).
+  Stored when sent and worked out again whenever it's read. The form says before sending: "This
+  starts within 2 days. {firm} will treat it as urgent. You'll get an answer here and by email."
+  The office's chip: "Urgent · starts within 2 days" / "Urgent · casuals are booked on it".
+- **Statuses:** waiting (for the office), asked (the office asked the client something; their reply
+  puts it back to waiting), accepted, declined (with a reason the client sees), done_in_planner
+  (accepted, still to do in the firm's planner: "To do in {planner}" until "Mark done"; the client
+  sees "Accepted"). The client's words: Waiting, Accepted, Declined, Question for you.
+- **The office's queue** (`officeClientRequests()`, admins and resourcers): tabs Waiting (urgent
+  first, then newest; asked ones last), Accepted, Declined, "To do in {planner}" (the planner's
+  name is its newest live API key's label, else "your planner"), narrowed to the contracts a person
+  looks after (none chosen: every contract; "all" shows every one).
+- **What accepting does** (`officeClientRequestPreview()`, worked out by code from the session as it
+  is now): more places: "12 places become 16 (9 booked, 7 to fill)" and the places offered at once
+  (as "Offer N open places" does) while the session shows to casuals ("hidden": none until it's
+  shown; a session the office marked filled stays closed); fewer places: the free places go first,
+  then the latest booked casuals are cancelled by the firm (the office may choose who), each named
+  with the notice they'd get; new times: from and to, a shortening or a move, each booked casual's
+  notice (the rules are run for each when accepted: a move someone can't work is refused as a
+  whole and the request still waits); cancel: every booking cancelled with notice; a new event: its
+  sessions, made hidden from casuals until the office shows it (an address instead of a venue: no
+  venue yet); a session from the firm's planner, sheet or connector: nothing changes here, it goes
+  on "To do in {planner}"; something else: nothing changes by itself.
+- **Accepting** applies it through the office's own paths in one transaction (golden rules 4, 5 and
+  12): cancellations "The client needs fewer staff" asked by the client, moves "The event's times or
+  place changed" (the office may pick another reason from its list), each booked casual told.
+  Declining needs a reason (1 to 1,000 characters), asking needs the question. Each answer emails
+  the client who sent it (docs/messaging-templates.md "Client logins and requests").
+- **Notifications:** Updates lists open requests ("Client request: {request}" / "{contract} ·
+  waiting for you" ("urgent · starts within 2 days", "you asked them something", "accepted: still to
+  do in your planner"); buttons Answer, Open, Mark done), counts a request sent or replied to since
+  "Mark all as seen" on the bell, and counts waiting ones and planner to-dos in Needs action and
+  Needs attention; the top bar's "Client requests {n}" (waiting); the 08:00 summary lists them and
+  counts those sent ("…, 2 client requests."); an urgent one pushes to the admins and resourcers on
+  its contract with "Tell me about: Client requests" on (the default): "A notification on my phone
+  or computer when one is urgent".

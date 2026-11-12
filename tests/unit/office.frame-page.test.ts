@@ -21,6 +21,7 @@ const needs: NeedsAttention = {
   webhookFailing: null,
   sheetNames: [],
   sheetNamesTotal: 0,
+  clientRequests: { waiting: 0, urgent: 0, plannerToDo: 0 },
 };
 
 const officeFrame = vi.fn(async () => ({

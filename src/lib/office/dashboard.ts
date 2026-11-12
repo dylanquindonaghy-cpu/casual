@@ -4,6 +4,7 @@ import { firms } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { uuidArray } from "../db/arrays";
 import { errorCode } from "../jobs/firm-job";
+import { clientRequestCounts } from "../client/queue";
 import { log } from "../log";
 import { rulesSettingsSchema } from "../roster/eligibility-input";
 import { waitingCount, waitingUploads, type WaitingUpload } from "./casuals";
@@ -89,6 +90,9 @@ export interface NeedsAttention {
   // The names the rota sheet's last sync couldn't use (Phase 25.2; sheet_name_problems).
   sheetNames: SheetName[];
   sheetNamesTotal: number;
+  // Client requests (Phase 36.4): waiting for the office, and accepted ones still to do in the
+  // planner (each one item; the requests themselves are on Client requests).
+  clientRequests: { waiting: number; urgent: number; plannerToDo: number };
 }
 
 // One of the rota sheet's names (Phase 25.2): a role its last sync couldn't read (the row isn't
@@ -120,6 +124,8 @@ export function needsCount(n: NeedsAttention): number {
     evidenceItems(n.evidence) +
     n.plannerRefusedTotal +
     n.sheetNamesTotal +
+    n.clientRequests.waiting +
+    n.clientRequests.plannerToDo +
     (n.webhookFailing ? 1 : 0)
   );
 }
@@ -483,6 +489,7 @@ export async function loadNeedsAttention(
     webhookFailing: webhook.status.kind === "failing" ? { since: webhook.status.since } : null,
     sheetNames: sheetNames.items,
     sheetNamesTotal: sheetNames.total,
+    clientRequests: await clientRequestCounts(tx, now),
   };
 }
 

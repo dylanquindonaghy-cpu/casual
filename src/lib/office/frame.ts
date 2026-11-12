@@ -9,6 +9,7 @@ import { firmFacts, loadNeedsAttention, part, type NeedsAttention, type Part } f
 import { needPersonCount } from "./enquiries";
 import { parts, type OfficeContext } from "./office-context";
 import { loadShellCounts, type ShellCounts } from "./shell-counts";
+import { clientRequestCounts, type ClientRequestCounts } from "../client/queue";
 
 // What every office page's frame shows (Phase 25.3, P4's "the layout's 5 reads in one
 // transaction"): the menu's and the top bar's counts, read in one transaction for the office user
@@ -22,6 +23,9 @@ export interface OfficeFrame {
   needs: { timeZone: string; today: string; needs: Part<NeedsAttention> } | null; // (dashboard)
   shell: Part<ShellCounts> | null; // the top bar's sessions (Events & sessions)
   updates: Part<UpdatesBell> | null; // the bell and the pop-up (Phase 26.4: admins, resourcers)
+  // The top bar's "Client requests N" (Phase 36.4): waiting for the office, urgent ones, and the
+  // planner's to-dos, the firm's (admins and resourcers).
+  clientRequests: Part<ClientRequestCounts> | null;
 }
 
 const NO_FRAME: OfficeFrame = {
@@ -31,6 +35,7 @@ const NO_FRAME: OfficeFrame = {
   needs: null,
   shell: null,
   updates: null,
+  clientRequests: null,
 };
 
 export async function loadOfficeFrame(ctx: OfficeContext): Promise<OfficeFrame> {
@@ -55,6 +60,9 @@ export async function loadOfficeFrame(ctx: OfficeContext): Promise<OfficeFrame> 
       shell: may("shifts") ? await part(tx, "shell", (sp) => loadShellCounts(sp, now)) : null,
       updates: may("today")
         ? await part(tx, "updates bell", (sp) => loadUpdatesBell(sp, now, ctx.officeUserId))
+        : null,
+      clientRequests: may("client_requests")
+        ? await part(tx, "client requests", (sp) => clientRequestCounts(sp, now))
         : null,
     };
   });

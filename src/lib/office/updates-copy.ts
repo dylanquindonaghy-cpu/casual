@@ -2,7 +2,8 @@ import { noticeText } from "../portal/cancel-reasons";
 import { wallTimeOf } from "../time/zoned";
 import { sessionWhen, updateLines } from "./dashboard-map-copy";
 import { roleLabel } from "../portal/format";
-import type { NewCancellation, PageUpdate } from "./updates";
+import { URGENT_WORDS } from "../client/words";
+import type { ClientRequestUpdate, NewCancellation, PageUpdate } from "./updates";
 
 // Updates in words (Phase 26.4; docs/screens.md "Updates"): the page, each update's lines and
 // button, the bell and the pop-up. Plain functions, so the tests read every line.
@@ -89,6 +90,7 @@ export function updateRow(u: PageUpdate, now: Date, timeZone: string): UpdateRow
       action: { label: "Mark who worked", href: `/office/shifts/${u.shiftId}?show=booked` },
     };
   }
+  if (u.kind === "client-request") return clientRequestRow(u);
   const l = updateLines(u, timeZone);
   const base = { title: l.title, line: l.line, tone: l.tone, href: l.href };
   switch (u.kind) {
@@ -110,6 +112,33 @@ export function updateRow(u: PageUpdate, now: Date, timeZone: string): UpdateRow
     case "no-reply":
       return { ...base, action: { label: "Open", href: l.href } };
   }
+}
+
+// A client's request (Phase 36.4): "Client request: +4 places · SIA steward · North Gate · Sat 14 Nov
+// 12:30", the contract's name and where it stands, opening it on Client requests.
+export const CLIENT_REQUESTS_HREF = "/office/client-requests";
+export function clientRequestRow(u: ClientRequestUpdate): UpdateRow {
+  const href = `${CLIENT_REQUESTS_HREF}?request=${u.requestId}`;
+  const where =
+    u.status === "asked"
+      ? "you asked them something"
+      : u.status === "done_in_planner"
+        ? "accepted: still to do in your planner"
+        : u.urgent
+          ? URGENT_WORDS[u.urgent].toLowerCase()
+          : "waiting for you";
+  return {
+    title: `Client request: ${u.title}`,
+    line: `${u.contract} · ${where}`,
+    tone: u.status === "waiting" ? (u.urgent ? "urgent" : "attention") : "wait",
+    href: CLIENT_REQUESTS_HREF,
+    action:
+      u.status === "done_in_planner"
+        ? { label: "Mark done", href }
+        : u.status === "waiting"
+          ? { label: "Answer", href }
+          : { label: "Open", href },
+  };
 }
 
 // The bell (sys-8): read with how many are new.
@@ -146,5 +175,9 @@ export function summaryLine(u: PageUpdate, now: Date, timeZone: string): string 
       return `${plural(u.offers, "offer", "offers")} with no reply yet`;
     case "to-mark":
       return `${plural(u.unmarked, "person", "people")} not marked yet as worked: ${where(u)}`;
+    case "client-request":
+      return u.status === "done_in_planner"
+        ? `A client request to do in your planner (${u.contract}): ${u.title}`
+        : `A client request${u.urgent ? ", urgent" : ""} (${u.contract}): ${u.title}`;
   }
 }

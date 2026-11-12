@@ -5,14 +5,31 @@ import { recordEvent } from "../events/record";
 import { addMs, DAY, HOUR } from "./clock";
 import { hashToken, newToken } from "./tokens";
 
-// Sessions for workers and office users (docs/architecture.md, Login). The cookie holds a random
+// Sessions for workers, office users and client contacts (Phase 36.3) (docs/architecture.md, Login). The cookie holds a random
 // token; the database holds its sha256. A session lasts 30 days from login, whatever happens.
 // Its token is replaced every 24 hours by a server action (cookies can't be set while a page
 // renders); the previous token keeps working for 60 seconds so requests already in flight with
 // the old cookie aren't logged out. Every lookup checks the kind and that the person is still
 // active, so a disabled worker or office user is out at their next request.
 
-export type SubjectKind = "worker" | "office";
+// client (Phase 36.3): a client contact (client_contacts), active while switched on.
+export type SubjectKind = "worker" | "office" | "client";
+
+// The subject's id column for each kind (sessions and magic_links share the names).
+export const subjectColumn = (kind: SubjectKind) =>
+  kind === "worker" ? "worker_id" : kind === "office" ? "office_user_id" : "client_contact_id";
+
+// "This row's person is still active", for a row `alias` of sessions or magic_links: a worker or
+// office user whose status is active, or a client contact switched on.
+export const subjectActiveSql = (alias: string) =>
+  sql.raw(`case ${alias}.kind
+             when 'worker' then exists (select 1 from workers w
+                                         where w.id = ${alias}.worker_id and w.status = 'active')
+             when 'office' then exists (select 1 from office_users o
+                                         where o.id = ${alias}.office_user_id and o.status = 'active')
+             else exists (select 1 from client_contacts c
+                           where c.id = ${alias}.client_contact_id and c.is_on)
+           end`);
 
 export const SESSION_LIFETIME_MS = 30 * DAY;
 export const ROTATE_AFTER_MS = 24 * HOUR;
@@ -39,6 +56,7 @@ export async function createSession(
       kind: opts.kind,
       workerId: opts.kind === "worker" ? opts.subjectId : null,
       officeUserId: opts.kind === "office" ? opts.subjectId : null,
+      clientContactId: opts.kind === "client" ? opts.subjectId : null,
       tokenHash: hashToken(token),
       expiresAt,
       rotatedAt: opts.now,
@@ -70,20 +88,15 @@ export async function findSession(
     rotated_at: Date | string;
     stepped_up_until: Date | string | null;
   }>(sql`
-    select s.id, coalesce(s.worker_id, s.office_user_id) as subject_id, s.expires_at,
-           s.rotated_at, s.stepped_up_until
+    select s.id, coalesce(s.worker_id, s.office_user_id, s.client_contact_id) as subject_id,
+           s.expires_at, s.rotated_at, s.stepped_up_until
       from sessions s
      where s.kind = ${opts.kind}
        and s.revoked_at is null
        and s.expires_at > ${opts.now}
        and (s.token_hash = ${hash}
             or (s.prev_token_hash = ${hash} and s.prev_valid_until > ${opts.now}))
-       and case s.kind
-             when 'worker' then exists (select 1 from workers w
-                                         where w.id = s.worker_id and w.status = 'active')
-             else exists (select 1 from office_users o
-                           where o.id = s.office_user_id and o.status = 'active')
-           end
+       and ${subjectActiveSql("s")}
   `);
   const row = rows[0];
   if (!row) return null;
@@ -157,11 +170,12 @@ export async function endSession(
       id: sessions.id,
       workerId: sessions.workerId,
       officeUserId: sessions.officeUserId,
+      clientContactId: sessions.clientContactId,
     });
   if (!ended) return false;
   await recordEvent(tx, {
     actorType: opts.kind,
-    actorId: ended.workerId ?? ended.officeUserId,
+    actorId: ended.workerId ?? ended.officeUserId ?? ended.clientContactId,
     action: "auth.logout",
     entityType: "session",
     entityId: ended.id,
@@ -171,8 +185,8 @@ export async function endSession(
 
 // Signs someone out everywhere: every session they have ends and every login link they haven't
 // used yet is spent, at once. For an office user turned off or back on, or signed out on every
-// device (src/lib/office/team.ts), and a worker whose mobile or status changes
-// (src/lib/roster/workers.ts). Inside the caller's transaction; the caller logs it.
+// device (src/lib/office/team.ts), a worker whose mobile or status changes
+// (src/lib/roster/workers.ts), and a client contact switched off or on (src/lib/client/contacts.ts). Inside the caller's transaction; the caller logs it.
 //
 // Links first: a login using one of their links at this moment holds that link's row, so this
 // waits for it to finish, and the sessions statement after it (a fresh look, under READ COMMITTED)
@@ -185,11 +199,15 @@ export async function endEverySession(
   const sessionOf =
     opts.kind === "worker"
       ? eq(sessions.workerId, opts.subjectId)
-      : eq(sessions.officeUserId, opts.subjectId);
+      : opts.kind === "office"
+        ? eq(sessions.officeUserId, opts.subjectId)
+        : eq(sessions.clientContactId, opts.subjectId);
   const linkOf =
     opts.kind === "worker"
       ? eq(magicLinks.workerId, opts.subjectId)
-      : eq(magicLinks.officeUserId, opts.subjectId);
+      : opts.kind === "office"
+        ? eq(magicLinks.officeUserId, opts.subjectId)
+        : eq(magicLinks.clientContactId, opts.subjectId);
   const spent = await tx
     .update(magicLinks)
     .set({ usedAt: opts.now })

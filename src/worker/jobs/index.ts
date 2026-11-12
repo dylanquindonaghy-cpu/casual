@@ -78,6 +78,8 @@ import {
   type OfficeSummaryPayload,
 } from "../../lib/office/alert-jobs";
 import { officeAlertTasks, runOfficeAlertsTick } from "../../lib/office/alerts";
+import { clientRequestTasks } from "../../lib/client/notify";
+import type { ClientRequestAlertPayload, ClientRequestAnswerPayload } from "../../lib/client/jobs";
 import {
   escalateShiftTask,
   offerWaveTask,
@@ -169,6 +171,11 @@ export interface JobDeps {
     summary: FirmTask<OfficeSummaryPayload>;
   };
   enquiryEmailReplies?: FirmTask<EnquiryEmailReplyPayload>;
+  // Client requests (Phase 36.4): an urgent one's notification, and the answer to the client.
+  clientRequests?: {
+    alert: FirmTask<ClientRequestAlertPayload>;
+    answer: FirmTask<ClientRequestAnswerPayload>;
+  };
   webhooks?: FirmTask<WebhookDeliverPayload>;
   connectorEvents?: FirmTask<ConnectorEventPayload>;
   connectorPulls?: FirmTask<ConnectorPullPayload>;
@@ -400,6 +407,12 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
     }),
   );
   await boss.schedule(OFFICE_ALERTS_TICK_QUEUE, OFFICE_ALERTS_TICK_CRON);
+
+  // Client requests (Phase 36.4): an urgent one pushed to the resourcers on its contract, and the
+  // office's answer emailed to the client (each queued by the request or the answer).
+  const clientRequestJobs = deps.clientRequests ?? clientRequestTasks;
+  await registerFirmTask(boss, clientRequestJobs.alert);
+  await registerFirmTask(boss, clientRequestJobs.answer);
 
   // Alerts to the founder (src/lib/ops/): the tick every 5 minutes; each alert a job of its own.
   const alerts = deps.alerts ?? alertTransport(appEnv().ALERTS_TRANSPORT);

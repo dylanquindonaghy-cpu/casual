@@ -1,14 +1,19 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { FirmTx, WithFirm } from "../db/scoped";
-import { events, firms, magicLinks, officeUsers, workers } from "../db/schema";
+import { clientContacts, events, firms, magicLinks, officeUsers, workers } from "../db/schema";
 import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
 import { firmJobEnvelope, type FirmTask } from "../jobs/firm-job";
 import { emailMessageId, NO_CHANNEL, sendFailureCode, smsAllowedFor } from "../notify/send";
 import { getTransport, type MessagingTransport } from "../messaging";
 import { NoTextSenderError, type OutboundMessage } from "../messaging/transport";
-import { loginLinkSms, officeLoginLinkEmail, workerLoginLinkEmail } from "../messaging/templates";
+import {
+  clientLoginLinkEmail,
+  loginLinkSms,
+  officeLoginLinkEmail,
+  workerLoginLinkEmail,
+} from "../messaging/templates";
 import { ownDomainUrl, portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { systemClock, type Clock } from "./clock";
@@ -16,7 +21,7 @@ import { loginChannel, loginEmailAllowed } from "./login-channel";
 import { issueMagicLink, markLinkSent } from "./magic-links";
 
 // The send-portal-link job (docs/api-and-jobs.md). The web queues it for every login request
-// (workers by number, office users by email), known or not, so a request takes the same time
+// (workers by number, office users and client contacts by email: Phase 36.3), known or not, so a request takes the same time
 // and makes the same writes either way; for an unknown or inactive number or address
 // (subjectId null) the job does nothing. The token is created here, in the worker, so it never
 // sits in the job queue: the payload holds ids only.
@@ -25,7 +30,7 @@ export const SEND_PORTAL_LINK_QUEUE = "send-portal-link";
 
 export const sendPortalLinkPayload = firmJobEnvelope.extend({
   idempotencyKey: z.uuid(), // the login request id
-  purpose: z.enum(["worker_login", "office_login"]),
+  purpose: z.enum(["worker_login", "office_login", "client_login"]),
   // Which of the firm's addresses the request came in on: the link goes back to it, if it's still
   // the firm's verified own domain (otherwise the portal). A job queued before this existed: the
   // portal.
@@ -67,27 +72,35 @@ async function claimLink(
   deps: SendPortalLinkDeps,
   now: Date,
 ): Promise<LinkClaim> {
-  const office = payload.purpose === "office_login";
+  const client = payload.purpose === "client_login";
+  const office = payload.purpose === "office_login" || client;
   // Workers get their link by text (by email, P2.6, when no text can go and the firm has it on:
-  // login-channel.ts); office users by email. Only while still active. The row is held
-  // (FOR SHARE) until the link is stored, so access being turned off or a mobile or email changing
-  // at this moment takes turns with it: either this sees the change, or the change sees this link
-  // and spends it (src/lib/auth/sessions.ts endEverySession).
-  const [recipient] = office
+  // login-channel.ts); office users and client contacts by email. Only while still active (a
+  // client contact: switched on). The row is held (FOR SHARE) until the link is stored, so access
+  // being turned off or a mobile or email changing at this moment takes turns with it: either this
+  // sees the change, or the change sees this link and spends it (src/lib/auth/sessions.ts
+  // endEverySession).
+  const [recipient] = client
     ? await tx
-        .select({ to: officeUsers.email, email: officeUsers.email })
-        .from(officeUsers)
-        .where(and(eq(officeUsers.id, payload.subjectId), eq(officeUsers.status, "active")))
+        .select({ to: clientContacts.email, email: clientContacts.email })
+        .from(clientContacts)
+        .where(and(eq(clientContacts.id, payload.subjectId), eq(clientContacts.isOn, true)))
         .for("share")
-    : await tx
-        .select({
-          to: workers.mobileE164,
-          email: workers.email,
-          smsOptedOutAt: workers.smsOptedOutAt,
-        })
-        .from(workers)
-        .where(and(eq(workers.id, payload.subjectId), eq(workers.status, "active")))
-        .for("share");
+    : office
+      ? await tx
+          .select({ to: officeUsers.email, email: officeUsers.email })
+          .from(officeUsers)
+          .where(and(eq(officeUsers.id, payload.subjectId), eq(officeUsers.status, "active")))
+          .for("share")
+      : await tx
+          .select({
+            to: workers.mobileE164,
+            email: workers.email,
+            smsOptedOutAt: workers.smsOptedOutAt,
+          })
+          .from(workers)
+          .where(and(eq(workers.id, payload.subjectId), eq(workers.status, "active")))
+          .for("share");
   // An active worker always has a mobile (only an erased one has none, and erasure is inactive).
   if (!recipient?.to) return { done: "inactive" };
   const [firm] = await tx
@@ -133,7 +146,7 @@ async function claimLink(
   }
 
   const link = await issueMagicLink(tx, {
-    kind: office ? "office" : "worker",
+    kind: client ? "client" : office ? "office" : "worker",
     subjectId: payload.subjectId,
     requestId: payload.idempotencyKey,
     now,
@@ -182,20 +195,26 @@ async function claimLink(
   return {
     magicLinkId: link.id,
     ownDomain: ownDomain !== null,
-    message: office
+    message: client
       ? {
           channel: "email",
           to: recipient.to,
-          ...officeLoginLinkEmail(voice, `${portal}/office/l#${link.token}`),
+          ...clientLoginLinkEmail(voice, `${portal}/client/l#${link.token}`),
         }
-      : channel === "email"
-        ? byEmail!
-        : {
-            channel: "sms",
+      : office
+        ? {
+            channel: "email",
             to: recipient.to,
-            ...(firm.line ? { from: firm.line } : {}),
-            body: loginLinkSms(voice, `${portal}/l#${link.token}`),
-          },
+            ...officeLoginLinkEmail(voice, `${portal}/office/l#${link.token}`),
+          }
+        : channel === "email"
+          ? byEmail!
+          : {
+              channel: "sms",
+              to: recipient.to,
+              ...(firm.line ? { from: firm.line } : {}),
+              body: loginLinkSms(voice, `${portal}/l#${link.token}`),
+            },
     instead: office || channel === "email" ? null : byEmail,
   };
 }

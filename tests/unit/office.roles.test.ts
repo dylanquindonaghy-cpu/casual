@@ -71,6 +71,15 @@ describe("office roles", () => {
     }
   });
 
+  it("client logins (36.3) are for admins; client requests (36.4) for the roles that place staff", () => {
+    expect(canAccess("admin", "client_logins")).toBe(true);
+    expect(canAccess("resourcer", "client_logins")).toBe(false);
+    expect(canAccess("payroll", "client_logins")).toBe(false);
+    // Accepting a request changes sessions, so it's exactly the roles that may place staff.
+    expect([...OFFICE_AREAS.client_requests].sort()).toEqual([...OFFICE_ROLES_THAT_PLACE].sort());
+    expect(canAccess("payroll", "client_requests")).toBe(false);
+  });
+
   it("pay queries are for payroll and admins", () => {
     expect(canAccess("payroll", "pay")).toBe(true);
     expect(canAccess("admin", "pay")).toBe(true);

@@ -42,6 +42,9 @@ describe("staff pages", () => {
       (page) => !pageAndViews(page).some((f) => /<PageHeader\b/.test(read(f))),
     );
     expect(without.map(rel).sort()).toEqual([
+      // The client login and its link page (Phase 36.3): the office login's layout.
+      "src/app/client/l/page.tsx",
+      "src/app/client/login/page.tsx",
       // The strikes team's confirmation link (12B.7): the login link's layout.
       "src/app/confirm-email/page.tsx",
       "src/app/l/page.tsx",
@@ -58,6 +61,8 @@ describe("staff pages", () => {
 
   it("the login pages and the error pages open with their one <h1>", () => {
     for (const page of [
+      "src/app/client/l/page.tsx",
+      "src/app/client/login/page.tsx",
       "src/app/l/page.tsx",
       "src/app/login/page.tsx",
       "src/app/confirm-email/page.tsx",

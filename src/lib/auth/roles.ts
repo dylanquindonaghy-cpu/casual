@@ -31,6 +31,12 @@ export const OFFICE_AREAS = {
   // access (inactive, active, unblock, site blocks).
   casuals: ["admin", "resourcer"],
   guide: ["admin", "resourcer", "payroll"], // the how-to guide (it shows each role its own parts)
+  // Client logins (Phase 36.3): a contract's client contacts (add, switch off or on, send a login
+  // link). Admins only, as the contracts themselves (settings).
+  client_logins: ["admin"],
+  // Client requests (Phase 36.4): the queue, what accepting does, accept, decline, ask the client,
+  // mark a planner's to-do done. Accepting changes sessions, so exactly the roles that place staff.
+  client_requests: ["admin", "resourcer"],
 } as const satisfies Record<string, readonly OfficeRole[]>;
 
 export type OfficeArea = keyof typeof OFFICE_AREAS;

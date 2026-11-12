@@ -67,6 +67,26 @@ export function officeLoginLinkEmail(
   };
 }
 
+// client_login_link (email, Phase 36.3): a client contact's login link, asked for on /client/login
+// or sent by an admin from the contract's client logins.
+export function clientLoginLinkEmail(
+  firm: FirmVoice,
+  link: string,
+): { subject: string; body: string } {
+  return {
+    subject: `Your ${firm.name} client login link`,
+    body: [
+      `Here's your link to your events with ${firm.name}:`,
+      "",
+      link,
+      "",
+      "It works for 15 minutes, once, and only for you. If you didn't ask for it, you can ignore this email.",
+      "",
+      `— ${firm.signOff}`,
+    ].join("\n"),
+  };
+}
+
 // strikes_email_confirm (email, 12B.7): sent to the strikes team's address when an admin saves it
 // on Settings. The link confirms that address only, for 7 days (src/lib/office/strikes-email.ts).
 export function strikesEmailConfirmEmail(
@@ -726,6 +746,58 @@ export function officeOpenPush(s: {
   return { title: `${places} still to fill, starts ${s.startsIn}`, body: `${where}. ${offered}` };
 }
 
+// Push (Phase 36.4): an urgent client request, to the admins and resourcers on its contract who
+// left "Tell me about: client requests" on. The contract's name and what was asked for; never a
+// casual's name.
+export function officeClientRequestPush(r: {
+  contract: string;
+  title: string; // "+4 places · SIA steward · North Gate · Sat 14 Nov 12:30"
+}): { title: string; body: string } {
+  return { title: `Urgent client request · ${r.contract}`, body: `${r.title}.` };
+}
+
+// client_request_answer (email, Phase 36.4): the office's answer to a client's request, to the
+// client contact who sent it. Accepted, declined (with the office's reason) or a question (they
+// reply on their requests page). Signed by the firm's Shift Team, as every automatic message.
+export function clientRequestAnswerEmail(
+  firm: FirmVoice,
+  a: {
+    answer: "accepted" | "declined" | "asked";
+    title: string; // what they asked for, in words
+    words: string | null; // the office's reason, question or note to them
+    link: string; // their requests page
+  },
+): { subject: string; body: string } {
+  const subject =
+    a.answer === "accepted"
+      ? `${firm.name} accepted your request`
+      : a.answer === "declined"
+        ? `${firm.name} can't do your request`
+        : `${firm.name} has a question about your request`;
+  const opening =
+    a.answer === "accepted"
+      ? "We've accepted your request:"
+      : a.answer === "declined"
+        ? "We can't do this request:"
+        : "We have a question about your request:";
+  const words =
+    a.words === null
+      ? []
+      : a.answer === "declined"
+        ? [`Why: ${a.words}`]
+        : a.answer === "asked"
+          ? [a.words]
+          : [`Our note: ${a.words}`];
+  const next =
+    a.answer === "asked"
+      ? `Reply on your requests page: ${a.link}`
+      : `See your events and requests: ${a.link}`;
+  return {
+    subject,
+    body: [opening, a.title, ...words, next, `— ${firm.signOff}`].join("\n\n"),
+  };
+}
+
 // office_summary (email at 08:00, the firm's time, to each admin or resourcer who asked for it):
 // what needs action now and what happened since 08:00 yesterday, on their contracts.
 export function officeSummaryEmail(
@@ -739,6 +811,8 @@ export function officeSummaryEmail(
     cancelled: number;
     under48: number;
     uploads: number;
+    // Client requests sent since (Phase 36.4): said only when there are any.
+    clientRequests?: number;
     link: string; // the Updates page
   },
 ): { subject: string; body: string } {
@@ -761,7 +835,7 @@ export function officeSummaryEmail(
     body: [
       `Here's what's happened ${s.mine ? "on your contracts" : "at every venue"} since 08:00 yesterday.`,
       needs.join("\n"),
-      `Since 08:00 yesterday: ${n(s.took, "place taken", "places taken")}, ${cancelled}, ${n(s.uploads, "upload", "uploads")} to check.`,
+      `Since 08:00 yesterday: ${n(s.took, "place taken", "places taken")}, ${cancelled}, ${n(s.uploads, "upload", "uploads")} to check${s.clientRequests ? `, ${n(s.clientRequests, "client request", "client requests")}` : ""}.`,
       `Open Updates: ${s.link}`,
       "To stop these emails, switch off the 08:00 summary under Tell me about on Updates.",
       `— ${firm.signOff}`,

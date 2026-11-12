@@ -477,6 +477,34 @@ answer's name (until the guardrails review, a name with "pay" in it sent "…hel
 question?" instead). Its keyword "office" gives it to a person, with the usual "The office will see this and get
 back to you. Ref {ref}." reply; on her screen: "Sent to the office. They'll answer here."
 
+## Client logins and requests (Phase 36)
+
+Emails to a firm's client contacts (a person at a contract: Phase 36.3) and the office's
+notification about their urgent requests (36.4). Numbers and the client's own request only: never a
+casual's name or details. Signed by the firm's Shift Team, as every automatic message. Console in
+development and tests (`EMAIL_TRANSPORT`, `PUSH_TRANSPORT`).
+
+- Client login link (`client_login_link`, email, Phase 36.3, `clientLoginLinkEmail()`: asked for on
+  `/client/login`, or sent by an admin from the contract's client logins; the office login's rules):
+  subject "Your {firm} client login link"; body "Here's your link to your events with {firm}:" /
+  "{link}" / "It works for 15 minutes, once, and only for you. If you didn't ask for it, you can
+  ignore this email." / "— {firm} Shift Team". {link} is `https://<portal>/client/l#<token>`.
+- Answer (`client_request_answer`, email, Phase 36.4, `clientRequestAnswerEmail()`: to the client
+  contact who sent the request, while their login is on, once per answer; an answer a later one
+  replaced before it went isn't sent): subject "{firm} accepted your request" ("{firm} can't do your
+  request" for a decline, "{firm} has a question about your request" for a question); body "We've
+  accepted your request:" ("We can't do this request:", "We have a question about your request:") /
+  "{request}" (the request in one line, as on their page: "+4 places · SIA steward · North Gate ·
+  Sat 14 Nov 12:30") / "Why: {reason}" (a decline: the reason the office typed) or "{question}" (a
+  question) or "Our note: {note}" (an acceptance, when the office added one) / "See your events and
+  requests: {link}" ("Reply on your requests page: {link}" for a question) / "— {firm} Shift Team".
+- Urgent client request (`office_client_request_push`, push, Phase 36.4,
+  `officeClientRequestPush()`: a request the rules call urgent, to each admin or resourcer who left
+  "Client requests" on under Tell me about (on by default), looks after its contract (or no
+  contracts) and turned notifications on in a browser; once each): title "Urgent client request ·
+  {Demo Stadium Ltd}"; body "{+4 places · SIA steward · North Gate · Sat 14 Nov 12:30}.". Tapping it
+  opens Client requests.
+
 ## Push (title / body)
 
 - Offer: "Shift available" / "{date} {start} at {site}. Tap to take it." (built: `offerPush()`, with

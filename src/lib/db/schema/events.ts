@@ -3,7 +3,8 @@ import { bigint, check, index, jsonb, pgTable, text, uuid } from "drizzle-orm/pg
 import { createdAt, firmIsolationAppendOnly } from "./helpers";
 import { firms } from "./tenancy";
 
-export const ACTOR_TYPES = ["worker", "office", "system", "ai"] as const;
+// client (Phase 36.3): a client contact, logging in or sending a request.
+export const ACTOR_TYPES = ["worker", "office", "system", "ai", "client"] as const;
 
 // The action log (golden rule 5). Append-only: the app role gets SELECT and INSERT only, and
 // there are no update or delete policies. data never holds tokens, codes, phones, emails or IPs.
@@ -50,7 +51,10 @@ export const events = pgTable(
     index("events_firm_id_actor_id_idx")
       .on(t.firmId, t.actorId, t.id)
       .where(sql`${t.actorId} is not null`),
-    check("events_actor_type_check", sql`${t.actorType} in ('worker', 'office', 'system', 'ai')`),
+    check(
+      "events_actor_type_check",
+      sql`${t.actorType} in ('worker', 'office', 'system', 'ai', 'client')`,
+    ),
     check("events_action_format", sql`${t.action} ~ '^[a-z_]+([.][a-z_]+)+$'`),
     ...firmIsolationAppendOnly(t.firmId),
   ],

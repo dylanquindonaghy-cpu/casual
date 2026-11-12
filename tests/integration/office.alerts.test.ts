@@ -190,19 +190,37 @@ describe("Tell me about", () => {
   it("the defaults until someone changes one; each change saved and logged; a repeat writes nothing", async () => {
     const t = await office();
     const read = (who: string) => withFirm(t.f.firmId, (tx) => loadTellMe(tx, who));
-    expect(await read(t.anna)).toEqual(["popup", "cancel_push", "open_push", "summary"]);
-    expect(await read(t.cara)).toEqual(["popup", "summary"]);
+    // "Client requests" (Phase 36.4) is on by default too.
+    expect(await read(t.anna)).toEqual([
+      "popup",
+      "cancel_push",
+      "open_push",
+      "summary",
+      "client_requests",
+    ]);
+    expect(await read(t.cara)).toEqual(["popup", "summary", "client_requests"]);
     // Cara's two changes, each logged with what she's now told about.
     expect((await eventsOf(t.f, "office_user.tell_me_saved")).map((e) => e.data)).toEqual([
-      { kind: "cancel_push", on: false, tellMe: ["popup", "open_push", "summary"] },
-      { kind: "open_push", on: false, tellMe: ["popup", "summary"] },
+      {
+        kind: "cancel_push",
+        on: false,
+        tellMe: ["popup", "open_push", "summary", "client_requests"],
+      },
+      { kind: "open_push", on: false, tellMe: ["popup", "summary", "client_requests"] },
     ]);
     // Already off: nothing written or logged.
     await saveTellMe(t.ctx(t.cara), { kind: "open_push", on: false });
     expect(await eventsOf(t.f, "office_user.tell_me_saved")).toHaveLength(2);
     // Uploads on for Anna; a kind that doesn't exist, and payroll, refused.
     await saveTellMe(t.ctx(t.anna), { kind: "uploads", on: true });
-    expect(await read(t.anna)).toEqual(["popup", "cancel_push", "open_push", "uploads", "summary"]);
+    expect(await read(t.anna)).toEqual([
+      "popup",
+      "cancel_push",
+      "open_push",
+      "uploads",
+      "summary",
+      "client_requests",
+    ]);
     expect(await saveTellMe(t.ctx(t.anna), { kind: "everything", on: true })).toEqual({
       status: "invalid",
     });

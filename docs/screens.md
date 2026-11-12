@@ -4297,3 +4297,129 @@ sections.
 - **What the client sees of a venue:** an event's name and venue only when its venue is the
   contract's; a session at their venue in an event at another contract's venue shows its own venue
   (name and address), never the other contract's.
+
+### 36.3 and 36.4 screens
+
+The client's pages and the office's (built on the rules above; the approved mock-up's client side
+and office side). Words: `src/lib/client/page-copy.ts` (the client's), `src/lib/client/office-copy.ts`
+(the office's), `src/lib/client/words.ts` and `src/lib/client/form.ts` (the form's field words).
+44px targets; no sideways scroll at 390px or 1280px; every action ends with a confirmation.
+
+- **The client's frame** (every logged-in client page; `src/app/client/client-frame.tsx`): in the
+  office's look, light unless the person picked dark (the sd-theme cookie). A bar across the top:
+  the firm's mark and "{firm} · Client" (a link to Your events), on the right the contact's name
+  over their contract and the light or dark button; under them "Your events", "Your requests" (the
+  page you're on marked) and "Log out" (the route every login uses; then the client login with
+  "You're logged out."). The session's token is renewed once a day while they use it. The firm's
+  own bar steps aside (the frame names the firm).
+- **Your events** (`/client`, title "Your events"): "Your events", "Places you've booked with
+  {firm}, and how covered each is. Numbers only: we look after who works."; **New request** (the
+  main button) and **Your requests** (with the count still open). Then a card for each event to
+  come, soonest first (two to a row from 1024px): its name (a link to its page), its chip
+  ("{n} to fill", "Offers going out", "Covered", "Cancelled"), "Sat 14 Nov · from 12:30 · Demo
+  Stadium" ("Sat 14 Nov to Sun 15 Nov" over more days), a bar (red under half booked, amber short
+  of full, green covered) and "71 of 86 booked". None: "No events to come yet. Send a new request
+  and it shows here once it's set up." Then **Your requests**: their newest 3 (as on Your
+  requests) and "All your requests"; none: "No requests yet. Use New request, or Ask for a change on
+  an event."
+- **An event** (`/client/events/{id}`, title "An event"; another contract's or firm's, or one
+  with nothing to come: not found): back to "Your events"; the event's name; its line and the
+  venue's address; its bar and "{booked} of {places} booked"; **Ask for a change** and **Add
+  places** (the main button: the form with "More places on a session" chosen). **Sessions**: from
+  768px a table (Location, Role, Times, Booked as "9/12", the chip, and "Change" on each session to
+  come), the location shown once for the rows under it; on a phone a list of the same, each with
+  "Ask for a change to this session". Times have their day when the event runs over more than one.
+  Then **Waiting for {firm}**: that event's requests still waiting or asked about, and "Questions
+  from {firm} are answered on Your requests."
+- **Ask for a change / New request** (`/client/requests/new`, title "New request";
+  `?event=`, `&session=`, `&kind=` choose the event, the session and the kind; anything not theirs
+  is ignored): "Ask for a change" (from an event: its name and line) or "New request" ("A new
+  event, or a change to one you have. {firm} answers here and by email."). **What do you need?**: a
+  choice card each, "A new event" (New request only), "More places on a session", "Fewer places",
+  "Different times", "Cancel a session", "Something else". Then that kind's fields:
+  - a session's kinds: **Which session?** (theirs to come and not cancelled; from an event, its
+    own: "North Gate · Steward · Sat 14 Nov 12:30–19:30"), with "It has 12 places, 9 booked.";
+    **How many more?** / **How many fewer?**; **Date**, **Start**, **Finish** ("Before the start:
+    the next day."); a cancel: "If {firm} accepts, the session is cancelled and anyone booked on it
+    is told.";
+  - "Something else": **Which session? (optional)** ("No session in particular") and **What do you
+    need?**;
+  - "A new event": **The event's name**, **Venue** (the contract's venues, and "Somewhere else
+    (type the address)", then **The venue's address**), **Date**, and **Sessions ({n} of 12)**:
+    each "Session {n}" with **Role**, **Places**, **Start**, **Finish** and **Location or notes
+    (optional)**, "Remove session {n}" (with more than one) and **Add a session** (up to 12).
+  - **Why (optional)** for every kind.
+  - When the rules will find it urgent, before sending, a yellow box: "This starts within 2 days."
+    (or "This affects people already booked.") / "{firm} will treat it as urgent. You'll get an
+    answer here and by email."
+  - **Send to {firm}**. Problems show next to their fields before anything is sent ("Choose what
+    you need.", "Choose a session.", "Type how many more, from 1 to 200.", "Type how many fewer,
+    from 1 to {n}. To have none, cancel the session.", "Choose a date.", "Type a start time, like
+    09:30.", "These are the times it has now. Change one of them.", "That time has gone. Choose a
+    later one.", "Say what you need.", "Give the event a name.", "Type the venue's address.",
+    "Choose a role.", "Type how many places, from 1 to 1000."), with "Nothing was sent. Check the
+    fields marked."; over the limit: "Too many requests. Nothing was sent. Try again in {n}
+    minutes.". Sent: a green slip "Sent" / "Sent to {firm}. You'll get an answer here and by
+    email." (urgent: "… It starts soon or affects people already booked, so they'll treat it as
+    urgent. …"), then **See your requests** and **Back to the event** (or **Back to your events**).
+- **Your requests** (`/client/requests`, title "Your requests"): back to "Your events"; "Newest
+  first. {firm} answers each one here and by email."; **New request**. Each request: its status
+  chip (Waiting, Question for you, Accepted, Declined; "Urgent" beside a waiting urgent one), "Sent
+  14:40" ("Sent Tue 10 Nov 09:05"), what was asked (requestTitle), their words for "Something
+  else", "Your note: "…"", "Sent by a colleague on your contract." (another contact's), "Reason
+  from {firm}: "…"" (declined), "{firm}: "…"" (a word with an acceptance), "Open the event". A question:
+  an amber slip "{firm} asks" with the question, **Your answer** and **Send my answer**; sent: "Sent"
+  / "Sent. {firm} will look at your request again."; "Type your answer first." with none.
+- **Client requests** (`/office/client-requests`, title "Client requests"; admins and resourcers;
+  in the menu after Enquiries with its count of those waiting; the top bar's "Client requests {n}"
+  while any wait; Needs attention's "Client requests" part: "{n} waiting for you ({u} urgent) · {p}
+  to do in your planner" and "Open client requests"): "From your clients' logins. You accept or
+  decline each; they see your answer." Tabs **Waiting**, **Accepted**, **Declined**, **To do in
+  {planner}** (each with its count: Waiting's and the planner's always); **My contracts** and **All
+  contracts** for someone who looks after contracts. The list (from 1024px beside the chosen
+  request; under it on a phone): the contract, when, a chip ("Urgent · starts within 2 days",
+  "Urgent · casuals are booked on it", the kind while waiting, "You asked them", "Declined", "To do
+  in the planner", "Accepted"), what was asked, and once answered "Accepted · Tue 10 Nov 09:05".
+  Empty: "No client requests waiting. New ones show here, urgent first.", "No accepted requests
+  yet.", "No declined requests.", "Nothing to do in {planner}.". The chosen one (`?request=`, the
+  list's first by default; Updates' rows open it): its title and chip, "From Priya Shah, Demo
+  Stadium Ltd · {event} · Sat 14 Nov 12:30–19:30", when sent, "They asked: …", "Their note: …",
+  "Your reason: …" / "You asked: …"; **What accepting does** (or **To do in your planner**), each
+  line "{label}: {text}" (`acceptLines()`), e.g. "North Gate Steward: 12 places become 16 (9 booked,
+  7 to fill).", "Offers: the 7 open places go to the best eligible casuals now.", "Booked casuals:
+  2 bookings are cancelled by the firm, "The client needs fewer staff": Ana Steward (2 days'
+  notice), …", "Planner: this session comes from AXLR8, so nothing changes here.", "Client: Priya
+  sees "Accepted" and gets an email." Then the answers:
+  - **Accept**, in words that say what it does: "Accept and offer the places", "Accept and cancel
+    the session", "Accept and make the event", "Accept: to do in the planner", "Accept"; with
+    **Offer the places now** (more places offered at once: on), **Reason casuals are told** (new
+    times, cancel), **Make it at** (a new event: the contract's venues; required for an address),
+    and **A word to the client (optional)**. One that cancels bookings or moves people booked asks
+    first in red ("This cancels 2 bookings with notice: …. Each is told." / "This moves 3 people
+    booked on it. Each is told.") with **Yes, …** and **Not yet**.
+  - **Decline…**: **Why? The client sees this.** and **Decline the request** (a red step), or
+    **Not yet**.
+  - **Ask the client**: **Your question for the client** and **Send the question**, or **Not
+    yet**.
+  - On the planner's to-do list: "Made the change in your planner? Mark it done." and **Mark
+    done**.
+  - Each ends with a green "Done" slip: "Accepted. 12 places are now 16, and offers are going out.
+    The client is told.", "Declined. The client sees your reason and gets an email.", "Sent. The
+    client sees your question and gets an email. It waits for their answer.", "Marked done. It's
+    off the to-do list."; refused, why, in red ("Not changed: Ana Steward can't work the new times
+    (…). The request still waits: decline it, or ask the client.", "Someone has answered this
+    already. Reload the page.").
+- **A contract** (`/office/settings/contracts/{id}`, title "A contract"; admins; "Client logins"
+  under each contract on Settings opens it): back to "Settings"; the contract's name; "A contract:
+  its client logins and venues." **Client logins**: "Who at the client may send requests. They log
+  in with a link to their email, see their events' numbers, and nothing about your casuals." Each
+  login: name, "{email} · last in today" ("last in Mon 9 Nov", "not logged in yet"), On or Off, and
+  **Send link** and **Turn off** (on ones: "Turn off {name}? They're logged out now and their links
+  stop working." **Yes, turn off {name}** / **Keep them on**) or **Turn on**. None: "No client
+  logins yet. Add one below." **Add a client login**: **Their name**, **Their work email**, **Add a
+  client login**. Confirmations: "Added {name}. Send them a link so they can log in.", "Sent.
+  {name} has a login link by email. It works for 15 minutes.", "{name} is off. They're logged out
+  and their links don't work.", "{name} is on. Send them a link to log in."; problems: "Someone
+  already has a client login with that email.", "Type their name.", "Type their work email, like
+  name@example.com.", "You've sent {name} 3 links. Try again in {n} minutes.". **Its venues**: their
+  names ("No venues yet. Tick them on Settings.").

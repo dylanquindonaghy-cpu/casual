@@ -76,7 +76,7 @@ export function RequestLine({
       {!r.byYou && <p className={meta}>Sent by a colleague on your contract.</p>}
       {r.officeAnswer && r.status === "declined" && (
         <p className="break-words">
-          <b>{firmName}&apos;s reason:</b> &ldquo;{r.officeAnswer}&rdquo;
+          <b>Reason from {firmName}:</b> &ldquo;{r.officeAnswer}&rdquo;
         </p>
       )}
       {r.officeAnswer && (r.status === "accepted" || r.status === "done_in_planner") && (

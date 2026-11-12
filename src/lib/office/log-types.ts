@@ -360,6 +360,9 @@ export const LIMIT_TYPES: Readonly<Record<string, LogType>> = {
   "strikes_link:firm": "firm",
   "strikes_link:firm_day": "firm",
   "client:office_link": "clients", // an admin's "Send link" to a client login (Phase 36.3)
+  // A client login's requests and replies to the office's questions (Phase 36.4).
+  "client_request:contact": "clients",
+  "client_reply:contact": "clients",
 };
 const limitType = (data: Record<string, unknown> | undefined): LogType => {
   const name = data?.limit;

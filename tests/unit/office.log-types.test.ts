@@ -396,6 +396,9 @@ describe("the action log's types and words", () => {
     // with the client logins.
     expect(limit("login:client_email")).toBe("Logins");
     expect(limit("client:office_link")).toBe("Client logins and requests");
+    // Phase 36.4: a client login's requests and replies, with the client logins too.
+    expect(limit("client_request:contact")).toBe("Client logins and requests");
+    expect(limit("client_reply:contact")).toBe("Client logins and requests");
     expect(limit("otp:worker")).toBe("Logins");
     // An older entry without a name, or one not known here: Logins.
     expect(logTypeLabel("auth.rate_limited")).toBe("Logins");

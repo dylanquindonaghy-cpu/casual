@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { seedFirms } from "@/lib/db/admin/seed-data";
+import { acmeMatchDay } from "@/lib/db/admin/seed-match";
 import { dramaMobile, SPARE_MOBILES } from "../e2e/spare-mobiles";
 
 // The browser specs hand out numbers at run time only from SPARE_MOBILES' blocks
@@ -54,7 +55,13 @@ describe("the browser specs' spare numbers", () => {
     const literals = files(join(root, "src")).flatMap((path) =>
       [...readFileSync(path, "utf8").matchAll(DRAMA)].map((m) => dramaMobile(Number(m[1]))),
     );
-    const clashes = [...seeded, ...storyNumbers, ...literals].filter((m) =>
+    // The match day's squad (Phase 36.5), numbered from its own blocks.
+    const firm = seedFirms(new Date("2026-11-06T09:00:00Z")).find((f) => f.slug === "acme")!;
+    const match = acmeMatchDay(firm, new Date("2026-11-06T09:00:00Z")).workers.map(
+      (w) => w.mobileE164,
+    );
+    expect(match.length).toBeGreaterThan(0);
+    const clashes = [...seeded, ...storyNumbers, ...literals, ...match].filter((m) =>
       inBlock(Number(m.slice(-3))),
     );
     expect(clashes).toEqual([]);

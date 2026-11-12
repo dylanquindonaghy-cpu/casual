@@ -3517,10 +3517,11 @@ action refuses on the server too. There's never a password login on a real serve
 **"Choose a view"** (`/start`). Demo servers only, on Acme, for anyone logged in to its office (the
 staffing login or any other office login there); not logged in, the staffing login.
 
-- "Choose a view", then "See the demo as the office or as a casual. You can come back here at any
-  time." and "Logged in as {Staffing (demo)}."
-- Two big glass cards, each one tap target (the whole card), one column on a phone and side by side
-  from 768px:
+- "Choose a view", then "See the demo as the office, a casual or a client. You can come back here at
+  any time." and "Logged in as {Staffing (demo)}." (Phase 36.5 added the third card and "a client";
+  until then "See the demo as the office or as a casual.")
+- Three big glass cards (two until Phase 36.5), each one tap target (the whole card), one column on
+  a phone, two side by side from 768px and three from 1024px:
   - **"Staffing and resourcing view"**: "The office: urgent gaps, who to offer, cancellations,
     enquiries and the log." → `/office`.
   - **"Casual mobile view"**: "What a casual sees on their phone: their shifts, open shifts, pay day
@@ -3531,6 +3532,7 @@ staffing login or any other office login there); not logged in, the staffing log
     session, only on a demo server. If it can't: "You're logged out. Log in again to open the casual
     view.", "The demo casual isn't there. Reset the demo, then try again." or "Something went wrong.
     Try again."
+  - **"Client view"** (Phase 36.5): see "36.5 A match day to play with" below.
 - Under them, a smaller link: "Quick guide: where everything lives" (→ `/start/guide`).
 
 **The phone frame** (`/start/phone`): the same access. "Casual mobile view", "This is the casual app
@@ -4423,3 +4425,59 @@ and office side). Words: `src/lib/client/page-copy.ts` (the client's), `src/lib/
   already has a client login with that email.", "Type their name.", "Type their work email, like
   name@example.com.", "You've sent {name} 3 links. Try again in {n} minutes.". **Its venues**: their
   names ("No venues yet. Tick them on Settings.").
+
+### 36.5 A match day to play with
+
+Dylan (2026-11-11): "build more data so i can review if anything needs any changing … The Kick off
+is 16:30 add location etc cancels for it literally everything so i can play around". The demo seed
+(`src/lib/db/admin/seed-match.ts`, loaded by `seed-match-load.ts`; docs/testing.md "Fixtures and the
+demo seed") adds a made-up football match on Acme, shaped like a match-day deployment sheet. Every
+name, place, client and rate is made up (golden rule 7): nothing comes from the real sheet Dylan
+showed beyond its general shape.
+
+- **The match:** "Demo Rovers v Visitors FC" at Demo Stadium (1 Demo Road, Exampleton, ZZ1 9SR,
+  on the office map near the Arena), kick-off 16:30 on the demo's coming Saturday (that day itself
+  until kick-off), showing to casuals. Ids are fixed: the nightly reset (and `npm run db:reset`)
+  moves it to the new coming Saturday; a plain re-run of the seed leaves it as it is.
+- **Its posts** (each a session's post, with its meeting point, uniform, pay and instructions:
+  searches and ticket checks, queues, "report to event control", and the redeployments, "At 15:45,
+  5 of you move to the Demo Central station queue"): North Gate and South Bridge (a supervisor and
+  13 and 11 SIA stewards, as door supervisors), West Ramp and South Ramp (a supervisor and 4
+  stewards each), Players' entrance search (4 SIA), Stadium tours (2 stewards, 09:30 to 17:00),
+  the station queues at Demo Central and Demo Park stations (5 stewards each, 14:00 to 20:00), Estate
+  patrol (3 CSAS officers), Control room (3 supervisors), Car park North and South (8 and 6 stewards
+  with Chapter 8), the Agency area (10 stewards) and the Deployment manager (a supervisor): 83
+  places. Timed from kick-off as such sheets are: most 4 hours before for 7 hours (12:30 to 19:30),
+  the car parks 4h15 before for 8h15, the control room 3h30 before for 6h30, the deployment manager
+  6h30 before for 10h30.
+- **Qualifications, as data** (golden rule 6): every session needs the firm's own "Demo Stadium
+  ground induction" on top of its role's (a credential type of Acme's, not a pack's); the car parks
+  need "Chapter 8 traffic management certificate" too, another of Acme's own; "supervisor" is
+  Acme's own role (an SIA door supervisor licence and the Level 2 steward qualification). Only the
+  match's own 75 made-up casuals hold the induction, so the walkthrough's casuals and the story's
+  (Zoe included) see none of its places, and their lists are as before.
+- **The state to play with:** 69 of 83 booked (83%). North Gate's SIA stewards 3 short, marked
+  urgent by the office, two offers waiting there; Car park North 4 short; Estate patrol 1 short;
+  the Agency area 4 short. A casual cancelled on the South Ramp three hours before the seed ran
+  ("Travel problem"): the rules decide the strike from the notice (a strike under 48 hours, and
+  urgent by the system inside the urgent window). The office cancelled one booking at Demo Park's
+  station queue ("They've left, or can't work here", with the notice she had). The previous home
+  match, "Demo Rovers v Example Athletic" two weeks before: worked, a late cancellation there that
+  was a strike, and a pay query still open ("hours missing", a car park steward).
+- **The client:** the contract "Demo Stadium Ltd" (Demo Stadium is its venue), its client login
+  Hannah Price (hannah.price@demo-stadium.example), and her requests: waiting, "4 more SIA stewards
+  at North Gate" (urgent by the rules: within 2 days of the session) and a new event, "Demo Rovers v
+  Sample Town FC" two weeks later; answered, from the previous match, one accepted (2 more places at
+  the Agency area) and one declined (selling programmes, with the office's reason).
+
+**"Client view"** on "Choose a view" (`/start`; `src/app/start/client-view-button.tsx`,
+`openClientView()` in `src/lib/demo/staff-session.ts`): guarded exactly as "Casual mobile view"
+(demo servers only, on Acme, only from an office session there). The third card:
+
+- **"Client view"**: "What a client sees: their events in numbers and the requests they send. Never
+  a casual's name." It logs this browser in as the demo's client login (Hannah Price, Demo Stadium
+  Ltd) with a client's session and cookie, as her own login link would, logs it ("{Staffing (demo)}
+  opened the client view as {Hannah Price} ({Demo Stadium Ltd}).", ids only), then opens the client's
+  pages (`/client`). "Opening…" while it works. If it can't: "You're logged out. Log in again to open
+  the client view.", "The demo client isn't there. Reset the demo, then try again." (her login is
+  missing or switched off) or "Something went wrong. Try again."

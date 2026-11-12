@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import type { ClientRequestKind, ClientRequestStatus } from "../db/schema/client";
@@ -52,11 +52,12 @@ export async function clientScope(
   return r ? { contactId: clientContactId, contractId: r.contract_id } : null;
 }
 
-// "The session `s` (with its event `e`) is at one of the contract's venues."
-export const contractSessionSql = (contractId: string) => sql`exists (
+// "The session `s` (with its event `e`) is at one of the contract's venues." The contract: its id,
+// or a column (a request's `r.contract_id`).
+export const contractSessionSql = (contract: string | SQL) => sql`exists (
   select 1 from sites v
    where v.firm_id = s.firm_id and v.id = coalesce(s.site_id, e.site_id)
-     and v.client_id = ${contractId}::uuid)`;
+     and v.client_id = ${typeof contract === "string" ? sql`${contract}::uuid` : contract})`;
 
 export interface ClientSessionRow {
   shiftId: string;
@@ -236,20 +237,27 @@ export async function clientFormChoices(ctx: ClientContext): Promise<ClientFormC
       select id::text as site_id, name from sites
        where client_id = ${scope.contractId}::uuid order by lower(name), id
     `);
-    const { rows: roles } = await tx.execute<{ role: string }>(sql`
-      select role from credential_rules
-      union
-      select distinct s.role from shifts s
-        join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
-       where ${contractSessionSql(scope.contractId)}
-      order by role
-    `);
     return {
       venues: venues.map((v) => ({ siteId: v.site_id, name: v.name })),
-      roles: roles.map((r) => r.role),
+      roles: await contractRoles(tx, scope.contractId),
       timeZone: await firmTimeZone(tx),
     };
   });
+}
+
+// The roles a contract's new event may ask for: the firm's roles (its credential rules) and those
+// of the contract's own sessions. The form offers exactly these, and sending and accepting refuse
+// any other (requests.ts, answer.ts).
+export async function contractRoles(tx: FirmTx, contractId: string): Promise<string[]> {
+  const { rows } = await tx.execute<{ role: string }>(sql`
+    select role from credential_rules
+    union
+    select distinct s.role from shifts s
+      join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
+     where ${contractSessionSql(contractId)}
+    order by role
+  `);
+  return rows.map((r) => r.role);
 }
 
 export interface ClientRequestView {
@@ -302,7 +310,16 @@ export async function clientRequestList(ctx: ClientContext): Promise<ClientReque
                       case when ev.client_id = r.contract_id then ev.name end) as site,
              s.starts_at, s.headcount, b.booked
         from client_requests r
-        left join shifts s on s.firm_id = r.firm_id and s.id = r.shift_id
+        -- The session only while it's at one of the contract's venues (a session moved to another
+        -- contract's venue since reads as none: never its venue, role or times).
+        left join lateral (
+          select s0.* from shifts s0
+            join shift_events e0 on e0.firm_id = s0.firm_id and e0.id = s0.event_id
+           where s0.firm_id = r.firm_id and s0.id = r.shift_id
+             and exists (select 1 from sites v
+                          where v.firm_id = s0.firm_id and v.id = coalesce(s0.site_id, e0.site_id)
+                            and v.client_id = r.contract_id)
+        ) s on true
         left join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
         left join lateral (
           select count(*)::int as booked from assignments a

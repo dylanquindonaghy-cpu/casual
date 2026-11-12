@@ -26,7 +26,8 @@ import { seedId, type SeedFirm } from "./seed-data";
 //   after a casual cancelled (the strike decision the rules' own), Demo Park's station queue 1
 //   short after the office cancelled a booking (with its reason and notice: golden rule 12). Two
 //   offers waiting on North Gate.
-// - A squad of 75 made-up casuals (07700 900408 to 900449 and 900457 to 900489) who hold the
+// - A squad of 75 made-up casuals (numbers from MATCH_MOBILE_BLOCKS, 07700 900408 to 900449 and
+//   900457 to 900498, in order: the 75 take 900408 to 900449 and 900457 to 900489) who hold the
 //   match's own requirement, the firm's "Demo Stadium ground induction" (its own credential type,
 //   as data: golden rule 6), so the walkthrough's 60 casuals and the story's eight never see these
 //   places and their lists stay as they were. The car parks need "Chapter 8 traffic management",

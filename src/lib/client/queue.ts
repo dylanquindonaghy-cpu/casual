@@ -10,7 +10,7 @@ import { isoDate, timesOn } from "../roster/shift-times";
 import { isVisibleToCasuals } from "../roster/visibility";
 import { payloadOf, type ClientPayload } from "./payloads";
 import { placesChange, type PlacesChange } from "./preview-math";
-import { firmTimeZone, placesOf, requestUrgency } from "./reads";
+import { contractRoles, contractSessionSql, firmTimeZone, placesOf, requestUrgency } from "./reads";
 import type { UrgentWhy } from "./urgency";
 import { OFFICE_TABS, requestTitle, type OfficeTab } from "./words";
 
@@ -56,6 +56,11 @@ export interface OfficeClientRequest {
   contactId: string;
   contactName: string; // the client's own person (never a casual)
   title: string; // what was asked for, in words
+  // The same for the client (their emails): the session only while it's at one of the contract's
+  // venues, and only their venue's name, never another contract's.
+  clientTitle: string;
+  // The session is still at one of the request's contract's venues (false: moved since, or none).
+  sessionTheirs: boolean;
   payload: ClientPayload[ClientRequestKind] | null;
   note: string | null; // the client's
   officeAnswer: string | null;
@@ -100,6 +105,8 @@ type RequestSql = {
   s_status: string | null;
   source: string | null;
   is_urgent: boolean | null;
+  s_theirs: boolean | null;
+  client_site: string | null;
 };
 
 const requestSelect = (where: SQL, order: SQL, limit: number) => sql`
@@ -110,7 +117,10 @@ const requestSelect = (where: SQL, order: SQL, limit: number) => sql`
          s.id::text as shift_id, s.event_id::text as s_event_id, e.name as event_name, s.role,
          s.post, coalesce(sv.name, ev.name) as site,
          coalesce(s.site_id, e.site_id)::text as site_id, s.starts_at, s.ends_at, s.headcount,
-         b.booked, s.status as s_status, s.source, s.is_urgent
+         b.booked, s.status as s_status, s.source, s.is_urgent,
+         ${contractSessionSql(sql`r.contract_id`)} as s_theirs,
+         coalesce(case when sv.client_id = r.contract_id then sv.name end,
+                  case when ev.client_id = r.contract_id then ev.name end) as client_site
     from client_requests r
     join clients k on k.firm_id = r.firm_id and k.id = r.contract_id
     join client_contacts c on c.firm_id = r.firm_id and c.id = r.client_contact_id
@@ -168,6 +178,18 @@ export function requestOf(r: RequestSql, now: Date, timeZone: string): OfficeCli
       },
       timeZone,
     ),
+    clientTitle: requestTitle(
+      {
+        kind: r.kind,
+        payload,
+        session:
+          session && r.s_theirs
+            ? { role: session.role, startsAt: session.startsAt, site: r.client_site }
+            : null,
+      },
+      timeZone,
+    ),
+    sessionTheirs: session !== null && r.s_theirs === true,
     payload,
     note: r.client_note,
     officeAnswer: r.office_answer,
@@ -325,8 +347,9 @@ export interface BookedCasual {
 }
 
 // What stops a new event being made as it stands: a date or time that doesn't make a session, one
-// that has started, the client's venue no longer the contract's, or an address (no venue chosen yet).
-export type NewEventProblem = "bad_time" | "in_past" | "bad_venue" | "choose_venue";
+// that has started, the client's venue no longer the contract's, an address (no venue chosen yet),
+// or a role the contract's events can't have (contractRoles).
+export type NewEventProblem = "bad_time" | "in_past" | "bad_venue" | "choose_venue" | "bad_role";
 
 export type AcceptPreview =
   // More or fewer places: the numbers, who a cut cancels (the latest booked first, unless the
@@ -373,7 +396,13 @@ export type AcceptPreview =
   // Something else: nothing changes by itself.
   | { kind: "other" }
   // The session can't be changed any more (started or cancelled): decline it, or ask the client.
-  | { kind: "gone"; why: "started" | "cancelled" | "missing" };
+  // moved: no longer at one of the request's contract's venues (accepting would change another
+  // contract's session); last_place: fewer places leaving none (cancel the session instead);
+  // no_change: the request doesn't change the places.
+  | {
+      kind: "gone";
+      why: "started" | "cancelled" | "missing" | "moved" | "last_place" | "no_change";
+    };
 
 export interface ClientRequestPreview {
   request: OfficeClientRequest;
@@ -433,6 +462,8 @@ export async function previewAccept(
     if (!p) return { kind: "gone", why: "missing" };
     const problems: NewEventProblem[] = [];
     const venues = await contractVenues(tx, r.contractId);
+    const roles = new Set(await contractRoles(tx, r.contractId));
+    if (p.sessions.some((x) => !roles.has(x.role))) problems.push("bad_role");
     let venue: { siteId: string; name: string } | { address: string };
     if ("siteId" in p.venue) {
       const siteId = p.venue.siteId;
@@ -464,6 +495,7 @@ export async function previewAccept(
   }
   const s = r.session;
   if (!s) return { kind: "gone", why: "missing" };
+  if (!r.sessionTheirs) return { kind: "gone", why: "moved" };
   const owner = ownerOf(s.source);
   if (owner) return { kind: "planner", owner, plannerName: await plannerName(tx) };
   if (s.status === "cancelled") return { kind: "gone", why: "cancelled" };
@@ -475,7 +507,11 @@ export async function previewAccept(
     case "more_places":
     case "fewer_places": {
       const change = placesChange(r.kind, s, { places: placesOf(r.payload) });
-      if (change === null || change === "last_place") return { kind: "cancel", booked: [] };
+      if (change === "last_place") return { kind: "gone", why: "last_place" };
+      // Accepting refuses these too (answer.ts: "last_place", "form").
+      if (change === null || change.after.places === change.before.places) {
+        return { kind: "gone", why: "no_change" };
+      }
       const booked = await bookedOn(tx, s.shiftId, notice, s.startsAt);
       const closed = s.status === "filled" && s.booked < s.headcount;
       const offers =

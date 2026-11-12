@@ -39,6 +39,8 @@ const request = (o: Partial<OfficeClientRequest> = {}): OfficeClientRequest => (
   contactId: "p1",
   contactName: "Priya Shah",
   title: "+4 places · Steward · North Gate · Sat 14 Nov 12:30",
+  clientTitle: "+4 places · Steward · Demo Stadium · Sat 14 Nov 12:30",
+  sessionTheirs: true,
   payload: { places: 4 },
   note: null,
   officeAnswer: null,

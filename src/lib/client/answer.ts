@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock } from "../auth/clock";
+import { retryAborted } from "../db/retry";
 import { shifts } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
@@ -22,7 +23,7 @@ import { queueClientRequestAnswer } from "./jobs";
 import type { ClientPayload } from "./payloads";
 import { placesChange } from "./preview-math";
 import { bookedOn, loadClientRequest, ownerOf, type OfficeClientRequest } from "./queue";
-import { firmTimeZone, placesOf } from "./reads";
+import { contractRoles, firmTimeZone, placesOf } from "./reads";
 
 // The office's answers to a client request (Phase 36.4; Dylan's approval, 2026-11-11: "the office
 // accepts or declines each request"). Admins and resourcers (client_requests), checked inside the
@@ -114,6 +115,9 @@ export type AcceptResult =
       problems?: { line: number | null; problem: ShiftProblem }[];
     }
   | { status: "not_open" } // the session has started, was cancelled or is gone
+  // The session isn't at one of the request's contract's venues any more: accepting would change
+  // another contract's session, so nothing changes.
+  | { status: "not_theirs" }
   | { status: "already_answered" }
   | { status: "not_found" }
   | { status: "not_allowed" };
@@ -163,6 +167,24 @@ async function answer(
   await queueClientRequestAnswer(tx, { requestId: r.id, answerEventId });
 }
 
+// The request's session, held, while it's still at one of the request's contract's venues (as
+// contractSessionSql reads it), its event and venue held too so neither moves meanwhile. False: it
+// has moved to another contract's venue (or none), and nothing may change it for this request.
+async function sessionStillTheirs(
+  tx: FirmTx,
+  shiftId: string,
+  contractId: string,
+): Promise<boolean> {
+  const { rows } = await tx.execute(sql`
+    select 1 from shifts s
+      join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
+      join sites v on v.firm_id = s.firm_id and v.id = coalesce(s.site_id, e.site_id)
+     where s.id = ${shiftId}::uuid and v.client_id = ${contractId}::uuid
+     for no key update of s for share of e, v
+  `);
+  return rows.length > 0;
+}
+
 // The change itself, for a session ShiftDesk owns (native or a file import's).
 async function apply(
   tx: FirmTx,
@@ -196,6 +218,14 @@ async function apply(
               problems: [{ line: null, problem: "bad_site" }],
             },
       );
+    }
+    // Only roles the contract's new events may ask for (the form's list, contractRoles).
+    const roles = new Set(await contractRoles(tx, r.contractId));
+    const badRoles = p.sessions.flatMap((x, i) =>
+      roles.has(x.role) ? [] : [{ line: i + 1, problem: "bad_role" as const }],
+    );
+    if (badRoles.length > 0) {
+      throw new Refused({ status: "invalid", problem: "new_event", problems: badRoles });
     }
     const octx = { ...ctx, run: inTx(tx), clock: { now: () => now } };
     // Each session's notes are its instructions (the editor's instructions are one per call, and a
@@ -459,46 +489,60 @@ export async function acceptClientRequest(
     workers: MoveBlocked["workers"];
   } | null = null;
   try {
-    return await run(ctx.firm.id, async (tx): Promise<AcceptResult> => {
-      if (!(await officeUserMay(tx, ctx.officeUserId, "client_requests")))
-        return { status: "not_allowed" };
-      const r = await loadClientRequest(tx, now, input.requestId, { lock: true });
-      if (!r) return { status: "not_found" };
-      if (!open(r)) return { status: "already_answered" };
-      // A planner's, sheet's or connector's session: on the planner's to-do list, unchanged here.
-      const owner = r.session ? ownerOf(r.session.source) : null;
-      if (owner) {
-        await answer(tx, ctx, r, {
-          status: "done_in_planner",
-          words: input.note || null,
-          now,
-          action: "client_request.accepted",
-          data: { plannerToDo: true, owner },
-        });
-        return { status: "planner", owner };
-      }
-      try {
-        const applied = await apply(tx, ctx, r, input, now);
-        await answer(tx, ctx, r, {
-          status: "accepted",
-          words: input.note || null,
-          now,
-          action: "client_request.accepted",
-          data: appliedData(applied),
-          ...(applied.kind === "new_event" ? { eventId: applied.eventId } : {}),
-        });
-        return { status: "accepted", applied };
-      } catch (error) {
-        if (error instanceof MoveBlocked && r.session) {
-          refusedMove = {
-            shiftId: r.session.shiftId,
-            reason: input.reason ?? "event_changed",
-            workers: error.workers,
-          };
+    // A deadlock (bookings, offers and moves lock the same rows) aborts the whole transaction,
+    // which kept nothing: run it again (retryAborted), as the office's own cancels do.
+    return await retryAborted(() =>
+      run(ctx.firm.id, async (tx): Promise<AcceptResult> => {
+        refusedMove = null;
+        if (!(await officeUserMay(tx, ctx.officeUserId, "client_requests")))
+          return { status: "not_allowed" };
+        const r = await loadClientRequest(tx, now, input.requestId, { lock: true });
+        if (!r) return { status: "not_found" };
+        if (!open(r)) return { status: "already_answered" };
+        // A session kind's session must still be the contract's (held from here on: apply() reads it
+        // again under the same lock). Otherwise accepting would change another contract's session.
+        if (
+          r.session &&
+          r.kind !== "other" &&
+          !(await sessionStillTheirs(tx, r.session.shiftId, r.contractId))
+        ) {
+          return { status: "not_theirs" };
         }
-        throw error;
-      }
-    });
+        // A planner's, sheet's or connector's session: on the planner's to-do list, unchanged here.
+        const owner = r.session ? ownerOf(r.session.source) : null;
+        if (owner) {
+          await answer(tx, ctx, r, {
+            status: "done_in_planner",
+            words: input.note || null,
+            now,
+            action: "client_request.accepted",
+            data: { plannerToDo: true, owner },
+          });
+          return { status: "planner", owner };
+        }
+        try {
+          const applied = await apply(tx, ctx, r, input, now);
+          await answer(tx, ctx, r, {
+            status: "accepted",
+            words: input.note || null,
+            now,
+            action: "client_request.accepted",
+            data: appliedData(applied),
+            ...(applied.kind === "new_event" ? { eventId: applied.eventId } : {}),
+          });
+          return { status: "accepted", applied };
+        } catch (error) {
+          if (error instanceof MoveBlocked && r.session) {
+            refusedMove = {
+              shiftId: r.session.shiftId,
+              reason: input.reason ?? "event_changed",
+              workers: error.workers,
+            };
+          }
+          throw error;
+        }
+      }),
+    );
   } catch (error) {
     if (error instanceof Refused) return error.result;
     if (error instanceof MoveBlocked && refusedMove) {

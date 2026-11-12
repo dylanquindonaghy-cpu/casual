@@ -12,6 +12,7 @@ import { loadClientRequest } from "./queue";
 import {
   clientParts,
   clientScope,
+  contractRoles,
   contractSessionSql,
   firmTimeZone,
   firstStartOf,
@@ -67,7 +68,8 @@ export type CreateProblem =
   | "bad_time" // a date or times that don't make a session
   | "in_past" // a session or new time that has started already
   | "too_many_fewer" // fewer places down to none: cancel the session instead
-  | "same_times"; // new times the same as now
+  | "same_times" // new times the same as now
+  | "bad_role"; // a new event's session asks for a role the firm doesn't have
 
 interface SessionFacts {
   id: string;
@@ -173,6 +175,10 @@ export async function createClientRequest(
              and client_id = ${scope.contractId}::uuid
         `);
         if (rows.length === 0) return { status: "not_found" };
+      }
+      const roles = new Set(await contractRoles(tx, scope.contractId));
+      if (p.sessions.some((x) => !roles.has(x.role))) {
+        return { status: "invalid", problem: "bad_role" };
       }
       const date = isoDate(p.date);
       if (!date) return { status: "invalid", problem: "bad_time" };

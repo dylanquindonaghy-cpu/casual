@@ -4296,6 +4296,22 @@ sections.
   Needs attention counts client requests only for those who may answer them (admins and
   resourcers). The answer email's link is on the firm's verified own domain when it has one, else
   its portal.
+- **A session that moved:** a request's session must still be at one of the request's contract's
+  venues to be changed for it. Moved to another contract's venue since, "What accepting does"
+  reads "Can't change it: the session isn't at one of this contract's venues any more. Decline it,
+  or ask the client." and accepting answers `{status: "not_theirs"}` ("Not changed: the session
+  isn't at one of this contract's venues any more. Decline it, or ask the client."), checked with
+  the session, its event and venue held, before a planner's to-do as well. The client's list shows
+  no session for such a request, and the answer's email names only their own venue
+  (`clientTitle`).
+- **Roles:** a new event's sessions may ask only for the roles the form offers (`contractRoles()`:
+  the firm's credential rules' roles and those of the contract's own sessions). Sending another
+  answers `bad_role` ("Nothing was sent: a role you chose isn't one we have any more. Reload the
+  page and choose again."); accepting one refuses with `bad_role` on that session ("Not changed:
+  it asks for a role you don't have. Decline it, or ask the client.").
+- **Nothing to accept:** fewer places that would leave none, or a request that doesn't change the
+  places, reads "that leaves no places. Decline it, or ask them to cancel the session." / "it
+  doesn't change the places. Decline it, or ask the client." (accepting refuses both).
 - **What the client sees of a venue:** an event's name and venue only when its venue is the
   contract's; a session at their venue in an event at another contract's venue shows its own venue
   (name and address), never the other contract's.

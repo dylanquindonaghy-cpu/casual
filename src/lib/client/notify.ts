@@ -251,7 +251,7 @@ export async function runClientRequestAnswer(
       to,
       message: clientRequestAnswerEmail(firm.voice, {
         answer: kind,
-        title: r.title,
+        title: r.clientTitle, // never another contract's venue
         words: r.officeAnswer,
         link: `${site}${CLIENT_REQUESTS_OWN_PAGE}`,
       }),

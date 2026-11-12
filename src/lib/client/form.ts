@@ -351,6 +351,7 @@ export type SendProblem =
   | "in_past"
   | "too_many_fewer"
   | "same_times"
+  | "bad_role" // a new event's role the firm doesn't have (the list changed since the page loaded)
   | "not_found"
   | "not_allowed"
   | "logged_out"
@@ -386,6 +387,8 @@ export function sendProblemText(problem: SendProblem): string {
       return "Something went wrong. Nothing was sent. Try again.";
     case "form":
       return "Check the form: something in it isn't right.";
+    case "bad_role":
+      return "Nothing was sent: a role you chose isn't one we have any more. Reload the page and choose again.";
     default:
       return "Nothing was sent. Check the fields marked.";
   }

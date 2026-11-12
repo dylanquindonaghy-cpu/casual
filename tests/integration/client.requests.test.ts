@@ -1313,3 +1313,227 @@ describe("the review's fixes", () => {
     expect((await needs(false)).clientRequests).toEqual({ waiting: 0, urgent: 0, plannerToDo: 0 });
   });
 });
+
+// The second review of Phase 36 (N1, N2, N3, N6, N7), each held by a test.
+describe("the second review's fixes", () => {
+  const mailFakes = () => {
+    const mail: OutboundMessage[] = [];
+    const deps: ClientNotifyDeps = {
+      push: { name: "test", send: async () => ({ status: "sent" }) },
+      transport: {
+        name: "test",
+        send: async (m) => {
+          mail.push(m);
+          return { providerMessageId: `m${mail.length}` };
+        },
+      },
+      baseDomain: "shiftdesk.test",
+      clock: clockAt(NOW),
+    };
+    return { mail, deps };
+  };
+  const assignmentsOf = async (shiftId: string) =>
+    (
+      await su.query<{ status: string }>(
+        "select status from assignments where shift_id = $1 and worker_id is not null order by id",
+        [shiftId],
+      )
+    ).rows.map((r) => r.status);
+
+  it("N1: a session moved to another contract's venue can't be changed by this contract's request, and the client never sees that venue", async () => {
+    const t = await clientFirm();
+    const s = await t.session({ headcount: 4, startsAt: hoursFromNow(72) });
+    await book(t.f, s, 2);
+    const fewer = await sent(t, { kind: "fewer_places", shiftId: s, payload: { places: 3 } });
+    const times = await sent(t, {
+      kind: "new_times",
+      shiftId: s,
+      payload: { date: "2026-11-05", start: "10:00", end: "15:00" },
+    });
+    const cancel = await sent(t, { kind: "cancel_session", shiftId: s, payload: {} });
+    // The session moves to the other contract's venue, at a door of theirs.
+    const { rows: hall } = await su.query<{ id: string }>(
+      "select id::text from sites where firm_id = $1 and name = 'Other Hall'",
+      [t.f.firmId],
+    );
+    await su.query("update shifts set site_id = $2, post = 'Hall B door' where id = $1", [
+      s,
+      hall[0]?.id,
+    ]);
+    const before = await shiftRow(s);
+    for (const r of [fewer, times, cancel]) {
+      expect((await officeClientRequestPreview(t.office(), r.requestId))?.accept).toEqual({
+        kind: "gone",
+        why: "moved",
+      });
+      expect(await acceptClientRequest(t.office(), { requestId: r.requestId })).toEqual({
+        status: "not_theirs",
+      });
+      expect((await requestRow(r.requestId))?.status).toBe("waiting");
+    }
+    // Nothing changed on the other contract's session.
+    expect(await shiftRow(s)).toEqual(before);
+    expect(await assignmentsOf(s)).toEqual(["confirmed", "confirmed"]);
+    expect(await eventsOf(t.f.firmId, "client_request.accepted")).toEqual([]);
+    // A planner's session moved the same way isn't put on the planner's to-do list either.
+    await su.query("update shifts set source = 'api' where id = $1", [s]);
+    expect(await acceptClientRequest(t.office(), { requestId: fewer.requestId })).toEqual({
+      status: "not_theirs",
+    });
+    await su.query("update shifts set source = 'native' where id = $1", [s]);
+
+    // The client's list holds no session for them now: never the other venue, its door or times.
+    const list = await clientRequestList(t.client());
+    expect(list?.map((r) => r.session)).toEqual([null, null, null]);
+    expect(JSON.stringify(list)).not.toMatch(/Other Hall|Hall B door/);
+    // Nor does the answer's email.
+    await declineClientRequest(t.office(), { requestId: fewer.requestId, reason: "It moved." });
+    const job = (await jobsOf(t.f.firmId, "client-request-answer")).find(
+      (j) => j.requestId === fewer.requestId,
+    );
+    const { mail, deps } = mailFakes();
+    expect(
+      await runClientRequestAnswer(
+        {
+          firmId: t.f.firmId,
+          idempotencyKey: String(job?.idempotencyKey),
+          requestId: fewer.requestId,
+          answerEventId: Number(job?.answerEventId),
+        },
+        withFirm,
+        deps,
+      ),
+    ).toEqual({ status: "sent" });
+    const email = mail[0] as Extract<OutboundMessage, { channel: "email" }>;
+    expect(email.body).toContain("3 places fewer");
+    expect(`${email.subject}\n${email.body}`).not.toMatch(/Other Hall|Hall B door/);
+    // Back at their venue, it's theirs again.
+    await su.query("update shifts set site_id = $2, post = null where id = $1", [s, t.venue]);
+    expect((await officeClientRequestPreview(t.office(), times.requestId))?.accept.kind).toBe(
+      "times",
+    );
+  });
+
+  it("N2: a new event's role must be one the contract's events can have, when sent and when accepted", async () => {
+    const t = await clientFirm();
+    const event = (role: string) => ({
+      kind: "new_event",
+      payload: {
+        name: "Chef's Table",
+        venue: { siteId: t.venue },
+        date: "2026-11-28",
+        sessions: [
+          { role: "steward", places: 2, start: "10:00", end: "16:00" },
+          { role, places: 1, start: "10:00", end: "16:00" },
+        ],
+      },
+    });
+    expect(await createClientRequest(t.client(), event("pastry_chef"))).toEqual({
+      status: "invalid",
+      problem: "bad_role",
+    });
+    // One stored before the role list changed (written straight in): refused when accepted.
+    const id = await one(
+      `insert into client_requests (firm_id, contract_id, client_contact_id, kind, payload)
+       values ($1, $2, $3, 'new_event', $4::jsonb)`,
+      [t.f.firmId, t.contract, t.contact, JSON.stringify(event("pastry_chef").payload)],
+    );
+    const preview = await officeClientRequestPreview(t.office(), id);
+    expect(preview?.accept).toMatchObject({ kind: "new_event", problems: ["bad_role"] });
+    expect(await acceptClientRequest(t.office(), { requestId: id })).toEqual({
+      status: "invalid",
+      problem: "new_event",
+      problems: [{ line: 2, problem: "bad_role" }],
+    });
+    expect(
+      (await su.query("select 1 from shift_events where name = 'Chef''s Table'")).rowCount,
+    ).toBe(0);
+    // A role the firm has goes through.
+    expect((await createClientRequest(t.client(), event("door_supervisor"))).status).toBe("sent");
+  });
+
+  it("N3: fewer places leaving none, or no change at all, previews as nothing to accept, as accepting refuses", async () => {
+    const t = await clientFirm();
+    const s = await t.session({ headcount: 3 });
+    const r = await sent(t, { kind: "fewer_places", shiftId: s, payload: { places: 2 } });
+    // The office has lowered the places since: two fewer now leaves none.
+    await su.query("update shifts set headcount = 2 where id = $1", [s]);
+    expect((await officeClientRequestPreview(t.office(), r.requestId))?.accept).toEqual({
+      kind: "gone",
+      why: "last_place",
+    });
+    expect(await acceptClientRequest(t.office(), { requestId: r.requestId })).toEqual({
+      status: "invalid",
+      problem: "last_place",
+    });
+    // A stored "more places" with no number (not a shape the form sends): no change.
+    const odd = await one(
+      `insert into client_requests (firm_id, contract_id, client_contact_id, kind, shift_id, payload)
+       values ($1, $2, $3, 'more_places', $4, '{}'::jsonb)`,
+      [t.f.firmId, t.contract, t.contact, s],
+    );
+    expect((await officeClientRequestPreview(t.office(), odd))?.accept).toEqual({
+      kind: "gone",
+      why: "no_change",
+    });
+    expect(await acceptClientRequest(t.office(), { requestId: odd })).toEqual({
+      status: "invalid",
+      problem: "form",
+    });
+  });
+
+  it("N6: a failure in the tick's client-request part keeps the open-places and summary jobs", async () => {
+    const t = await clientFirm();
+    let calls = 0;
+    const run: WithFirm = (firmId, fn) => {
+      calls += 1;
+      // The second transaction for the firm is the client-request part's.
+      if (calls === 2) return Promise.reject(new Error("the client requests' part failed"));
+      return withFirm(firmId, fn);
+    };
+    const errors: string[] = [];
+    const logger = {
+      info: () => {},
+      warn: () => {},
+      error: (msg: string) => {
+        errors.push(msg);
+      },
+      child: () => logger,
+    };
+    expect(
+      await runOfficeAlertsTick({
+        listFirmIds: async () => [t.f.firmId],
+        run,
+        clock: clockAt(new Date("2026-11-02T08:00:00Z")),
+        logger,
+      }),
+    ).toEqual({ open: 1, summaries: 1, clientRequests: 0 });
+    expect(await jobsOf(t.f.firmId, "office-open-alert")).toHaveLength(1);
+    expect(await jobsOf(t.f.firmId, "office-summary")).toHaveLength(1);
+    expect(errors).toEqual(["client request alerts tick failed for a firm"]);
+  });
+
+  it("N7: an accept a deadlock aborted runs again and applies once", async () => {
+    const t = await clientFirm();
+    const s = await t.session({ headcount: 3 });
+    const r = await sent(t, { kind: "more_places", shiftId: s, payload: { places: 2 } });
+    let tries = 0;
+    const run: WithFirm = async (firmId, fn) => {
+      tries += 1;
+      if (tries === 1) {
+        // Postgres's own error for a transaction it aborted to break a deadlock.
+        throw Object.assign(new Error("deadlock detected"), { code: "40P01" });
+      }
+      return withFirm(firmId, fn);
+    };
+    expect(
+      await acceptClientRequest({ ...t.office(), run }, { requestId: r.requestId, offer: false }),
+    ).toEqual({
+      status: "accepted",
+      applied: { kind: "more_places", from: 3, to: 5, offers: "not_asked" },
+    });
+    expect(tries).toBe(2);
+    expect((await shiftRow(s))?.headcount).toBe(5);
+    expect(await eventsOf(t.f.firmId, "client_request.accepted")).toHaveLength(1);
+  });
+});

@@ -408,7 +408,8 @@ export interface OfficeAlertsTickDeps {
 // Each firm: its open-places job for this 5-minute slot, from 08:00 to 11:00 its day's summary
 // (once: keyed by the firm's date), and the urgent alert for each waiting client request that has
 // become urgent since it was sent and not yet been told to everyone it's for (Phase 36.4;
-// src/lib/client/notify.ts queueBecameUrgentAlerts). One firm's failure never stops the others'.
+// src/lib/client/notify.ts queueBecameUrgentAlerts), in a transaction of its own. One firm's
+// failure, or one part's, never stops the others'.
 export async function runOfficeAlertsTick(
   deps: OfficeAlertsTickDeps,
 ): Promise<{ open: number; summaries: number; clientRequests: number }> {
@@ -446,10 +447,16 @@ export async function runOfficeAlertsTick(
           )
             summaries += 1;
         }
-        clientRequests += await queueBecameUrgentAlerts(tx, now, slot);
       });
     } catch (err) {
       logger.error("office alerts tick failed for a firm", { firmId, error: err });
+    }
+    // In a transaction of its own: a failure here never rolls back the jobs queued above, nor
+    // theirs this one's.
+    try {
+      clientRequests += await deps.run(firmId, (tx) => queueBecameUrgentAlerts(tx, now, slot));
+    } catch (err) {
+      logger.error("client request alerts tick failed for a firm", { firmId, error: err });
     }
   }
   return { open, summaries, clientRequests };

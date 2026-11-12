@@ -136,13 +136,17 @@ export function acceptLines(
           text: `${roleLabel(s.role)}, ${plural(s.places, "place", "places")}, ${dayText(s.startsAt, timeZone)} ${timesText(s.startsAt, s.endsAt, timeZone)}${s.instructions ? ` · ${s.instructions}` : ""}.`,
         })),
         { label: "Casuals", text: "the event is hidden from casuals until you show it." },
-        ...(a.problems.some((p) => p === "bad_time" || p === "in_past" || p === "bad_venue")
+        ...(a.problems.some(
+          (p) => p === "bad_time" || p === "in_past" || p === "bad_venue" || p === "bad_role",
+        )
           ? [
               {
                 label: "Check first",
                 text: a.problems.includes("bad_venue")
                   ? "its venue isn't the contract's any more. Choose one below, or ask the client."
-                  : "some of its times have passed or don't make a session. Decline it, or ask the client.",
+                  : a.problems.includes("bad_role")
+                    ? "it asks for a role you don't have. Decline it, or ask the client."
+                    : "some of its times have passed or don't make a session. Decline it, or ask the client.",
               },
             ]
           : []),
@@ -170,7 +174,13 @@ export function acceptLines(
               ? "the session was cancelled. Decline it, or ask the client."
               : a.why === "started"
                 ? "the session has started. Decline it, or ask the client."
-                : "the session isn't there any more. Decline it, or ask the client.",
+                : a.why === "moved"
+                  ? "the session isn't at one of this contract's venues any more. Decline it, or ask the client."
+                  : a.why === "last_place"
+                    ? "that leaves no places. Decline it, or ask them to cancel the session."
+                    : a.why === "no_change"
+                      ? "it doesn't change the places. Decline it, or ask the client."
+                      : "the session isn't there any more. Decline it, or ask the client.",
         },
       ];
   }
@@ -225,10 +235,16 @@ export function acceptResultText(r: AcceptResult | { status: "logged_out" | "err
               : r.problem === "times"
                 ? "Not changed: the new times have passed or don't make a session."
                 : r.problem === "new_event"
-                  ? "Not changed: the event's times have passed or don't make sessions. Decline it, or ask the client."
+                  ? r.problems?.some((x) => x.problem === "bad_role")
+                    ? "Not changed: it asks for a role you don't have. Decline it, or ask the client."
+                    : r.problems?.some((x) => x.problem === "bad_site")
+                      ? "Not changed: its venue isn't the contract's any more. Choose one of theirs, or ask the client."
+                      : "Not changed: the event's times have passed or don't make sessions. Decline it, or ask the client."
                   : "Something in that isn't right. Reload the page.";
     case "not_open":
       return "Not changed: the session has started, was cancelled or is gone. Decline it, or ask the client.";
+    case "not_theirs":
+      return "Not changed: the session isn't at one of this contract's venues any more. Decline it, or ask the client.";
     case "already_answered":
       return "Someone has answered this already. Reload the page.";
     case "not_found":

@@ -1480,6 +1480,32 @@ describe("the second review's fixes", () => {
       status: "invalid",
       problem: "form",
     });
+    // The same for a stored "fewer places" with no number: nothing to accept, and accepting
+    // refuses and changes nothing (the second re-review's L1).
+    const noNumber = await one(
+      `insert into client_requests (firm_id, contract_id, client_contact_id, kind, shift_id, payload)
+       values ($1, $2, $3, 'fewer_places', $4, '{}'::jsonb)`,
+      [t.f.firmId, t.contract, t.contact, s],
+    );
+    expect((await officeClientRequestPreview(t.office(), noNumber))?.accept).toEqual({
+      kind: "gone",
+      why: "no_change",
+    });
+    expect(await acceptClientRequest(t.office(), { requestId: noNumber })).toEqual({
+      status: "invalid",
+      problem: "form",
+    });
+    expect(
+      (await su.query("select headcount from shifts where id = $1", [s])).rows[0]?.headcount,
+    ).toBe(2);
+    expect(
+      (
+        await su.query(
+          "select count(*)::int as n from events where action = 'client_request.accepted' and entity_id = $1",
+          [noNumber],
+        )
+      ).rows[0]?.n,
+    ).toBe(0);
   });
 
   it("N6: a failure in the tick's client-request part keeps the open-places and summary jobs", async () => {

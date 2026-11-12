@@ -2561,7 +2561,7 @@ Each task adds what it left out here as its wave is merged.
 
 ## Phase 36, deferred while building (36.5; 2026-11-12)
 
-- **Demo mode's people check doesn't count client logins.** `realPeopleIn()`
+- **Demo mode's people check doesn't count client logins** (guardrails review N8). `realPeopleIn()`
   (`src/lib/demo/people.ts`, the demo worker's guard) counts casuals' and the office's numbers and
   emails, not `client_contacts`' emails. The seed's client login is on a reserved example domain
   (tests check it), but an admin on a demo server could add a real address as a client login; the
@@ -2593,3 +2593,9 @@ Each task adds what it left out here as its wave is merged.
 - **A client's request title names the venue, not the post.** `ClientRequestView.session` has no
   post (`src/lib/client/reads.ts`), so two requests on different posts of one event read the same.
 - **The office's request detail on a phone** sits under the list, not on a page of its own.
+- **Lock order on accepting a client request** (second re-review L2). Accepting locks the session,
+  then shares its event and venue (`sessionStillTheirs` in `src/lib/client/answer.ts`); the planner
+  API (`src/lib/integrations/sessions.ts`), `src/lib/office/showing.ts` and
+  `src/lib/office/casuals-ask.ts` lock the event first. Postgres breaks a deadlock and accept
+  retries, but the other side can get a 40P01 (a planner request it has to resend). Take the event's
+  share lock before the session's, or retry those paths too.

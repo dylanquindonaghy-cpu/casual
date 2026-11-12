@@ -350,6 +350,9 @@ async function apply(
       return { kind: "more_places", from: shift.headcount, to, offers };
     }
     case "fewer_places": {
+      // A stored request with no number (never a shape the form sends) changes nothing: refuse it,
+      // as "more places" does, rather than accept a change that does nothing.
+      if ((placesOf(r.payload) ?? 0) < 1) throw new Refused({ status: "invalid", problem: "form" });
       const change = placesChange(
         "fewer_places",
         { headcount: shift.headcount, booked },

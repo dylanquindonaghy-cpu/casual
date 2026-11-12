@@ -248,7 +248,11 @@ describe("the looks (src/app/globals.css)", () => {
     }
     // And its fills: a section (card, sheet) and what floats (panel: the menus and, on a phone, the
     // top bar, `max-lg:glass-float` in office-frame.tsx, pinned in tests/unit/office.shell.test.ts).
-    // Dark: 4%, 70% (27.1). Light: as it was. Behind them, the page's plain ground, set on the
+    // Dark: 4% (27.1). Light: as it was. What floats: solid since Phase 36.1 (Dylan, 2026-11-11: "the
+    // pop up shouldnt be transparent"; it was 70% charcoal in dark and 92% white in light, and the
+    // rows behind a menu showed through it): a charcoal a step lighter than a section in dark, white
+    // in light. Its words are checked on it in every office look below, as every look's are.
+    // Behind them, the page's plain ground, set on the
     // page's root for an office page and nothing else there: no street lines anywhere (Phase 27.7,
     // Dylan: "Yes plain colour"; docs/plan/decisions-waiting.md 13).
     expect(css).toMatch(/@utility glass-float \{\s*background-color: var\(--color-panel\);/);
@@ -257,14 +261,14 @@ describe("the looks (src/app/globals.css)", () => {
         "officeDark",
         /:root:not\(\[data-theme="light"\]\):has\(\[data-office\]\) \{([^}]*)\}/,
         "rgb\\(255 255 255 \\/ 0\\.04\\)",
-        "rgb\\(24 24 26 \\/ 0\\.7\\)",
+        "#1d1d20",
         "#0f0f10",
       ],
       [
         "officeLight",
         /:root\[data-theme="light"\]:has\(\[data-office\]\) \{([^}]*)\}/,
         "rgb\\(255 255 255 \\/ 0\\.55\\)",
-        "rgb\\(255 255 255 \\/ 0\\.92\\)",
+        "#ffffff",
         "#f2f2f0",
       ],
     ] as const) {
@@ -344,8 +348,16 @@ describe("the looks (src/app/globals.css)", () => {
         BLOCKS.officeClearDark,
       ],
     ] as const;
-    for (const [name, casual, office] of pairs)
-      expect(except(casual, CASUAL_OWN), name).toEqual(except(props(block(office)), CASUAL_OWN));
+    // But for what floats, as drawn (Phase 36.1): solid in the office (its menus and pop-overs never
+    // show the rows behind them), glass in the casual app (its tab bar and sheet). Solid in both
+    // apps' fallbacks, which still match value by value.
+    const drawn = new Set<string>(["light", "dark (the cookie's)", "dark (the device's)"]);
+    for (const [name, casual, office] of pairs) {
+      const own = drawn.has(name) ? [...CASUAL_OWN, "color-panel"] : CASUAL_OWN;
+      expect(except(casual, own), name).toEqual(except(props(block(office)), own));
+    }
+    for (const office of [BLOCKS.officeDark, BLOCKS.officeLight])
+      expect(parseColour(props(block(office)).get("color-panel"))?.[3]).toBe(1);
     // Each look's ground and glass, as the office's (Phase 27.1's dark glass too); no street lines
     // (Phase 27.7: a plain colour behind every page).
     const light = casualLight;

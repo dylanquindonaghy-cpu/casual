@@ -1773,8 +1773,8 @@ panel.
 - **The event's Interested tab** (evt-2): its sessions to come with asks, soonest first: "{Steward},
   {Fri 6 Nov, 11:00 to 19:00}", **Choose who works it** (the session's Asked for it), and each
   person who asked as a chip ("{name}" waiting, "{name}: not this time"). The tab's count is the
-  asks waiting. Empty: "Nobody has asked for a session yet. Casuals see "I can do this" on this
-  event's sessions." (setting on) or how to switch it on.
+  asks waiting. Since Phase 36.1 the tab holds the event's **Casuals ask, you choose** switch too
+  (below, "## Phase 36"); its empty words are there.
 - **When asks end** (ses-6): the office books someone → `shift_confirmed` as before; "Not this
   time" → `shift_not_booked`; the session fills while others wait → their asks close and each gets
   `shift_not_booked` (not sent if, by then, they hold a place or asked again); the office cancels
@@ -4103,8 +4103,102 @@ answer", Edit's the answer's name with "On"/"Off", its uses and its last edit.
 ## Phase 36
 
 Updates you can filter, client logins and client requests (PLAN.md "## Phase 36"; the mock-up
-approved by Dylan on 2026-11-11). The sections below are the back end's rules for 36.3 and 36.4
-(`src/lib/client/`); the client's pages and the office's Client requests page are built on them.
+approved by Dylan on 2026-11-11). 36.1 and 36.2 first, then the rules for 36.3 and 36.4 (`src/lib/client/`), which the client's pages
+and the office's Client requests page are built on.
+
+**Updates you can filter, client logins and client requests, two fixes, and a match day to play
+with** (Dylan, 2026-11-11; `PLAN.md` Phase 36; the approved mock-up:
+https://claude.ai/artifact/AXBY4CL2Hg7NPwNZuRqdaN). This part is the two fixes (36.1) and Updates
+you can filter (36.2); client logins, client requests and the match day (36.3 to 36.5) add their own
+sections.
+
+### 36.1 Two fixes
+
+- **What floats is solid** (Dylan: "the pop up shouldnt be transparent"): in the office, every menu
+  and pop-over (a session's "…" menu on Events & sessions and on an event's page, a row's "…" menu,
+  the account menu, the search's matches, the dashboard's choosers, the offer and Customise panels,
+  the cancellation pop-up, a session's slide-in panel, Casuals' menus and matches, the map's session
+  card and its buttons, the phone's top bar and drawer) is an opaque
+  raised surface: a charcoal a step lighter than a section in dark (`#1d1d20`), white in light, with
+  its shadow and its ring as before. The rows behind it never show through. One value
+  (`--color-panel` in the office's own blocks, `src/app/globals.css`); the casual app's tab bar and
+  sheet keep their glass, and both apps are solid as before when someone asks for less
+  transparency or more contrast.
+- **"Casuals ask, you choose" on an event's Interested tab** (Dylan: "doesnt have an option to even
+  do that"): it's the event's one setting, so its switch is where the asks show. The tab's panel
+  (named "Interested") starts with the title **Casuals ask, you choose**, then "Off: casuals take
+  places on this event straight away. On: they tap "I can do this" and you choose who works each
+  session, here and on each session's page.", and on the right (under it on a phone) the switch,
+  read as "Casuals ask, you choose", on or off, with **On** or **Off** beside its track. Flipping it
+  is the session page's action (an active admin or resourcer; logged `event.asks_on` /
+  `event.asks_off`); its answer stays under it ("On: casuals on this event now tap "I can do this",
+  and you choose." / "Off: the first casual to tap takes a place."). The switch stays on each
+  session's "This session" panel too.
+  - Who asked, as before: each session to come with asks, **Choose who works it**, a chip a person.
+  - Empty, off: "No one has asked yet. Switch it on and the casuals who ask show here, with "Choose
+    who works it" for each session."; on: "No one has asked yet. Casuals see "I can do this" on this
+    event's sessions, and the ones who ask show here."
+
+### 36.2 Updates you can filter
+
+`/office/updates` (as "## Updates (Phase 26.4)" above, with these changes; words:
+`src/lib/office/updates-copy.ts`; the view: `src/lib/office/updates-view.ts`; data:
+`src/lib/office/updates.ts`).
+
+- **The head:** "Updates", then "What's happened on your contracts, newest first. Choose how far
+  back, which event and what kind." (with no contracts: "What's happened, newest first. Choose how
+  far back, which event and what kind."); "Mark all as seen" as before.
+- **The filters** (above the list, full width), each kept in the address so a link opens the same
+  view (`?days=3&event={id}&kind=cancellations`; only what isn't the default; the old
+  `?view=everything` still opens Everything):
+  - **How far back** (a row of tabs): **Today** (since midnight, the firm's time), **3 days**,
+    **7 days** (the default), **30 days** (that many 24 hours back). Places still to fill, sessions
+    to mark and offers with no reply are how things stand now: they show in every period.
+  - **Which event** (a select, read as "Which event"): **All events** (the default), or one of the
+    events with something in the period, by name. Choosing one opens its view at once; only its
+    updates show (its sessions' news, and a pay query or a request that names one of its sessions).
+    An event of the firm's with nothing in the period stays chosen, its list empty; anything else
+    in the address is ignored (all events).
+  - **What kind** (a row of tabs, each with its count in the period and the event, but Everything):
+    **Needs action** (the default: as before), **Still to fill** (places open on a session starting
+    in the next 48 hours), **Cancellations** (casuals' cancellations), **Pay queries** (admins only:
+    a casual's pay query still with payroll), **Uploads** (photos and certificates to check),
+    **Enquiries** (a message to the shifts line or an email that needs a person, and a request in
+    the app waiting for an answer), **Everything**. Phase 36.4 adds Client requests after Needs
+    action.
+  - On a phone each row scrolls sideways inside its own track, never the page.
+- **The list** (`#updates-list`): its heading the kind and the period ("Needs action · Last 7 days",
+  "· {2} new today" when any came in since midnight), then the updates grouped by day, each day's
+  name over its rows: **Today** (with what stands now first), **Yesterday**, then "Sat 31 Oct". Each
+  update keeps its button. The new kinds:
+  - "{Ana Pay} asked about pay: {hours missing}" / "For {Sat 31 Oct} · with payroll" with **Open pay
+    queries**.
+  - "{Kim Ask} needs an answer" ("Unknown number", "Unknown address", "Withheld") / "{WhatsApp} ·
+    waiting for a person" with **Reply** (the enquiry).
+  - "{Ben Fraser} asked: {time change}" / "In the app · waiting for an answer · {event}" with
+    **Answer** (Enquiries' Requests from the app).
+  - Empty, by kind: "Nothing needs action. …" as before ("Nothing needs action for this event." for
+    one event); "No places still to fill in the next 48 hours."; "No cancellations {in the last 7
+    days}."; "No pay queries waiting, sent {in the last 7 days}."; "No uploads to check {today}.";
+    "No enquiries waiting for a person {in the last 30 days}."; "Nothing {in the last 3 days}." ("
+    for this event" after the period when one is chosen).
+  - The foot: "Showing the newest 100." when a kind holds more in the period, then "Older updates
+    are in the action log.".
+- **Low on cover** (`#low-on-cover`; beside the list from 1024px of page, above "Tell me about";
+  under the list before): "Low on cover", "Events in the next 7 days, least covered first.", then up
+  to 5 events with sessions in the next 7 days that still have places to fill (on the person's
+  contracts' venues), least covered first (booked over needed, then the soonest), each a link to the
+  event: its name, when its first session there starts as a chip ("Thu 12 Nov · in 17 h", amber,
+  within 2 days; else "Fri 13 Nov"), "{71} of {86} places booked · {15} to fill" and a bar (red
+  under half booked, amber above). None: "Every event in the next 7 days has its places booked.".
+  Then **All events** (Events & sessions).
+- **Tell me about:** as before, under Low on cover. Its switches come from one list
+  (`src/lib/office/tell-me-copy.ts` `TELL_ME_KINDS`): 36.4 adds "Client requests" ("A notification
+  for urgent ones") there.
+- **Who sees what:** admins and resourcers, as before (payroll has no Updates). Pay queries only
+  for those who may see them (admins). A resourcer's contracts narrow the sessions' updates and Low
+  on cover; pay queries, uploads and enquiries are a casual's, so they show whatever the contracts.
+- **The look:** 44px targets; no sideways scroll at 390px or 1280px, light or dark.
 
 ### 36.3 Client logins (the rules)
 

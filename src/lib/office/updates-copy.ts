@@ -1,34 +1,112 @@
 import { noticeText } from "../portal/cancel-reasons";
-import { wallTimeOf } from "../time/zoned";
-import { sessionWhen, updateLines } from "./dashboard-map-copy";
+import { ISSUE_LABELS } from "../portal/pay-query-kinds";
+import { KIND_NAMES } from "../portal/request-kinds";
+import { localDateOf, wallTimeOf } from "../time/zoned";
+import { dayShort, sessionWhen, updateLines } from "./dashboard-map-copy";
+import { CHANNEL_WORDS } from "./enquiries-copy";
 import { roleLabel } from "../portal/format";
 import { URGENT_WORDS } from "../client/words";
 import type { ClientRequestUpdate, NewCancellation, PageUpdate } from "./updates";
+import type { LowCover, UpdateKind, UpdatePeriod } from "./updates-view";
 
 // Updates in words (Phase 26.4; docs/screens.md "Updates"): the page, each update's lines and
 // button, the bell and the pop-up. Plain functions, so the tests read every line.
 
 export const UPDATES_TITLE = "Updates";
+// Phase 36.2: the page's line says what it holds and what you can choose.
 export const updatesLine = (mine: boolean) =>
   mine
-    ? "What's happened on your contracts in the last 7 days, newest first."
-    : "What's happened in the last 7 days, newest first.";
-// The list's heading: what it holds (the last 7 days), then how many of them came in today (the
+    ? "What's happened on your contracts, newest first. Choose how far back, which event and what kind."
+    : "What's happened, newest first. Choose how far back, which event and what kind.";
+// The list's heading: what it holds (the period), then how many of them came in today (the
 // firm's day), when any did: "Last 7 days · 2 new today" (round 8's "Clearer words", 3 Nov 2026).
 export const LAST_7_DAYS = "Last 7 days";
 export const newTodayWords = (n: number) => `${n} new today`;
-// Its two views (`?view=everything`).
-export const UPDATE_VIEWS = ["action", "everything"] as const;
-export type UpdateView = (typeof UPDATE_VIEWS)[number];
-export const VIEW_WORDS: Record<UpdateView, string> = {
+
+// The filters (Phase 36.2; the approved mock-up's Updates). How far back: the buttons, and the
+// list's heading for each.
+export const PERIOD_TITLE = "How far back";
+export const PERIOD_WORDS: Record<UpdatePeriod, string> = {
+  today: "Today",
+  "3": "3 days",
+  "7": "7 days",
+  "30": "30 days",
+};
+export const PERIOD_HEADINGS: Record<UpdatePeriod, string> = {
+  today: "Today",
+  "3": "Last 3 days",
+  "7": LAST_7_DAYS,
+  "30": "Last 30 days",
+};
+// Which event: every event, or one with something in the period.
+export const EVENT_LABEL = "Which event";
+export const ALL_EVENTS = "All events";
+// What kind: a chip each, with its count (but Everything). Phase 36.4 adds "Client requests".
+export const KIND_TITLE = "What kind";
+export const KIND_WORDS: Record<UpdateKind, string> = {
   action: "Needs action",
+  "client-requests": "Client requests",
+  "to-fill": "Still to fill",
+  cancellations: "Cancellations",
+  pay: "Pay queries",
+  uploads: "Uploads",
+  enquiries: "Enquiries",
   everything: "Everything",
 };
-export const updatesHref = (v: UpdateView) =>
-  v === "action" ? "/office/updates" : "/office/updates?view=everything";
+// What an empty list says, for each kind, over the period ("in the last 7 days", "today").
+const OVER: Record<UpdatePeriod, string> = {
+  today: "today",
+  "3": "in the last 3 days",
+  "7": "in the last 7 days",
+  "30": "in the last 30 days",
+};
+export function nothingText(kind: UpdateKind, period: UpdatePeriod, oneEvent: boolean): string {
+  const where = oneEvent ? " for this event" : "";
+  switch (kind) {
+    case "action":
+      return oneEvent ? `Nothing needs action for this event.` : NOTHING_TO_ACT_ON;
+    case "client-requests":
+      return "No client requests waiting for you.";
+    case "to-fill":
+      return `No places still to fill in the next 48 hours${where}.`;
+    case "cancellations":
+      return `No cancellations ${OVER[period]}${where}.`;
+    case "pay":
+      return `No pay queries waiting, sent ${OVER[period]}.`;
+    case "uploads":
+      return `No uploads to check ${OVER[period]}.`;
+    case "enquiries":
+      return `No enquiries waiting for a person ${OVER[period]}.`;
+    case "everything":
+      return `Nothing ${OVER[period]}${where}.`;
+  }
+}
 export const NOTHING_TO_ACT_ON =
   "Nothing needs action. Cancellations with a place open again, places still open near their start and uploads to check show here.";
 export const NOTHING_AT_ALL = "Nothing in the last 7 days.";
+
+// "Low on cover" (Phase 36.2): beside the list on a laptop, under it on a phone.
+export const LOW_COVER_TITLE = "Low on cover";
+export const LOW_COVER_LINE = "Events in the next 7 days, least covered first.";
+export const LOW_COVER_NONE = "Every event in the next 7 days has its places booked.";
+export const LOW_COVER_ALL = "All events";
+// "71 of 86 places booked · 15 to fill"
+export const lowCoverLine = (c: Pick<LowCover, "booked" | "needed" | "toFill">) =>
+  `${c.booked} of ${plural(c.needed, "place", "places")} booked · ${c.toFill} to fill`;
+// When its first session starts: "Thu 12 Nov · in 17 h" within 2 days (and soon, amber), else
+// "Fri 13 Nov".
+export function lowCoverWhen(
+  firstStart: Date,
+  now: Date,
+  timeZone: string,
+): { words: string; soon: boolean } {
+  const date = dayWords(localDateOf(firstStart, timeZone));
+  const soon = firstStart.getTime() - now.getTime() < 48 * 3_600_000;
+  return { words: soon ? `${date} · ${startsIn(firstStart, now)}` : date, soon };
+}
+// How full its bar is, in percent (the bar is a picture of the words beside it).
+export const coverPercent = (c: Pick<LowCover, "booked" | "needed">) =>
+  c.needed === 0 ? 100 : Math.floor((c.booked * 100) / c.needed);
 // An update new since "Mark all as seen" (read before its title).
 export const NEW_WORD = "New";
 export const MARK_SEEN = "Mark all as seen";
@@ -41,6 +119,12 @@ export const showingNewest = (n: number) => `Showing the newest ${n}.`;
 export const MORE_IN_LOG = "Older updates are in the action log.";
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// "Sat 7 Nov" for a yyyy-mm-dd day.
+const dayWords = (day: string) => {
+  const [, m = 1] = day.split("-").map(Number);
+  return `${dayShort(day)} ${MONTHS[m - 1]}`;
+};
 
 // A place taken between 18:00 and 08:00 (the firm's clock): "overnight".
 export function overnight(at: Date, timeZone: string): boolean {
@@ -77,6 +161,34 @@ export function updateRow(u: PageUpdate, now: Date, timeZone: string): UpdateRow
       tone: "urgent",
       href: `/office/shifts/${u.shiftId}`,
       action: { label: "Offer the place", href: `/office/offer/${u.shiftId}` },
+    };
+  }
+  // Phase 36.2: pay queries (admins), enquiries for a person and the app's requests waiting.
+  if (u.kind === "pay-query") {
+    return {
+      title: `${u.worker} asked about pay: ${ISSUE_LABELS[u.issue].toLowerCase()}`,
+      line: `For ${dayWords(u.workDate)} · with payroll`,
+      tone: "wait",
+      href: "/office/pay-queries",
+      action: { label: "Open pay queries", href: "/office/pay-queries" },
+    };
+  }
+  if (u.kind === "enquiry") {
+    return {
+      title: `${u.who} needs an answer`,
+      line: `${CHANNEL_WORDS[u.channel]} · waiting for a person`,
+      tone: "attention",
+      href: `/office/enquiries/${u.messageId}`,
+      action: { label: "Reply", href: `/office/enquiries/${u.messageId}` },
+    };
+  }
+  if (u.kind === "app-request") {
+    return {
+      title: `${u.worker} asked: ${(KIND_NAMES[u.type] ?? "A request").toLowerCase()}`,
+      line: `In the app · waiting for an answer${u.event ? ` · ${u.event}` : ""}`,
+      tone: "attention",
+      href: "/office/enquiries?view=app",
+      action: { label: "Answer", href: "/office/enquiries?view=app" },
     };
   }
   if (u.kind === "to-mark") {
@@ -179,5 +291,12 @@ export function summaryLine(u: PageUpdate, now: Date, timeZone: string): string 
       return u.status === "done_in_planner"
         ? `A client request to do in your planner (${u.contract}): ${u.title}`
         : `A client request${u.urgent ? ", urgent" : ""} (${u.contract}): ${u.title}`;
+    // Not in the summary's list (it lists what needs action), but said plainly if ever they are.
+    case "pay-query":
+      return "A pay query with payroll";
+    case "enquiry":
+      return "An enquiry waiting for a person";
+    case "app-request":
+      return "A request in the app waiting for an answer";
   }
 }

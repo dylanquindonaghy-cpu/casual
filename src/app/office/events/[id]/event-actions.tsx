@@ -13,11 +13,13 @@ import {
   offerOpenResultText,
   offerPlaceResultText,
   showButton,
+  switchWord,
 } from "@/lib/office/event-page-copy";
+import { casualsAskResultText } from "@/lib/office/session-page-copy";
 import { showingResultText } from "@/lib/office/shifts-copy";
 import { btn } from "../../../ui/classes";
 import { Icon } from "../../../ui/icons";
-import { setShowingAction } from "../../shifts/actions";
+import { setCasualsAskAction, setShowingAction } from "../../shifts/actions";
 import { offerOnePlaceAction, offerOpenPlacesAction } from "../../today-actions";
 
 const failed = { status: "error" as const };
@@ -178,6 +180,66 @@ export function OfferBest({
       <p role="status" className="text-sm text-ink-muted">
         {said ?? (offering ? OFFERS_GOING : "")}
       </p>
+    </div>
+  );
+}
+
+// The event's "Casuals ask, you choose" switch on its Interested tab (Phase 36.1; the session's
+// "This session" panel keeps its own: casual-actions.tsx CasualsAskSwitch). The same action and the
+// same checks (setCasualsAskAction: an active admin or resourcer, logged `event.asks_on` /
+// `event.asks_off`); its name is the tab's title (`labelledBy`), what Off and On mean its
+// description, and it says On or Off beside the track. The answer stays under it.
+export function CasualsAskEventSwitch({
+  eventId,
+  on,
+  labelledBy,
+  describedBy,
+}: {
+  eventId: string;
+  on: boolean;
+  labelledBy: string;
+  describedBy: string;
+}) {
+  const router = useRouter();
+  const ready = useHydrated();
+  const [pending, start] = useTransition();
+  const [said, setSaid] = useState<string | null>(null);
+  const flip = () =>
+    start(async () => {
+      const r = await setCasualsAskAction({ eventId, on: !on }).catch(() => failed);
+      setSaid(casualsAskResultText(r));
+      if (r.status === "on" || r.status === "off") router.refresh();
+    });
+  return (
+    <div className="flex flex-col items-start gap-1 @min-[40rem]:items-end">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-labelledby={labelledBy}
+        aria-describedby={describedBy}
+        onClick={flip}
+        disabled={pending || !ready}
+        data-casuals-ask-switch=""
+        className="press inline-flex min-h-11 shrink-0 items-center gap-3 rounded-full px-1 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <span
+          aria-hidden="true"
+          className={`inline-flex h-6 w-10 shrink-0 items-center rounded-full p-1 transition-colors ${
+            on ? "bg-accent" : "bg-switch-off"
+          }`}
+        >
+          <span
+            className={`size-4 rounded-full bg-knob transition-transform duration-150 ease-sd motion-reduce:transition-none ${
+              on ? "translate-x-4" : ""
+            }`}
+          />
+        </span>
+        <b aria-hidden="true" className="w-7 font-semibold text-ink">
+          {switchWord(on)}
+        </b>
+      </button>
+      <Answer text={said} />
     </div>
   );
 }

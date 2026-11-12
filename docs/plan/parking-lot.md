@@ -2546,3 +2546,15 @@ Each task adds what it left out here as its wave is merged.
 - **"Reply anyway" on an answered enquiry** (in the mock-up, left out as optional).
 - **A switch-off of `auto_replies` mid-job for a message that isn't a library answer** still sends
   the office's acknowledgement (as before Phase 35; found by the fix builder).
+
+## Phase 36, deferred while building (36.1, 36.2; 2026-11-11)
+
+- **Several kinds at once on Updates.** The kinds are one at a time (`?kind=`), as the mock-up's
+  chips read; "Cancellations and still to fill" together would need a list in the address
+  (`?kind=cancellations,to-fill`) and chips that toggle.
+- **Enquiries and pay queries under Needs action.** Needs action is as it was (what the 08:00
+  summary lists and `countNeedsAction` counts), so an enquiry for a person shows under Enquiries
+  (and the menu's count) and a pay query under Pay queries; adding them to Needs action means the
+  summary and its count too.
+- **Updates' event filter needs JavaScript** (it waits for the page, as every office field does): a
+  plain form with a "Show" button would work without it.

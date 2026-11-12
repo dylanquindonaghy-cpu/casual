@@ -543,7 +543,11 @@ body[data-firm-colour] {
    the to-do tint (the corners are one set for both since Phase 28, in @theme above, so these
    blocks no longer copy them): the office is dark with no cookie even on a light phone, where the
    page's root is light, so its dark block can't lean on the root's (tests/unit/ui.contrast.test.ts
-   holds the two sets to each other, value by value). */
+   holds the two sets to each other, value by value). Phase 36.1 (Dylan, 2026-11-11: "the pop up
+   shouldnt be transparent"): one value differs from the casual app's, what floats (`panel`: the
+   menus, pop-overs, panels and the phone's top bar): solid in the office, a charcoal a step lighter
+   than a section in dark and white in light, keeping its shadow and its ring, so the rows behind a
+   menu never show through it (the casual app's tab bar and sheet keep their glass). */
 :root:not([data-theme="light"]) [data-office] {
   color-scheme: dark;
   --color-ink: #f4f4f3;
@@ -557,7 +561,7 @@ body[data-firm-colour] {
   --color-canvas: #0f0f10;
   --color-card: rgb(255 255 255 / 0.04);
   --color-sheet: rgb(255 255 255 / 0.04);
-  --color-panel: rgb(24 24 26 / 0.7);
+  --color-panel: #1d1d20; /* solid since Phase 36.1: nothing shows through what floats */
   --color-raised: rgb(255 255 255 / 0.03);
   --color-track: rgb(255 255 255 / 0.06);
   --color-pill: rgb(255 255 255 / 0.1);
@@ -654,7 +658,7 @@ body[data-firm-colour] {
   --color-canvas: #f2f2f0;
   --color-card: rgb(255 255 255 / 0.55);
   --color-sheet: rgb(255 255 255 / 0.55);
-  --color-panel: rgb(255 255 255 / 0.92);
+  --color-panel: #ffffff; /* solid since Phase 36.1: nothing shows through what floats */
   --color-raised: rgb(16 24 40 / 0.03);
   --color-track: rgb(16 24 40 / 0.06);
   --color-pill: rgb(255 255 255 / 0.96);

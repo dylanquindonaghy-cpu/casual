@@ -38,11 +38,17 @@ export const EVENT_TAB_WORDS: Record<EventTab, string> = {
   history: "History",
 };
 
-// The Interested tab (Phase 26.6, evt-2): who asked for its sessions to come.
+// The Interested tab (Phase 26.6, evt-2): who asked for its sessions to come. Since Phase 36.1
+// (Dylan, 2026-11-11: "doesnt have an option to even do that") it holds the event's own "Casuals
+// ask, you choose" switch, its title and what Off and On mean above who asked (still on each
+// session's page too: session-page-copy.ts CASUALS_ASK).
+export const CASUALS_ASK_EVENT_LINE =
+  'Off: casuals take places on this event straight away. On: they tap "I can do this" and you choose who works each session, here and on each session\'s page.';
+export const switchWord = (on: boolean) => (on ? "On" : "Off");
 export function noInterestText(casualsAsk: boolean): string {
   return casualsAsk
-    ? 'Nobody has asked for a session yet. Casuals see "I can do this" on this event\'s sessions.'
-    : 'Casuals take places on this event. Switch on "Casuals ask, you choose" on a session\'s page to choose from who asks.';
+    ? 'No one has asked yet. Casuals see "I can do this" on this event\'s sessions, and the ones who ask show here.'
+    : 'No one has asked yet. Switch it on and the casuals who ask show here, with "Choose who works it" for each session.';
 }
 export const CHOOSE_WHO = "Choose who works it";
 export const eventTabHref = (eventId: string, tab: EventTab) =>

@@ -42,7 +42,10 @@ const CANVAS = { dark: "rgb(15, 15, 16)", light: "rgb(242, 242, 240)" }; // #0f0
 // a dark 28%) frosted 3px (was 6px), what floats 70% (was 88%). The light look is as it was.
 const SECTION = { dark: "rgba(255, 255, 255, 0.04)", light: "rgba(255, 255, 255, 0.55)" };
 const SECTION_FROST = { dark: "blur(3px) saturate(1.15)", light: "blur(6px) saturate(1.15)" };
-const FLOAT = { dark: "rgba(24, 24, 26, 0.7)", light: "rgba(255, 255, 255, 0.92)" };
+// What floats is solid since Phase 36.1 (Dylan, 2026-11-11: "the pop up shouldnt be transparent";
+// it was 70% charcoal in dark and 92% white in light, and the rows behind a menu showed through):
+// #1d1d20 in dark, white in light, still with its frost, shadow and ring.
+const FLOAT = { dark: "rgb(29, 29, 32)", light: "rgb(255, 255, 255)" };
 // The main button in the office: hi-vis, flat (its colour at both ends), dark words, in both looks
 // and whatever the firm's colour (Acme's blue stays on its bar and in the casual app).
 const TINT = "rgb(233, 248, 111)";
@@ -230,7 +233,11 @@ const measure = (page: Page) =>
     // not a field) is left of Phase 23's.
     const bareWhite = [...(main?.querySelectorAll("*") ?? [])]
       .filter((el) => {
-        if (!shown(el) || el.matches("input, select, textarea")) return false;
+        // What floats (a menu, a pop-over, the map's card and labels: `glass-float`, `bg-panel`) is
+        // solid since Phase 36.1 (Dylan: "the pop up shouldnt be transparent"), so white in the
+        // light look by design; every other box is still held to this.
+        if (!shown(el) || el.matches("input, select, textarea, .glass-float, .bg-panel"))
+          return false;
         const s = getComputedStyle(el);
         const radius = parseFloat(s.borderTopLeftRadius);
         return (

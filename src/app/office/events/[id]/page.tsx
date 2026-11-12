@@ -20,6 +20,7 @@ import {
   NO_HISTORY,
   noInterestText,
   CHOOSE_WHO,
+  CASUALS_ASK_EVENT_LINE,
   offerLaterLine,
   SEE_IN_LOG,
   SHOWING_CHIP,
@@ -27,10 +28,11 @@ import {
   type EventTab,
 } from "@/lib/office/event-page-copy";
 import { officeEventPage } from "@/lib/office/events";
+import { CASUALS_ASK } from "@/lib/office/session-page-copy";
 import { roleLabel, shiftWhen } from "@/lib/portal/format";
 import { eventStatus, eventSummary, spansDays, uniqueSessionNames } from "@/lib/office/events-copy";
 import { SessionItem } from "../session-row";
-import { OfferOpenPlaces, ShowHideButton } from "./event-actions";
+import { CasualsAskEventSwitch, OfferOpenPlaces, ShowHideButton } from "./event-actions";
 import { StaffingTab } from "./staffing";
 
 // One event (docs/screens.md "An event's page, round 8"; Phase 26.5, the spec page's evt-1 to
@@ -147,10 +149,28 @@ export default async function EventPage({
       {current === "overview" && <OverviewTab data={data} />}
 
       {current === "interested" && (
-        <section aria-labelledby="event-interested" className="glass rounded-inner p-4">
-          <h2 id="event-interested" className="px-1 text-lg font-semibold text-ink">
-            {EVENT_TAB_WORDS.interested}
-          </h2>
+        <section
+          aria-label={EVENT_TAB_WORDS.interested}
+          className="glass @container rounded-inner p-4"
+        >
+          {/* The event's one setting, where the asks show (Phase 36.1): its title, what Off and On
+              mean, and the switch (the same action as the session page's). */}
+          <div className="flex flex-col gap-3 @min-[40rem]:flex-row @min-[40rem]:items-start @min-[40rem]:justify-between">
+            <div className="min-w-0 px-1">
+              <h2 id="event-interested" className="text-lg font-semibold text-ink">
+                {CASUALS_ASK}
+              </h2>
+              <p id="event-interested-line" className="mt-1 max-w-[70ch] text-sm text-ink-muted">
+                {CASUALS_ASK_EVENT_LINE}
+              </p>
+            </div>
+            <CasualsAskEventSwitch
+              eventId={e.eventId}
+              on={data.casualsAsk}
+              labelledBy="event-interested"
+              describedBy="event-interested-line"
+            />
+          </div>
           {bySession.size === 0 ? (
             <p className={`${headingGap} rounded-row glass-tile p-4 text-sm text-ink-muted`}>
               {noInterestText(data.casualsAsk)}

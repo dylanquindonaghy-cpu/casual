@@ -26,7 +26,8 @@ export const GROUND: Record<Theme, Rgb> = {
 // - button: a clear glass button or count;
 // - track and lens: a switch or a row of tabs (the track) and its chosen option (the lens).
 // Round 8's: in light a white section over the off-white and a faint ink tile; in dark (Phase
-// 27.1) a 4% white section, what floats 70% charcoal.
+// 27.1) a 4% white section, what floats 70% charcoal. (In the office what floats is solid since
+// Phase 36.1: its own blocks in globals.css, read by the contrast test as drawn.)
 export const GLASS: Record<
   Theme,
   {

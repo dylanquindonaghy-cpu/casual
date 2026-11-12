@@ -150,15 +150,30 @@ describe("open places", () => {
 
 // The Interested tab's words (Phase 26.6, evt-2): its link to choose, and the empty line, which
 // says how casuals come to ask on an event that lets them, and how to let them on one that doesn't.
+// Phase 36.1: the switch is on the tab itself now (it was only on each session's page, and the empty
+// line sent the office there), so the line points at the switch above it, and the switch's own words
+// say what Off and On mean.
 describe("the Interested tab's words", () => {
   it("Choose who works it, and nothing asked yet either way", async () => {
     const { CHOOSE_WHO, noInterestText } = await import("@/lib/office/event-page-copy");
     expect(CHOOSE_WHO).toBe("Choose who works it");
     expect(noInterestText(true)).toBe(
-      'Nobody has asked for a session yet. Casuals see "I can do this" on this event\'s sessions.',
+      'No one has asked yet. Casuals see "I can do this" on this event\'s sessions, and the ones who ask show here.',
     );
     expect(noInterestText(false)).toBe(
-      'Casuals take places on this event. Switch on "Casuals ask, you choose" on a session\'s page to choose from who asks.',
+      'No one has asked yet. Switch it on and the casuals who ask show here, with "Choose who works it" for each session.',
     );
+    // Nothing sends the office to a session's page for the switch any more.
+    expect(noInterestText(false)).not.toMatch(/session's page/);
+  });
+
+  it("the switch: its title, what Off and On mean, and its word", async () => {
+    const { CASUALS_ASK_EVENT_LINE, switchWord } = await import("@/lib/office/event-page-copy");
+    const { CASUALS_ASK } = await import("@/lib/office/session-page-copy");
+    expect(CASUALS_ASK).toBe("Casuals ask, you choose");
+    expect(CASUALS_ASK_EVENT_LINE).toBe(
+      'Off: casuals take places on this event straight away. On: they tap "I can do this" and you choose who works each session, here and on each session\'s page.',
+    );
+    expect([switchWord(true), switchWord(false)]).toEqual(["On", "Off"]);
   });
 });

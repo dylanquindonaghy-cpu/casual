@@ -46,8 +46,9 @@ export interface DemoResetOptions {
   // The outbox the Demo phone reads (CONSOLE_OUTBOX_FILE): emptied.
   outboxFile?: string;
   today?: Date;
-  // The seeded "Demo planner" gets its webhook (Phase 37.8): only when INTEGRATIONS_SECRET is set
-  // on the demo-reset service (scripts/demo-reset.ts), so its deliveries can be signed; without it
+  // The seeded "Demo planner" gets its webhook (Phase 37.8): only when the server has
+  // INTEGRATIONS_SECRET (the demo-reset service's DEMO_PLANNER_WEBHOOK flag, scripts/demo-reset.ts),
+  // so its deliveries can be signed; without it
   // every new booking's delivery would fail as not configured, and Needs attention would show a
   // failing webhook.
   webhook?: boolean;

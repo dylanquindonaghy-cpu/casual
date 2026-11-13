@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, lt, notInArray, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { Client, Pool } from "pg";
 import { addStarterAnswers, DEMO_STARTERS_ON } from "../../answers/starters";
 import { applyCredentialPack } from "../../credentials/apply-pack";
@@ -20,9 +20,10 @@ import {
   workers,
 } from "../schema";
 import { seedLog, type SeedLog } from "./seed-log";
+import { logEvidenceSent } from "./seed-strikes";
 import { seedFirms, STRIKES_TEAM, weekOffers, type SeedFirm } from "./seed-data";
 import { acmeSaturday, type SaturdaySeed } from "./seed-saturday";
-import { acmeHistory, type HistorySeed } from "./seed-history";
+import { acmeHistory, keptHistoryBookings, type HistorySeed } from "./seed-history";
 import { loadDemoPlanner, loadPilotFigures, setDemoWebhook } from "./seed-demo-extras";
 import {
   acmePastEvent,
@@ -38,7 +39,6 @@ import { noticeHours } from "../../roster/notice";
 import { quietHours } from "../../rules/quiet-hours";
 import { strikeDecision } from "../../strikes/decide";
 import { strikeSettings } from "../../strikes/settings";
-import { STRIKE_WARNING_VERSION } from "../../strikes/words";
 import { hoursToStart, insideUrgentWindow, urgentWindowHours } from "../../rules/urgent";
 import { fakePoint } from "../../travel/geocoder";
 import { acmeMatchDay, type MatchSeed } from "./seed-match";
@@ -46,6 +46,7 @@ import { loadMatchDay } from "./seed-match-load";
 import { acmeStory } from "./seed-story";
 import { answerStoryMessages, loadStory } from "./seed-story-load";
 import { isLocalHost } from "./urls";
+import { seedStrikeWarning } from "./seed-warning";
 
 // Loads the demo firms (docs/testing.md). Firms are created through the owner connection (the
 // app role can't create firms); everything else goes through withFirm as the app role, like the
@@ -366,9 +367,12 @@ export async function loadSaturday(
         // In the app, past the cancel screen's strike warning, as the app records it (37.2).
         cancelVia: b.status === "cancelled_worker" ? ("app" as const) : null,
         bookedVia: "app" as const, // logged below as the worker's own booking (P2.2)
-        ...(b.status === "cancelled_worker" && b.cancelledAt
-          ? { strikeWarningVersion: STRIKE_WARNING_VERSION, strikeWarningShownAt: b.cancelledAt }
-          : {}),
+        // The warning she saw, as the app records it: her own cancellation in the app (L8).
+        ...seedStrikeWarning({
+          status: b.status,
+          cancelVia: b.status === "cancelled_worker" ? "app" : null,
+          cancelledAt: b.cancelledAt,
+        }),
       })),
     )
     .onConflictDoNothing()
@@ -492,7 +496,7 @@ export async function loadSaturday(
         createdAt: s.issuedAt,
       })
       .onConflictDoNothing();
-    log.add(
+    const issued = log.add(
       {
         actorType: "system",
         action: "strike.issued",
@@ -508,16 +512,7 @@ export async function loadSaturday(
       },
       s.issuedAt,
     );
-    log.add(
-      {
-        actorType: "system",
-        action: "strike.evidence_sent",
-        entityType: "strike",
-        entityId: s.id,
-        data: { request: `strike-evidence:${s.id}`, attempt: 1 },
-      },
-      evidenceAt,
-    );
+    logEvidenceSent(log, s.id, issued, s.issuedAt, evidenceAt);
   }
   await loadPay(tx, firmId, day);
   return fresh;
@@ -846,10 +841,12 @@ async function loadHistory(
     ).map((r) => r.id),
   );
   const candidates = history.bookings.filter((b) => !existing.has(b.shiftId));
-  // A booking the worker already holds over the same time (an earlier run's): left out.
+  // A booking the worker already holds over the same time (an earlier run's): left out. Checked
+  // for the window each booking was live, a cancelled one's too (from its booking to its
+  // cancellation): another booking of hers over the same hours, live at any moment of that window,
+  // would have made the rules refuse it (golden rule 6).
   const clashes = new Set<string>();
   for (const b of candidates) {
-    if (b.status === "cancelled_worker") continue;
     const s = history.sessions.find((x) => x.id === b.shiftId);
     if (!s) continue;
     const [held] = await tx
@@ -862,17 +859,23 @@ async function loadHistory(
       .where(
         and(
           eq(assignments.workerId, b.workerId),
-          notInArray(assignments.status, [...CANCELLED_ASSIGNMENT_STATUSES]),
           lt(shifts.startsAt, s.endsAt),
           gt(shifts.endsAt, s.startsAt),
+          // Live after this one was booked: not cancelled, or cancelled after.
+          or(
+            notInArray(assignments.status, [...CANCELLED_ASSIGNMENT_STATUSES]),
+            gt(assignments.cancelledAt, b.confirmedAt),
+          ),
+          // And booked before this one was cancelled (always, for one never cancelled).
+          b.cancelledAt === null
+            ? undefined
+            : or(isNull(assignments.confirmedAt), lt(assignments.confirmedAt, b.cancelledAt)),
         ),
       )
       .limit(1);
     if (held) clashes.add(b.id);
   }
-  const kept = candidates.filter(
-    (b) => !clashes.has(b.id) && !(b.reopenedId !== null && clashes.has(b.reopenedId)),
-  );
+  const kept = keptHistoryBookings(candidates, clashes);
   // Only a session whose worked booking goes in is added ("filled"): one left out as an overlap is
   // never a filled session with nobody on it.
   const worked = new Set(kept.filter((b) => b.status !== "cancelled_worker").map((b) => b.shiftId));
@@ -925,9 +928,12 @@ async function loadHistory(
       cancelAskedBy: b.status === "cancelled_worker" ? ("casual" as const) : null,
       cancelVia: b.status === "cancelled_worker" ? ("app" as const) : null,
       bookedVia: "app" as const,
-      ...(b.status === "cancelled_worker"
-        ? { strikeWarningVersion: STRIKE_WARNING_VERSION, strikeWarningShownAt: b.cancelledAt }
-        : {}),
+      // The warning she saw, as the app records it: her own cancellation in the app (L8).
+      ...seedStrikeWarning({
+        status: b.status,
+        cancelVia: b.status === "cancelled_worker" ? "app" : null,
+        cancelledAt: b.cancelledAt,
+      }),
       createdAt: b.confirmedAt,
     })),
   );
@@ -1013,7 +1019,7 @@ async function loadHistory(
         createdAt: k.issuedAt,
       })
       .onConflictDoNothing();
-    log.add(
+    const issued = log.add(
       {
         actorType: "system",
         action: "strike.issued",
@@ -1029,16 +1035,7 @@ async function loadHistory(
       },
       k.issuedAt,
     );
-    log.add(
-      {
-        actorType: "system",
-        action: "strike.evidence_sent",
-        entityType: "strike",
-        entityId: k.id,
-        data: { request: `strike-evidence:${k.id}`, attempt: 1 },
-      },
-      evidenceAt,
-    );
+    logEvidenceSent(log, k.id, issued, k.issuedAt, evidenceAt);
   }
   // Their logins, for the weeks whose first worked session went in just now, with its booking
   // (the app's shape: src/lib/auth/link-login.ts).

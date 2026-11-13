@@ -27,9 +27,14 @@ import { rng, seedId, type SeedFirm } from "./seed-data";
 // - LATE_CANCELLERS: 3 of them each cancelled 3 sessions under 48 hours before the start in the last
 //   60 days, each with the strike the rules give (strikeDecision) and its row; each place was filled
 //   again by the history worker whose session (and pay) it is.
-// - A login (auth.login) the day before each week worked, at 08:00, as the app logs one.
+// - A login (auth.login) the day before each week worked, at 08:00, as the app logs one. Its
+//   session id has no sessions row, recent weeks' included (a real firm keeps an ended login's row
+//   30 days); nothing reads these entries against sessions, only the log (docs/testing.md).
 // - Re-runs: ids and draws are per (worker, pay week), so a run a week later keeps every week it
-//   already wrote, and adds the new last week with its pay.
+//   already wrote, and adds the new last week with its pay. The no-shows' weeks are fixed weeks of
+//   the calendar, so they keep their ids too. Which weekdays a week's sessions fall on follows the
+//   run's own weekday (never yesterday's, the last event's): a run on another weekday makes the same
+//   sessions (ids, hours, rates) on other days, and a re-run keeps the rows already there.
 
 const TZ = "Europe/London";
 const HOUR = 3_600_000;
@@ -43,6 +48,11 @@ export const HISTORY_WORKERS: readonly number[] = [
 export const LATE_CANCELLERS: readonly number[] = [19, 20, 55];
 // Two workers who once didn't turn up.
 const NO_SHOWS: readonly number[] = [12, 14];
+// Their weeks: the first one's number (weekNumber) is 3 in every 8, the second's 6.
+const NO_SHOW_WEEK = 3;
+// A Monday's week number, counted from Monday 5 January 1970.
+export const weekNumber = (monday: string): number =>
+  Math.round((Date.parse(`${monday}T12:00:00Z`) - Date.parse("1970-01-05T12:00:00Z")) / (7 * DAY));
 // The stewards whose pay queries are about the rate (seed-extras.ts RATE_STEWARDS).
 export const RATE_STEWARDS: readonly number[] = [10, 17, 18, 19, 20, 21, 24];
 export const OLD_STEWARD_RATE = 1300;
@@ -135,6 +145,25 @@ export interface HistoryBooking {
   noticeHours: number | null;
   strikeCode: StrikeCode | null;
   reopenedId: string | null; // the place it reopened: the filler's booking below
+}
+
+// The history bookings that go in, given those that clash with a booking already there (loadHistory,
+// seed.ts). A cancellation and the booking that refilled its place (its reopenedId) go in together
+// or not at all, whichever of them clashed: a replacement without its cancellation would be a
+// session worked in a "reopened" place with no cancellation or strike behind it, and a
+// cancellation without its replacement a filled session with nobody on it.
+export function keptHistoryBookings(
+  candidates: readonly HistoryBooking[],
+  clashes: ReadonlySet<string>,
+): HistoryBooking[] {
+  const dropped = new Set(clashes);
+  for (const b of candidates) {
+    if (b.reopenedId !== null && (clashes.has(b.id) || clashes.has(b.reopenedId))) {
+      dropped.add(b.id);
+      dropped.add(b.reopenedId);
+    }
+  }
+  return candidates.filter((b) => !dropped.has(b.id));
 }
 
 export interface HistoryStrike {
@@ -260,17 +289,22 @@ export function acmeHistory(
     });
   }
 
-  // Two no-shows, unpaid: in week 3, on a day the worker has no session.
-  for (const i of NO_SHOWS) {
-    const periodStart = addDays(thisMonday, -21);
+  // Two no-shows, unpaid, on a day the worker has no session, in a fixed week of the calendar (one
+  // in every 8, by the week's number: NO_SHOW_WEEK), so a run a week later finds the same week and
+  // the same id, and adds no second one (a week counted back from today moved every week).
+  NO_SHOWS.forEach((i, k) => {
+    const periodStart = [1, 2, 3, 4, 5, 6, 7, 8]
+      .map((n) => addDays(thisMonday, -7 * n))
+      .find((monday) => weekNumber(monday) % 8 === (NO_SHOW_WEEK + 3 * k) % 8);
+    if (!periodStart) return;
     const used = sessions
       .filter((s, k) => bookings[k]?.workerId === workers[i]?.id)
       .map((s) => localDateOf(s.startsAt, TZ));
     const day = days.map((d) => addDays(periodStart, d)).find((d) => !used.includes(d));
-    if (!day) continue;
+    if (!day) return;
     const role = workers[i]?.roles[0] ?? "steward";
     add(i, periodStart, 9, day, 8, roleRate(role), "no_show");
-  }
+  });
 
   // The late cancellers: for each, 3 sessions of the same role other history workers worked in
   // weeks 2 to 7 (inside 60 days), on days the canceller had no session. The canceller booked it

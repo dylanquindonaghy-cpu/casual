@@ -1,6 +1,5 @@
-import { randomBytes } from "node:crypto";
 import { sql } from "drizzle-orm";
-import { apiKeyHash, apiKeyHint, API_KEY_PREFIX } from "../../integrations/keys";
+import { apiKeyHash, apiKeyHint, newApiKey } from "../../integrations/keys";
 import { addDays, localDateOf, zonedToUtc } from "../../time/zoned";
 import { apiKeys, assignments, metricsDaily, shiftEvents, shifts } from "../schema";
 import type { FirmTx } from "../scoped";
@@ -16,7 +15,8 @@ import { acmePilotFigures } from "./seed-pilot";
 // - A "Demo planner" API key, one event it sent
 //   ("Northgate Demo Fun Run", 9 days ahead, three sessions: "· From your planner"), two of them
 //   booked by casuals in the app, each logged as the planner API and the app log them; and, when
-//   the demo-reset service has INTEGRATIONS_SECRET (seed()'s `webhook`), its webhook: the
+//   the server has INTEGRATIONS_SECRET (the demo-reset's DEMO_PLANNER_WEBHOOK flag, seed()'s
+//   `webhook`), its webhook: the
 //   address set three days ago by the admin, a delivery that failed and the one that went after it
 //   (setDemoWebhook writes the address and its status after the log, so no seeded booking queues
 //   a real delivery). The key itself is random, never stored or shown: nobody can use it.
@@ -101,8 +101,12 @@ export async function loadDemoPlanner(
   const admin = adminOf(firm);
   const keyId = id("key");
   const created = new Date(now.getTime() - 3 * DAY);
-  // A random key, never kept: only its hash and last 4 characters, as the office's "Make a key".
-  const token = `${API_KEY_PREFIX}${randomBytes(32).toString("base64url")}`;
+  // The planner's event and its sessions are sent an hour after the key was made: its last use
+  // (each logged below), as the API records last_used_at (src/lib/integrations/api.ts).
+  const sentAt = new Date(created.getTime() + HOUR);
+  // A random key made as the office's "Make a key" makes one (newApiKey), never kept: only its hash
+  // and last 4 characters.
+  const token = newApiKey();
   const [key] = await tx
     .insert(apiKeys)
     .values({
@@ -112,7 +116,7 @@ export async function loadDemoPlanner(
       tokenHash: apiKeyHash(token),
       hint: apiKeyHint(token),
       createdBy: admin,
-      lastUsedAt: new Date(now.getTime() - 2 * HOUR),
+      lastUsedAt: sentAt,
       createdAt: created,
     })
     .onConflictDoNothing()
@@ -131,7 +135,6 @@ export async function loadDemoPlanner(
   );
 
   // The planner's event and its three sessions, sent an hour after the key was made.
-  const sentAt = new Date(created.getTime() + HOUR);
   const day = addDays(localDateOf(now, TZ), 9);
   const eventId = id("event");
   await tx.insert(shiftEvents).values({

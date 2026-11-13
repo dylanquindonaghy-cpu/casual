@@ -1572,7 +1572,7 @@ Docs: `docs/audit-2026-11-11.md` (Wave 1), `docs/screens.md`, `docs/messaging-te
 `docs/api-and-jobs.md`, `docs/rules-and-credentials.md`, `docs/testing.md`, `docs/runbooks.md`,
 `docs/ui-design.md`, `docs/office-v2.md`.
 
-- [ ] One pay day everywhere (M; UI): the casual's Home, her Pay page, the shifts line's "Pay day"
+- [x] One pay day everywhere (M; UI): the casual's Home, her Pay page, the shifts line's "Pay day"
       answer and the office's Pay dashboard all give the same next pay day and the shifts it pays.
       `src/lib/portal/pay-day.ts` uses the office's rule (`nextPayFor`, `src/lib/pay/next-pay.ts`)
       on her own whole-period pay records, read through one shared `readRecordedPayDates` inside
@@ -1588,7 +1588,7 @@ Docs: `docs/audit-2026-11-11.md` (Wave 1), `docs/screens.md`, `docs/messaging-te
       step as Zoe compares /pay's day with the dashboard's. `guardrails-reviewer` (the shifts
       line's live answer changes). Out of scope, parked: Pay's week headings, "Recently sorted",
       the dashboard head and top bar's "Week 46 (paid …)" (w1-01) (37.1)
-- [ ] Strikes say what is known (UI; seed): a cancellation's Strike never reads "No strike:
+- [x] Strikes say what is known (UI; seed): a cancellation's Strike never reads "No strike:
       cancelled before strikes were turned on". In `src/lib/office/cancellations-copy.ts` a null
       code reads "No strike recorded" (list) / "Not recorded" (record page and PDF); code "issued"
       whose strike row was deleted after the firm's keep time reads "Strike issued · its record was
@@ -1601,7 +1601,7 @@ Docs: `docs/audit-2026-11-11.md` (Wave 1), `docs/screens.md`, `docs/messaging-te
       later; the e2e Acme list has no "before strikes". `docs/screens.md` lists the new words at
       the Strike column and the record page. Parked: the evidence, event page, dashboard map,
       casual record and planner API words for a purged strike (w1-02) (37.2)
-- [ ] "Not offered, and why" names the card (R; UI): on an offer page and the dashboard's offer
+- [x] "Not offered, and why" names the card (R; UI): on an offer page and the dashboard's offer
       panel, "No licence in date" becomes the first card the rules found, by the firm's own name,
       in the office's existing words: "Needs {manual handling certificate} (none on file)", "Needs
       {A} or {B} (none on file)", "{Name} out of date ({7 Oct})" ("({7 Oct 2025})" in another
@@ -1615,7 +1615,7 @@ Docs: `docs/audit-2026-11-11.md` (Wave 1), `docs/screens.md`, `docs/messaging-te
       shows; the e2e page and panel have no "No licence in date". `guardrails-reviewer` (reads the
       rules' checks). Parked: linking each name, "And {n} more", the rota sheet's Needs attention
       lines (w1-03) (37.3)
-- [ ] Enquiries count what is waiting (M, R; UI): a shifts-line message still unsorted 10
+- [x] Enquiries count what is waiting (M, R; UI): a shifts-line message still unsorted 10
       minutes after it came in (`UNSORTED_FOR_PERSON_MINUTES`) needs a person: counted in Enquiries'
       head, Need a person, the menu badge, Needs attention and Updates, with "Answer it". Its chip
       reads "Not answered yet" before then (not "Not understood") and "Passed to a person, waiting"
@@ -1633,7 +1633,7 @@ Docs: `docs/audit-2026-11-11.md` (Wave 1), `docs/screens.md`, `docs/messaging-te
       workers never show; the email summary's query still runs; the app-request count equals
       Enquiries' head; the e2e badge reads the rail tip, not the link name.
       `guardrails-reviewer` (messaging and rules) (w1-04, w1-07) (37.4)
-- [ ] Casuals' messages and Automatic answers say what happens (M; UI): an approved time change
+- [x] Casuals' messages and Automatic answers say what happens (M; UI): an approved time change
       or swap goes as a new `request_change_agreed` (`_no_note`): "The office said yes to your
       {type}. Your shift changes when they update it. Ref {ref}. The office says: {note} — {firm}
       Shift Team", push "The office said yes" / "{Type}: your shift hasn't changed yet. Tap to
@@ -1647,7 +1647,7 @@ Docs: `docs/audit-2026-11-11.md` (Wave 1), `docs/screens.md`, `docs/messaging-te
       pin every string against the docs. `guardrails-reviewer` (messaging). Parked: an approved
       review's text, My requests' "Approved" chip, approve applying the change, a rota-sheet time
       change telling no one, the channel confirmation's words (w1-05, w1-06) (37.5)
-- [ ] The office keeps its frame, and every page names itself (A; UI): any `/office` address that
+- [x] The office keeps its frame, and every page names itself (A; UI): any `/office` address that
       matches no page (`src/app/office/[...missing]`) gets the office's not-found inside the office
       frame with "Back to the office"; an office page that fails keeps the frame
       (`src/app/office/error.tsx`, `error-view.tsx`; root `error.tsx` uses the office words on
@@ -1664,7 +1664,7 @@ Docs: `docs/audit-2026-11-11.md` (Wave 1), `docs/screens.md`, `docs/messaging-te
       titles. The PDF's "Cancellation record {ref}" is unchanged. `guardrails-reviewer` (session
       reads in metadata). Parked: `global-error.tsx`, `/client/*` not-found, error page titles
       (w1-08, w1-09) (37.6)
-- [ ] Buttons wait for the page, and the server sends safe headers (UI; infra): "Take shift", "I
+- [x] Buttons wait for the page, and the server sends safe headers (UI; infra): "Take shift", "I
       can do this" and "Log out" are disabled until the page is ready (`useHydrated`), and
       `tests/unit/forms.hydration.test.ts` fails on any new casual `onClick` button that doesn't
       wait (per-file allowances for buttons that appear only after the page is ready). Caddy's
@@ -1676,7 +1676,7 @@ Docs: `docs/audit-2026-11-11.md` (Wave 1), `docs/screens.md`, `docs/messaging-te
       checks the adapted JSON. `docs/runbooks.md` gives the server step: `docker compose up -d
       --force-recreate caddy` (not `caddy reload`), then the curl checks with the demo password.
       Live on the server is a separate step after this tick (w1-10, w1-11) (37.7)
-- [ ] Demo data that agrees with itself (seed; infra): after 37.2. Zoe's eleven worked sessions
+- [x] Demo data that agrees with itself (seed; infra): after 37.2. Zoe's eleven worked sessions
       add up to her five pay weeks (her Profile reads "11 shifts worked", Booked's Past 90 days
       lists them, the pay query picker offers them); about 30 of Acme's casuals have the worked
       sessions behind their pay (`seed-history.ts`, every booking one the rules allowed at its

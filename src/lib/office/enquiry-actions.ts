@@ -23,7 +23,8 @@ import {
   replyLine,
   type CloseReason,
 } from "./enquiry-rules";
-import { needsPerson } from "./enquiry-sql";
+import { needsPerson, senderWorker } from "./enquiry-sql";
+import { markForAPerson } from "../inbound/for-a-person";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 
 // The office answering a message that needs a person (docs/office-v2.md 3.6; 12D.1): a reply in
@@ -70,10 +71,12 @@ type Locked = {
   worker_id: string | null;
   notify_channel: "sms" | "email" | null;
   sms_opted_out_at: string | Date | null;
+  handled_at: string | Date | null; // null: the shifts line hasn't sorted it (w1-04)
   waiting: boolean;
 };
 
-// The casual's message, locked, and whether it still needs a person (enquiries.ts's rule).
+// The casual's message, locked, and whether it still needs a person (enquiries.ts's rule). An
+// unsorted one names the casual whose number it came from (senderWorker, w1-04), as the page does.
 async function lockMessage(tx: FirmTx, messageId: string, now: Date): Promise<Locked | null> {
   const { since } = await enquiryWindow(tx, now);
   const [row] = await tx
@@ -83,14 +86,28 @@ async function lockMessage(tx: FirmTx, messageId: string, now: Date): Promise<Lo
     .for("update");
   if (!row) return null;
   const { rows } = await tx.execute<Locked>(sql`
-    select m.id, m.channel, m.from_e164, m.to_e164, m.worker_id, w.notify_channel,
-           w.sms_opted_out_at,
-           (m.created_at > ${since} and ${needsPerson("m")}) as waiting
+    select m.id, m.channel, m.from_e164, m.to_e164, w.id as worker_id, w.notify_channel,
+           w.sms_opted_out_at, m.handled_at,
+           (m.created_at > ${since} and coalesce(${needsPerson("m", now)}, false)) as waiting
       from messages m
-      left join workers w on w.firm_id = m.firm_id and w.id = m.worker_id
+      left join workers w on w.firm_id = m.firm_id and w.id = ${senderWorker("m")}
      where m.id = ${messageId}
   `);
   return rows[0] ?? null;
+}
+
+// A message the shifts line hasn't sorted, 10 minutes or more after it came in (w1-04): the office's
+// reply or close first passes it to a person, as the shifts line's last try does (markForAPerson,
+// under the same row lock: logged as `message.received` with `late: true`; a STOP or START applied
+// with no confirmation), so the shifts line never answers it afterwards. Then the message as it is
+// now (null: no longer waiting for the office, or gone). A STOP or START stays the office's to
+// reply to or close, though it no longer waits: a reply is then planned against the new setting.
+async function markIfUnsorted(tx: FirmTx, m: Locked, now: Date): Promise<Locked | null> {
+  if (m.handled_at !== null) return m;
+  const marked = await markForAPerson(tx, m.id, { late: true }, now);
+  const again = await lockMessage(tx, m.id, now);
+  if (!again || (marked !== "opt_out" && !again.waiting)) return null;
+  return again;
 }
 
 // Its open question, locked (after the message: the same order every time).
@@ -121,9 +138,13 @@ export async function replyToEnquiry(
   return retryAborted(() =>
     run(ctx.firm.id, async (tx): Promise<ReplyResult> => {
       if (!(await officeUserMay(tx, by.id, "enquiries"))) return { status: "not_allowed" };
-      const m = await lockMessage(tx, messageId, now);
-      if (!m) return { status: "not_found" };
-      if (!m.waiting) return { status: "not_waiting" };
+      const locked = await lockMessage(tx, messageId, now);
+      if (!locked) return { status: "not_found" };
+      if (!locked.waiting) return { status: "not_waiting" };
+      // Passed to a person first when the shifts line never sorted it (w1-04). A reply that then
+      // can't go still leaves it marked, and waiting for a person.
+      const m = await markIfUnsorted(tx, locked, now);
+      if (!m) return { status: "not_waiting" };
       const { plan, line } = await replyPlanFor(tx, m, now);
       if (!plan.ok) return { status: plan.why };
 
@@ -258,9 +279,12 @@ export async function closeEnquiry(
         });
         return { status: "closed" };
       }
-      const m = await lockMessage(tx, parsed.data.messageId, now);
-      if (!m) return { status: "not_found" };
-      if (!m.waiting) return { status: "not_waiting" };
+      const locked = await lockMessage(tx, parsed.data.messageId, now);
+      if (!locked) return { status: "not_found" };
+      if (!locked.waiting) return { status: "not_waiting" };
+      // Passed to a person first when the shifts line never sorted it (w1-04).
+      const m = await markIfUnsorted(tx, locked, now);
+      if (!m) return { status: "not_waiting" };
       const question = await openQuestion(tx, m.id);
       if (question) {
         await tx
@@ -314,7 +338,7 @@ async function lockEmail(tx: FirmTx, emailId: string, now: Date): Promise<Locked
   if (!row) return null;
   const { rows } = await tx.execute<LockedEmail>(sql`
     select e.id, e.worker_id, e.subject, e.draft_reply, w.first_name, w.email,
-           (e.created_at > ${since} and ${needsPerson("e")}) as waiting
+           (e.created_at > ${since} and coalesce(${needsPerson("e", now)}, false)) as waiting
       from (select x.*, 'email'::text as channel from inbound_emails x where x.id = ${emailId}) e
       left join workers w on w.firm_id = e.firm_id and w.id = e.worker_id
   `);

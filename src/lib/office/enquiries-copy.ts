@@ -1,6 +1,11 @@
 import type { StatusTone } from "@/app/ui/status-chip";
 import { fillInLabels } from "./answers-copy";
-import type { CloseReason, Outcome, ReplyPlan } from "./enquiry-rules";
+import {
+  UNSORTED_FOR_PERSON_MINUTES,
+  type CloseReason,
+  type Outcome,
+  type ReplyPlan,
+} from "./enquiry-rules";
 
 // Enquiries in plain words (docs/office-v2.md 3.6; docs/screens.md `/office/enquiries`; 12D.1).
 // No database code: the reply and close forms (client components) use it.
@@ -10,7 +15,9 @@ export const OUTCOME_WORDS: Record<Outcome, string> = {
   ai: "Sorted by AI, answered from your data",
   person_waiting: "Passed to a person, waiting",
   person_answered: "Passed to a person, answered",
-  not_understood: "Not understood",
+  // The shifts line hasn't sorted it yet (under 10 minutes; then "Passed to a person, waiting":
+  // Wave 1, w1-04).
+  not_yet: "Not answered yet",
   // The shifts line's answer is the link to their Pay page (and "Raise a pay query" there): nothing
   // goes to payroll by itself. The chip names the answer, not its delivery: a WhatsApp or text that
   // failed is only on the message's own page (the guardrails reviews, Phase 27.2; the Parking lot).
@@ -28,7 +35,7 @@ export const OUTCOME_TONES: Record<Outcome, StatusTone> = {
   ai: "done",
   person_waiting: "attention",
   person_answered: "done",
-  not_understood: "attention",
+  not_yet: "wait",
   pay: "quiet",
   payroll: "quiet",
   in_app: "done",
@@ -246,7 +253,15 @@ export function sortedStep(
     | { how: "keyword" | "ai"; intent: Intent }
     | {
         how: "person";
-        why: "asked" | "ai_asked" | "voicemail" | "no_text" | "not_sorted" | "reply_limit" | "echo";
+        why:
+          | "asked"
+          | "ai_asked"
+          | "voicemail"
+          | "no_text"
+          | "not_sorted"
+          | "reply_limit"
+          | "echo"
+          | "late";
         ai?: "not_connected" | "no_answer" | "not_a_label";
       }
     | { how: "person"; why: "answer_failed"; code: string }
@@ -254,7 +269,8 @@ export function sortedStep(
     | { how: "person"; why: "answer_switched_off" }
     | { how: "unknown"; repeat: boolean }
     | { how: "opt_out" }
-    | { how: "not_yet" }
+    // Not sorted yet; `late` once it's 10 minutes old, so it waits for a person (w1-04).
+    | { how: "not_yet"; late?: boolean }
     | { how: "held"; by: "keyword" | "ai"; intent: Intent }
     // A casual's message in the app about a session (Phase 28.6).
     | { how: "about_shift" }
@@ -295,8 +311,11 @@ export function sortedStep(
         : "Not one of your casuals' numbers: passed to a person.";
     case "opt_out":
       return "STOP or START on a text: texts turned off or back on.";
+    // "Sorted: Not yet. …" (w1-04: one colon, never "Sorted: Not sorted yet: …").
     case "not_yet":
-      return "Not sorted yet: the shifts line hasn't answered it.";
+      return s.late
+        ? `Not yet. The shifts line hasn't answered it in ${UNSORTED_FOR_PERSON_MINUTES} minutes, so it's waiting for a person.`
+        : "Not yet. The shifts line hasn't answered it.";
     default:
       if (s.why === "answer_failed")
         return `The automatic answer failed on every try (${s.code}): passed to a person.`;
@@ -320,6 +339,8 @@ export function sortedStep(
         // In the app (Phase 25.6): no automatic answer past the hour's 5, nor to an echo.
         reply_limit: "5 automatic replies already went to them this hour: passed to a person.",
         echo: "It quoted our automatic reply: passed to a person.",
+        // The office answered or closed it after the shifts line hadn't (w1-04).
+        late: `The shifts line hadn't answered it after ${UNSORTED_FOR_PERSON_MINUTES} minutes, so it was passed to a person.`,
       }[s.why];
   }
 }
@@ -718,7 +739,7 @@ export function emailSortedStep(s: EmailSorted): string {
     case "no_address":
       return `${sorted(s.by, s.intent)} There's no email address on file for them: passed to a person.`;
     case "not_yet":
-      return "Not sorted yet: the inbox hasn't answered it.";
+      return "Not yet. The inbox hasn't answered it.";
     default:
       return sortedStep(s);
   }

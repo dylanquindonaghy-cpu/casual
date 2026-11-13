@@ -356,8 +356,9 @@ drawer, the current page, the roles), not its layout.
    and the Friday after it (D8). Hidden on phones. Built with the pay dashboard (12A.3).
 4. **Bell.** "Needs attention, N", a link to the dashboard's Needs attention section (3.9). Admins
    and resourcers. Built with the dashboard (12E.1). Phase 20 took it out: "Needs attention" is a
-   menu item under Dashboard with its count (its items and the enquiries that need a person; the
-   Dashboard's headline adds the urgent places to fill).
+   menu item under Dashboard with its count (its items, the enquiries that need a person and,
+   since Wave 1 (w1-07), the requests from the app waiting for an answer; the Dashboard's headline
+   adds the urgent places to fill).
 5. **Moon/sun button.** Switches between light and dark, with a visible tooltip.
 6. **Account button** (initials, name, role). It opens: How-to guide, Log out.
 
@@ -760,7 +761,7 @@ their words, an outcome chip and the time.
    can't Zoe see that shift?"
 
 **Outcome labels come from code only**, never from AI: Answered by keyword · Sorted by AI, answered
-from your data · Passed to a person, waiting · Passed to a person, answered · Not understood · Pay
+from your data · Passed to a person, waiting · Passed to a person, answered · Not answered yet · Pay
 (always a person) · Done in the app.
 
 **Need a person:**
@@ -790,7 +791,9 @@ yet: messages without a keyword go to a person."
 - its office question is the `requests` row (S5 adds a proper link).
 - **Need a person** is worked out, not stored: an inbound message handled as office or unknown with
   no later `enquiry.answered` or `enquiry.closed` log entry for it (and, if it has a request, the
-  request still open).
+  request still open). Wave 1 (w1-04): also one the shifts line still hasn't sorted 10 minutes after
+  it came in (`UNSORTED_FOR_PERSON_MINUTES`), not an email; the office's reply or close marks it for
+  a person first (`markForAPerson()`, shared with the shifts line's last try).
 - **Request statuses keep their values** (`src/lib/db/schema/roster.ts:55-61`, 337-339): an
   answered question is stored `approved` and shown as "Answered", so no migration is needed.
 - `/office/requests` redirects to the "Requests from the app" view.

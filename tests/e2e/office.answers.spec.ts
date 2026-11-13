@@ -132,6 +132,13 @@ test("an admin turns a switch, adds an answer with a fill-in, and sees it listed
     }),
   ).toBeVisible();
   await expect(email).toHaveAttribute("aria-checked", "true");
+  // Wave 1 (w1-06): with a channel on, no "don't go out yet" banner; Built in says it answers
+  // with the three switches off. (The banner's own state is in tests/unit/answers.screens.test.ts:
+  // Acme's switches are shared with specs running in parallel.)
+  await expect(page.locator("[data-no-channel]")).toHaveCount(0);
+  await expect(page.locator("section", { has: page.locator("#built-in") })).toContainText(
+    "These still answer with the three switches off.",
+  );
 
   // Add an answer: its name, its example question, and words with a fill-in from the picker.
   await page.getByRole("link", { name: "Add an answer" }).click();

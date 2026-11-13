@@ -8,7 +8,7 @@ import { fillInsNeeded } from "../answers/fill-ins";
 import { signOffFor } from "../tenancy/sign-off";
 import { wallTimeOf, zonedToUtc } from "../time/zoned";
 import type { EmailSorted } from "./enquiries-copy";
-import { needsPerson, requestWaiting } from "./enquiry-sql";
+import { needsPerson, requestWaiting, senderWorker } from "./enquiry-sql";
 import {
   enquiryOutcome,
   forAPerson,
@@ -26,9 +26,10 @@ import { officeUserMay, parts, type OfficeContext } from "./office-context";
 // to it). Server only.
 //
 // Need a person is worked out, never stored (NEEDS_PERSON): a message for a person (the casual
-// asked for the office, nothing sorted it, or the number isn't a casual's) with no
-// `enquiry.closed`, no `enquiry.answered` whose reply didn't then fail, and, if it has a question,
-// that question still open.
+// asked for the office, nothing sorted it, or the number isn't a casual's; or, Wave 1 w1-04, the
+// shifts line still hasn't sorted it 10 minutes after it came in) with no `enquiry.closed`, no
+// `enquiry.answered` whose reply didn't then fail, and, if it has a question, that question still
+// open. An unsorted message names the casual whose number it came from (senderWorker).
 //
 // The office never sees more of a casual's home than the district: nothing here reads their travel
 // area (the checks that use it are 12D.2's, recorded as minutes only).
@@ -191,13 +192,14 @@ const outcomeOf = (r: ListRow) =>
     email: r.channel === "email",
   });
 
-const listSelect = (since: Date) => sql`
+// The sender: its worker, or (unsorted: w1-04) the casual whose number it came from.
+const listSelect = (since: Date, now: Date) => sql`
   select m.id, m.created_at, m.channel, m.body, m.subject, m.from_e164, m.from_address,
-         m.handled_at, m.handled_as, m.intent, m.worker_id, w.first_name, w.last_name,
-         w.status as worker_status, ${needsPerson("m")} as waiting, ${doneInApp("m")} as in_app,
-         a.name as answer_name
+         m.handled_at, m.handled_as, m.intent, w.id as worker_id, w.first_name, w.last_name,
+         w.status as worker_status, coalesce(${needsPerson("m", now)}, false) as waiting,
+         ${doneInApp("m")} as in_app, a.name as answer_name
     from ${enquirySource(since)} m
-    left join workers w on w.firm_id = m.firm_id and w.id = m.worker_id
+    left join workers w on w.firm_id = m.firm_id and w.id = ${senderWorker("m")}
     left join answers a on a.firm_id = m.firm_id and a.id = m.answer_id
 `;
 
@@ -247,9 +249,9 @@ export async function loadEnquiries(
     select count(*) filter (where m.created_at >= ${midnight})::int as today,
            count(*) filter (where m.created_at >= ${midnight} and ${automatic("m")})::int
              as automatic,
-           count(*) filter (where ${needsPerson("m")})::int as waiting,
+           count(*) filter (where ${needsPerson("m", now)})::int as waiting,
            count(*) filter (where ${answeredAutomatically("m")})::int as answered,
-           min(m.created_at) filter (where ${needsPerson("m")}) as oldest,
+           min(m.created_at) filter (where ${needsPerson("m", now)}) as oldest,
            (select count(*)::int from requests q
              where q.message_id is null and q.created_at >= ${midnight}) as app_today,
            (select count(*)::int from requests q where ${requestWaiting("q")}) as app_waiting
@@ -260,7 +262,7 @@ export async function loadEnquiries(
   if (view !== "app") {
     const where = sql`${
       view === "person"
-        ? sql`and ${needsPerson("m")}`
+        ? sql`and ${needsPerson("m", now)}`
         : view === "answered"
           ? sql`and ${answeredAutomatically("m")}`
           : view === "pay"
@@ -275,7 +277,7 @@ export async function loadEnquiries(
     // Need a person: oldest first (first asked, first answered). The rest: newest first.
     const order = view === "person" ? sql`m.created_at, m.id` : sql`m.created_at desc, m.id`;
     ({ rows } = await tx.execute<ListRow>(sql`
-      ${listSelect(since)}
+      ${listSelect(since, now)}
        where true ${where}
        order by ${order}
        limit ${limit + 1}
@@ -309,12 +311,23 @@ export async function loadEnquiries(
   };
 }
 
-// The menu's badge: how many need a person.
+// The menu's badge: how many need a person (an unsorted message too, once it's 10 minutes old).
 export async function needPersonCount(tx: FirmTx, now: Date): Promise<number> {
   const { since } = await enquiryWindow(tx, now);
   const { rows } = await tx.execute<{ n: number }>(sql`
     select count(*)::int as n from ${enquirySource(since)} m
-     where ${needsPerson("m")}
+     where ${needsPerson("m", now)}
+  `);
+  return rows[0]?.n ?? 0;
+}
+
+// The requests casuals made in the app still waiting for an answer (Wave 1, w1-07): the office
+// frame's count (the top bar's Needs attention and the Enquiries badge). The same rule as
+// Enquiries' "{n} requests to answer" (app_waiting above) and the request queue, so the numbers
+// agree; no window, like app_waiting. RLS and withFirm keep it to the firm.
+export async function appRequestsWaiting(tx: FirmTx): Promise<number> {
+  const { rows } = await tx.execute<{ n: number }>(sql`
+    select count(*)::int as n from requests q where ${requestWaiting("q")}
   `);
   return rows[0]?.n ?? 0;
 }
@@ -343,7 +356,17 @@ export interface EnquiryTimeline {
     | {
         how: "person";
         // reply_limit, echo: a message in the app given no automatic answer (Phase 25.6).
-        why: "asked" | "ai_asked" | "voicemail" | "no_text" | "not_sorted" | "reply_limit" | "echo";
+        // late: the shifts line hadn't sorted it after 10 minutes, so the office's reply or close
+        // passed it to a person (w1-04: `message.received` with `late: true`).
+        why:
+          | "asked"
+          | "ai_asked"
+          | "voicemail"
+          | "no_text"
+          | "not_sorted"
+          | "reply_limit"
+          | "echo"
+          | "late";
         // The AI's own reason, when it was logged (12D.2).
         ai?: "not_connected" | "no_answer" | "not_a_label";
       }
@@ -355,7 +378,8 @@ export interface EnquiryTimeline {
     | { how: "person"; why: "answer_switched_off" }
     | { how: "unknown"; repeat: boolean }
     | { how: "opt_out" }
-    | { how: "not_yet" }
+    // Not sorted yet; `late` once it's 10 minutes old, so it waits for a person (w1-04).
+    | { how: "not_yet"; late?: boolean }
     // Sorted, but automatic replies are off, so it waits for a person (Phase 25.3).
     | { how: "held"; by: "keyword" | "ai"; intent: Exclude<Intent, "office"> }
     // A message in the app about a session (Phase 28.6): never sorted, passed to a person.
@@ -500,11 +524,11 @@ export async function loadEnquiry(
   >(sql`
     select m.id, m.created_at, m.channel, m.body, null::text as subject, m.from_e164,
            null::text as from_address, m.to_e164, m.handled_at,
-           m.handled_as, m.intent, m.worker_id, w.first_name, w.last_name,
+           m.handled_as, m.intent, w.id as worker_id, w.first_name, w.last_name,
            w.status as worker_status, w.notify_channel, w.sms_opted_out_at,
-           ${needsPerson("m")} as waiting, ${doneInApp("m")} as in_app
+           coalesce(${needsPerson("m", now)}, false) as waiting, ${doneInApp("m")} as in_app
       from messages m
-      left join workers w on w.firm_id = m.firm_id and w.id = m.worker_id
+      left join workers w on w.firm_id = m.firm_id and w.id = ${senderWorker("m")}
      where m.id = ${messageId} and ${isEnquiry("m", since)}
   `);
   const m = found[0];
@@ -712,44 +736,48 @@ export async function loadEnquiry(
   const sortedAs = heldIntent(received?.data.sortedAs);
   const sortedAsLogged: EnquiryTimeline["sorted"] =
     m.handled_at === null
-      ? { how: "not_yet" }
-      : typeof received?.data.shiftId === "string" && handledAs === "office"
-        ? { how: "about_shift" }
-        : received?.data.replyLimit === true
-          ? { how: "person", why: "reply_limit" }
-          : received?.data.echo === true
-            ? { how: "person", why: "echo" }
-            : held && sortedAs && (handledAs === "keyword" || handledAs === "ai")
-              ? { how: "held", by: handledAs, intent: sortedAs }
-              : answerFailed !== null && handledAs === "office"
-                ? { how: "person", why: "answer_failed", code: answerFailed }
-                : Array.isArray(received?.data.answerMissing) && intent === "office"
-                  ? { how: "person", why: "answer_missing" }
-                  : received?.data.answerSwitchedOff === true && intent === "office"
-                    ? { how: "person", why: "answer_switched_off" }
-                    : handledAs === "keyword" && intent
-                      ? intent === "office"
-                        ? { how: "person", why: "asked" }
-                        : { how: "keyword", intent }
-                      : handledAs === "ai" && intent
+      ? m.waiting
+        ? { how: "not_yet", late: true }
+        : { how: "not_yet" }
+      : received?.data.late === true && handledAs === "office"
+        ? { how: "person", why: "late" }
+        : typeof received?.data.shiftId === "string" && handledAs === "office"
+          ? { how: "about_shift" }
+          : received?.data.replyLimit === true
+            ? { how: "person", why: "reply_limit" }
+            : received?.data.echo === true
+              ? { how: "person", why: "echo" }
+              : held && sortedAs && (handledAs === "keyword" || handledAs === "ai")
+                ? { how: "held", by: handledAs, intent: sortedAs }
+                : answerFailed !== null && handledAs === "office"
+                  ? { how: "person", why: "answer_failed", code: answerFailed }
+                  : Array.isArray(received?.data.answerMissing) && intent === "office"
+                    ? { how: "person", why: "answer_missing" }
+                    : received?.data.answerSwitchedOff === true && intent === "office"
+                      ? { how: "person", why: "answer_switched_off" }
+                      : handledAs === "keyword" && intent
                         ? intent === "office"
-                          ? { how: "person", why: "ai_asked" }
-                          : { how: "ai", intent }
-                        : handledAs === "unknown"
-                          ? { how: "unknown", repeat: received?.data.repeat === true }
-                          : handledAs === "opt_out"
-                            ? { how: "opt_out" }
-                            : m.channel === "voice"
-                              ? { how: "person", why: "voicemail" }
-                              : m.body === null
-                                ? { how: "person", why: "no_text" }
-                                : {
-                                    how: "person",
-                                    why: "not_sorted",
-                                    ...(aiReason(received?.data.aiFallback)
-                                      ? { ai: aiReason(received?.data.aiFallback) }
-                                      : {}),
-                                  };
+                          ? { how: "person", why: "asked" }
+                          : { how: "keyword", intent }
+                        : handledAs === "ai" && intent
+                          ? intent === "office"
+                            ? { how: "person", why: "ai_asked" }
+                            : { how: "ai", intent }
+                          : handledAs === "unknown"
+                            ? { how: "unknown", repeat: received?.data.repeat === true }
+                            : handledAs === "opt_out"
+                              ? { how: "opt_out" }
+                              : m.channel === "voice"
+                                ? { how: "person", why: "voicemail" }
+                                : m.body === null
+                                  ? { how: "person", why: "no_text" }
+                                  : {
+                                      how: "person",
+                                      why: "not_sorted",
+                                      ...(aiReason(received?.data.aiFallback)
+                                        ? { ai: aiReason(received?.data.aiFallback) }
+                                        : {}),
+                                    };
   // Sent about her pay from Pay's "Message the office" (the guardrails review of 28.10); since
   // Phase 29.1 a pay query for payroll, named on its `message.received` (`payQueryId`).
   const payQueryId = str(received?.data.payQueryId);
@@ -930,7 +958,7 @@ export async function loadEmailEnquiry(
   }>(sql`
     select e.id, e.created_at, e.subject, e.body, e.attachments, e.from_address, e.handled_at,
            e.handled_as, e.intent, e.worker_id, e.draft_reply, w.first_name, w.last_name,
-           w.status as worker_status, ${needsPerson("e")} as waiting
+           w.status as worker_status, coalesce(${needsPerson("e", now)}, false) as waiting
       from (select x.*, 'email'::text as channel from inbound_emails x
              where x.id = ${emailId} and x.created_at > ${since}) e
       left join workers w on w.firm_id = e.firm_id and w.id = e.worker_id

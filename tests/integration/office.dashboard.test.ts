@@ -14,6 +14,7 @@ import {
   officeUrgentCount,
   part,
 } from "@/lib/office/dashboard";
+import { appRequestsWaiting, loadEnquiries } from "@/lib/office/enquiries";
 import { loadOfficeFrame } from "@/lib/office/frame";
 import { cancelBooking } from "@/lib/roster/cancel";
 import { recordMoveRefused } from "@/lib/roster/firm-change";
@@ -329,6 +330,12 @@ describe("Needs attention and the bell", () => {
     // An urgent session with both its places free.
     const urgent = await t.shift({ startsAt: hoursFromNow(5), headcount: 2 });
     await t.set("shifts", urgent, { is_urgent: true });
+    // Wave 1 (w1-07): a request Ivy made in the app, waiting for an answer.
+    await su.query(
+      `insert into requests (firm_id, worker_id, type, payload, status, created_at)
+       values ($1, $2, 'availability', '{}'::jsonb, 'open', $3)`,
+      [t.firmId, ivy, new Date("2026-11-02T08:00:00Z")],
+    );
 
     const admin = await t.office("admin");
     const page = await officeNeedsAttention({
@@ -351,10 +358,32 @@ describe("Needs attention and the bell", () => {
       ok: true,
       data: { sessions: 1, places: 2, firstStartsAt: hoursFromNow(5) },
     });
-    // Its count, as the menu's: the 2 uploads, the strikes team's address not set, the enquiry.
+    // Its count, as the menu's: the 2 uploads, the strikes team's address not set, the enquiry
+    // and (w1-07) the request from the app.
     expect(attentionCount(page.needs.data, page.needPerson.ok ? page.needPerson.data : -1)).toBe(
       2 + 1 + 1,
     );
+    const frame = await loadOfficeFrame({
+      firm: { id: t.firmId },
+      officeUserId: admin,
+      run: withFirm,
+      clock,
+    });
+    expect(frame.appRequests).toEqual({ ok: true, data: 1 });
+    expect(
+      attentionCount(
+        page.needs.data,
+        page.needPerson.ok ? page.needPerson.data : -1,
+        frame.appRequests?.ok ? frame.appRequests.data : -1,
+      ),
+    ).toBe(2 + 1 + 1 + 1);
+    // The frame's count and Enquiries' "1 request to answer" are one rule: they never disagree.
+    const [waiting, enquiries] = await withFirm(
+      t.firmId,
+      async (tx) => [await appRequestsWaiting(tx), await loadEnquiries(tx, "all", NOW)] as const,
+    );
+    expect(waiting).toBe(1);
+    expect(enquiries.appWaiting).toBe(waiting);
     // The top bar reads the same figures: its Urgent is these urgent places, its To check this
     // count (Phase 24).
     const shell = await officeShellCounts({

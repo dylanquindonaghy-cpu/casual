@@ -24,6 +24,7 @@ import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { systemClock, type Clock } from "../auth/clock";
 import { lockUnhandled } from "./claim";
+import { markForAPerson } from "./for-a-person";
 import { INBOUND_RETRY_LIMIT, inboundMessageJob, type InboundMessagePayload } from "./job";
 import { keywordIntent, type Intent } from "./keywords";
 import {
@@ -32,13 +33,7 @@ import {
   officeAlertsCombinedJob,
 } from "./alerts-combined";
 import { alertHourOf, autoRepliesOn, takeUnknownAlert } from "./limits";
-import {
-  answerOptOut,
-  claimOptOut,
-  optOutWordOf,
-  type OptOutRead,
-  type OptOutResult,
-} from "./opt-out";
+import { answerOptOut, optOutWordOf, type OptOutRead, type OptOutResult } from "./opt-out";
 import { cancelReply, shiftsReply, type EnquiryChecks } from "./personal-reply";
 import { cutChars } from "../text/cut";
 import {
@@ -1194,77 +1189,16 @@ export async function runInboundWithLastTry(
 const safeCode = (code: string) =>
   /^[0-9A-Z]{5}$/.test(code) || /^[A-Za-z][A-Za-z0-9_]{0,59}$/.test(code) ? code : "unknown";
 
-async function passToAPerson(
+// The last try's mark for a person, shared with the office's reply or close on Enquiries
+// (src/lib/inbound/for-a-person.ts, Wave 1 w1-04): the same claim, the same opt-out handling.
+function passToAPerson(
   payload: InboundMessagePayload,
   run: WithFirm,
   code: string,
 ): Promise<"person" | "opt_out" | "already" | "gone"> {
-  return run(payload.firmId, async (tx) => {
-    if (!(await lockUnhandled(tx, payload.messageId))) return "already";
-    // Only the message's own row and the number's worker: whatever failed may be in the full read.
-    const [m] = await tx
-      .select({
-        direction: messages.direction,
-        channel: messages.channel,
-        from: messages.fromE164,
-        body: messages.body,
-        twilioOptOut: messages.twilioOptOut,
-        workerId: messages.workerId,
-      })
-      .from(messages)
-      .where(eq(messages.id, payload.messageId));
-    if (!m || m.direction !== "in") return "gone";
-    const word = await optOutWordOf(tx, m);
-    if (word && m.from) {
-      const claimed = await claimOptOut(
-        tx,
-        payload.messageId,
-        { word, byTwilio: m.twilioOptOut !== null, from: m.from },
-        { answerFailed: code },
-      );
-      return claimed ? "opt_out" : "already";
-    }
-    // The worker with this number, whatever their status (one per number in a firm), as the
-    // shifts line names them.
-    // (A message in the app says whose it is.)
-    const [worker] =
-      m.channel === "app" && m.workerId
-        ? await tx
-            .select({ id: workers.id, status: workers.status })
-            .from(workers)
-            .where(eq(workers.id, m.workerId))
-        : m.from
-          ? await tx
-              .select({ id: workers.id, status: workers.status })
-              .from(workers)
-              .where(eq(workers.mobileE164, m.from))
-              .limit(1)
-          : [];
-    const active = worker?.status === "active";
-    await tx
-      .update(messages)
-      .set({
-        handledAt: new Date(),
-        handledAs: "office",
-        intent: "office",
-        workerId: worker?.id ?? null,
-      })
-      .where(eq(messages.id, payload.messageId));
-    await recordEvent(tx, {
-      ...(worker && active ? { actorType: "worker", actorId: worker.id } : { actorType: "system" }),
-      action: "message.received",
-      entityType: "message",
-      entityId: payload.messageId,
-      data: {
-        channel: m.channel,
-        handledAs: "office",
-        intent: "office",
-        answerFailed: code,
-        ...(worker ? { workerId: worker.id, ...(active ? {} : { formerWorker: true }) } : {}),
-      },
-    });
-    return "person";
-  });
+  return run(payload.firmId, (tx) =>
+    markForAPerson(tx, payload.messageId, { answerFailed: code }, new Date()),
+  );
 }
 
 export function inboundMessageTask(deps: () => InboundReplyDeps): FirmTask<InboundMessagePayload> {

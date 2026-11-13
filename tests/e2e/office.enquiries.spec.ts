@@ -14,6 +14,7 @@ import {
 } from "./db";
 import { expect, menuLink, test } from "./fixtures";
 import { readOutbox, sentTo } from "./outbox";
+import { SPARE_MOBILES } from "./spare-mobiles";
 
 // Enquiries in a real browser (docs/office-v2.md 3.6; docs/screens.md `/office/enquiries`; 12D.1),
 // at phone width: two WhatsApps from numbers nobody here has reach Acme's shifts line (signed as
@@ -23,6 +24,10 @@ import { readOutbox, sentTo } from "./outbox";
 // leaves Need a person. The other is closed with a reason, with no reply. Numbers: 07700
 // 900980-900998, and 900920-900937 on a laptop: the enquiryPhone and enquiryLaptop blocks in
 // spare-mobiles.ts, so no seeded or spec casual can have one (tests/unit/e2e.spare-mobiles.test.ts).
+
+// A pair (n, n + 1) inside a reserved block: n even from its start, n + 1 still inside.
+const pairIn = ([from, to]: readonly [number, number]) =>
+  from + Math.floor(Math.random() * Math.floor((to - from) / 2)) * 2;
 
 const acme = "http://acme.localhost:3100";
 const webhook = "http://localhost:3100/api/webhooks/twilio/whatsapp";
@@ -89,7 +94,7 @@ test("Need a person: reply to one unknown number, close another with a reason", 
   request,
 }) => {
   // Two different numbers each attempt, so a retry within 24 hours isn't a repeat.
-  const n = 980 + Math.floor(Math.random() * 9) * 2;
+  const n = pairIn(SPARE_MOBILES.enquiryPhone);
   const pat = `+447700900${n}`;
   const wrong = `+447700900${n + 1}`;
   const tag = randomBytes(3).toString("hex");
@@ -552,7 +557,7 @@ test.describe("on a laptop", () => {
     request,
   }, testInfo) => {
     const tag = randomBytes(3).toString("hex");
-    const n = 920 + Math.floor(Math.random() * 9) * 2;
+    const n = pairIn(SPARE_MOBILES.enquiryLaptop);
     const words = `Is this the right number? (e2e ${tag})`;
     const newer = `A newer one (e2e ${tag})`;
     await whatsApp(request, `+447700900${n}`, words);

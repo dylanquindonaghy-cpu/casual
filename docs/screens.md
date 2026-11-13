@@ -3944,7 +3944,7 @@ saved. Each is filled in by code from the casual's own facts at the moment of th
 | Fill-in (the office's name) | Key | What goes in | Example |
 |---|---|---|---|
 | First name | `first_name` | Their first name, as held | Zoe |
-| Next pay day | `next_pay_day` | The first pay day not yet past and the shifts it pays (as the office's Next pay day, `src/lib/pay/next-pay.ts`; Phase 37.1), in the firm's time zone. Its hint: "The next pay day not yet past (last week's while it's still to come), from your pay calendar or payroll's own date." | Friday 20 November |
+| Next pay day | `next_pay_day` | The first pay day not yet past and the shifts it pays (as the office's Next pay day, `src/lib/pay/next-pay.ts`; Phase 37.1), in the firm's time zone. Its hint: "The next pay day not yet past (last week's while it's still to come), from your pay calendar, or payroll's own date where it's on her own pay record." | Friday 20 November |
 | That pay cycle | `pay_cycle` | The days that pay day covers | Mon 9 to Sun 15 Nov |
 | Next shift | `next_shift` | Their next booked shift: role (and event), day and times, venue | Steward, Sat 14 Nov, 14:00 to 22:00 at Riverside Arena |
 | Its instructions | `next_shift_instructions` | That shift's uniform, meeting point and instructions, at most 300 characters | Uniform: black trousers, hi-vis. Meet at gate B at 13:30. |
@@ -4557,9 +4557,10 @@ come, else this period's; the pay records' date where they date that period, els
 calendar's. Both read only records covering a whole firm period (one read,
 `readRecordedPayDates`, `src/lib/pay/recorded-pay-dates.ts`, inside `withFirm`: a record for part
 of a period, a week inside the fortnight or a single day, moves neither); the casual's reads only
-her own (`src/lib/portal/pay-day.ts`), the office's every casual's. Every casual sees a next pay
-day, whether or not she worked that period (Dylan, 2026-11-13): with no record of her own for it,
-the pay calendar's.
+her own (`src/lib/portal/pay-day.ts`), the office's every casual's. Dylan's decision (2026-11-13):
+"every casual sees the firm's next pay day, whether or not she worked that week". Until Pay and
+payroll 11 (`docs/plan/decisions-waiting.md`) is decided, "the firm's" is the pay calendar's day
+unless her own record dates that period.
 
 Where they differ: the office's Next pay day tile shows payroll's imported date for a period (the
 earliest, when payroll dates it to two days), because it reads every casual's records. A casual

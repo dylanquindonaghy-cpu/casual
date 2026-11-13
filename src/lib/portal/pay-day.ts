@@ -12,8 +12,10 @@ import type { PortalContext } from "./my-shifts";
 // day" answer and the office all give the same day and the shifts it pays: the first pay day not
 // yet past, last period's while it's still to come, else this period's, on the firm's own pay
 // calendar (a week, or a fortnight's cycle: src/lib/pay/calendar.ts), or payroll's own date where it
-// has imported one for her. Every casual sees a next pay day, whether or not she worked that period
-// (Dylan, 2026-11-13): with no record of her own for it, the calendar's. Only her own pay records
+// has imported one for her. Dylan's decision (2026-11-13, word for word): "every casual sees the
+// firm's next pay day, whether or not she worked that week". Until Pay and payroll 11
+// (docs/plan/decisions-waiting.md) is decided, "the firm's" is the pay calendar's day unless her
+// own record dates that period. Only her own pay records
 // count, and only those covering a whole firm period (the office's read keeps the same ones:
 // `readRecordedPayDates`): a record for other dates (a week inside the fortnight) would put its day
 // against shifts it doesn't cover (golden rule 9).

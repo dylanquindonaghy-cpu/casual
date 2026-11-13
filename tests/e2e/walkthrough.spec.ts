@@ -324,6 +324,10 @@ test("Part 2: as a worker", async ({ browser }) => {
     await expect(page.getByRole("region", { name: "Staff photo", exact: true })).toContainText(
       "Due soon",
     );
+    // Phase 37.8: her worked weeks are the ones she's paid for.
+    await expect(page.getByRole("region", { name: "Your reliability" })).toContainText(
+      "11 shifts worked · 0 no-shows · 0 late cancellations",
+    );
     const where = page.getByRole("region", { name: "Your travel area" });
     // (Folded since 28.11: a tap opens it.)
     await where.locator("summary").click();

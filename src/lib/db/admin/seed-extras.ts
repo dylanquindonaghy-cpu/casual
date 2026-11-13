@@ -2,6 +2,7 @@ import { FIRM_CHANGE_REASONS } from "../../roster/firm-reasons";
 import { noticeHours } from "../../roster/notice";
 import { addDays, localDateOf, zonedToUtc } from "../../time/zoned";
 import { seedId, type SeedFirm } from "./seed-data";
+import { rateDayFor } from "./seed-history";
 
 // More of the demo, for the states the walkthrough visits (Phase 10 task 20, docs/walkthrough.md;
 // docs/testing.md "Fixtures and the demo seed"). Pure builders, loaded by seed.ts. Fake data only
@@ -16,8 +17,8 @@ import { seedId, type SeedFirm } from "./seed-data";
 //   back 7 days), 3 stewards at the racecourse and 2 security officers at the shopping centre, all
 //   booked and none marked yet (the office's "Mark who worked"; "Past 30 days" on their My shifts).
 // - Acme's pay queries: 10 open, 7 from stewards about the same week's rate (paid the old rate),
-//   2 about hours missing at the shopping centre on the last event, 1 something else (payroll's
-//   groups and digest).
+//   each in their own words, 2 about hours missing at the shopping centre on the last event (its
+//   own weekday), 1 something else (payroll's groups and digest).
 // - Northline's night possession: 3 track operatives booked tomorrow night at the junction; the
 //   office cancelled one of them at short notice when the seed ran ("Weather or safety"), so the
 //   notice report has a short-notice firm cancellation (audit L25).
@@ -156,24 +157,36 @@ export interface PayQuerySeed {
 // Acme workers 10, 17, 18, 19, 20, 21 and 24 (stewards) raised the rate; 50 and 51 the hours
 // missing on the last event; 52 something else.
 const RATE_STEWARDS = [10, 17, 18, 19, 20, 21, 24];
+// Seven stewards, seven ways of saying it (Phase 37.8): one each, by position. {day} is the day.
+const RATE_WORDS = [
+  "The steward rate went up to £13.50 this month, but I was paid £13.00 an hour.",
+  "Paid £13.00 an hour for {day}. Isn't it £13.50 now?",
+  "My rate on the payslip is the old one.",
+  "I think I was paid the old steward rate.",
+  "Rate shows £13.00, should be £13.50.",
+  "Was the new rate missed off my pay?",
+  "Paid 50p an hour short, I think.",
+];
+const LONG_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const dayName = (isoDate: string) => LONG_DAYS[weekday(isoDate)] ?? "";
 
 export function acmePayQueries(
   workers: SeedFirm["workers"],
   past: PastEventSeed,
   now: Date,
 ): PayQuerySeed[] {
-  // The rate: the Saturday of the last complete week, which every Acme worker has a pay line for
-  // (seed-saturday.ts; the last event, yesterday, can be in this week).
-  const today = localDateOf(now, TZ);
-  const rateDay = addDays(today, -weekday(today) - 2);
+  // The rate: a day of the last complete week the stewards worked at the new rate, which each of
+  // them has a pay line for (seed-history.ts rateDayFor; Phase 37.8; the last event, yesterday,
+  // can be in this week).
+  const rateDay = rateDayFor(localDateOf(now, TZ));
   const id = (what: string) => seedId(`acme/pay-query/${past.day}/${what}`);
-  const queries: PayQuerySeed[] = RATE_STEWARDS.map((i) => ({
+  const queries: PayQuerySeed[] = RATE_STEWARDS.map((i, n) => ({
     id: id(`rate/${i}`),
     workerId: workerAt(workers, i).id,
     shiftId: null,
     workDate: rateDay,
     issue: "wrong_rate",
-    details: "The steward rate went up to £13.50 this month, but I was paid £13.00 an hour.",
+    details: (RATE_WORDS[n] ?? RATE_WORDS[0] ?? "").replace("{day}", dayName(rateDay)),
   }));
   for (const booking of past.bookings) {
     const i = PAST_OFFICERS.find((n) => workerAt(workers, n).id === booking.workerId);
@@ -184,7 +197,8 @@ export function acmePayQueries(
       shiftId: booking.shiftId,
       workDate: past.day,
       issue: "missing_hours",
-      details: "My hours for Saturday aren't on my payslip.",
+      // The work day's own weekday (37.8: it said "Saturday" whatever day it was).
+      details: `My hours for ${dayName(past.day)} aren't on my payslip.`,
     });
   }
   queries.push({

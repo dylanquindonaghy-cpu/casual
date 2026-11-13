@@ -10,6 +10,7 @@ import { superuserPool, urls } from "../helpers/db";
 import { createTenant, type Tenant } from "../helpers/tenant-rows";
 import { seedFirms, weekOffers } from "@/lib/db/admin/seed-data";
 import { acmeSaturday } from "@/lib/db/admin/seed-saturday";
+import { acmeHistory, HISTORY_WORKERS, LATE_CANCELLERS } from "@/lib/db/admin/seed-history";
 import { acmeMatchDay } from "@/lib/db/admin/seed-match";
 import { acmeStory } from "@/lib/db/admin/seed-story";
 import { DAILY_OFFER_CAP } from "@/lib/rules/offer-cap";
@@ -30,7 +31,16 @@ const MATCH = acmeMatchDay(
   seedFirms().find((f) => f.slug === "acme")!,
   new Date(),
 );
-const STORY_SHIFTS = [...STORY.sessions, ...MATCH.sessions].map((x) => x.id);
+// Acme's worked history behind its pay (Phase 37.8): past sessions, left out with the story's.
+const ACME_FIRM = seedFirms().find((f) => f.slug === "acme")!;
+const HISTORY = acmeHistory(
+  ACME_FIRM.workers,
+  ACME_FIRM.sites,
+  acmeSaturday(ACME_FIRM.workers, ACME_FIRM.sites, new Date(), ACME_FIRM.settings).pay,
+  new Date(),
+  ACME_FIRM.settings,
+);
+const STORY_SHIFTS = [...STORY.sessions, ...MATCH.sessions, ...HISTORY.sessions].map((x) => x.id);
 const STORY_PAY = [...STORY.payQueries.map((x) => x.id), MATCH.payQuery.id];
 const LONDON = "Europe/London";
 // Never offered a shift by the seed: the five kept free for demo logins and the four the
@@ -458,11 +468,19 @@ describe("Acme's Saturday event day", () => {
       }),
     );
     expect(again?.reasons).toEqual([]);
+    // Free for demo logins: nothing booked from now on (Phase 37.8: 1 to 4 have worked weeks in
+    // the past, behind their pay; worker 0 has nothing at all, a new starter).
     const free = [0, 1, 2, 3, 4].map((i) => seedId(`acme/worker/${i}`));
     const [held] = await acmeRows<{ n: number }>(
-      `select count(*)::int as n from assignments where firm_id = $1 and worker_id = any('{${free.join(",")}}'::uuid[])`,
+      `select count(*)::int as n from assignments a join shifts s on s.id = a.shift_id
+        where a.firm_id = $1 and s.ends_at > now()
+          and a.worker_id = any('{${free.join(",")}}'::uuid[])`,
     );
     expect(held).toEqual({ n: 0 });
+    const [newStarter] = await acmeRows<{ n: number }>(
+      `select count(*)::int as n from assignments where firm_id = $1 and worker_id = '${free[0]}'`,
+    );
+    expect(newStarter).toEqual({ n: 0 });
   });
 
   // Requests made in the app (no message): the office's questions from the shifts line (the story's
@@ -939,8 +957,10 @@ describe("Acme's Saturday event day", () => {
     expect(left).toEqual([]);
   });
 
-  it("gives every Acme worker pay lines for the last 8 complete weeks, as payroll would", async () => {
-    // The Saturday's 60 workers (the story's Zoe and Ben have their own, in its test: Phase 24).
+  // Phase 37.8: only the 30 casuals with a worked history are paid (it was every one of the 60,
+  // with no work behind the pay); worker 0 and the rest are new starters with none.
+  it("gives the 30 casuals with a worked history pay lines for the last 8 complete weeks, as payroll would", async () => {
+    // The story's Zoe and Ben have their own, in its test (Phase 24).
     const storyPay = [...STORY.pay, ...MATCH.pay].map((p) => p.id);
     const [pay] = (
       await su.query<{
@@ -965,10 +985,70 @@ describe("Acme's Saturday event day", () => {
         [ACME, storyPay],
       )
     ).rows;
-    expect(pay).toMatchObject({ workers_paid: 60, bad_gross: 0, bad_dates: 0 });
+    expect(pay).toMatchObject({ workers_paid: HISTORY_WORKERS.length, bad_gross: 0, bad_dates: 0 });
     expect(pay?.least).toBeGreaterThanOrEqual(1);
     expect(pay?.most).toBeLessThanOrEqual(8);
     expect(pay?.oldest_days).toBeLessThanOrEqual(8 * 7 + 6);
+  });
+
+  // Phase 37.8: the worked sessions behind the pay (seed-history.ts).
+  it("every paid week has the worked sessions behind it, at its rate", async () => {
+    const { rows } = await su.query<{ id: string; paid: string; worked: string | null }>(
+      `select p.id::text, p.hours::text as paid,
+              (select sum(extract(epoch from s.ends_at - s.starts_at) / 3600)::numeric(6,2)::text
+                 from assignments a join shifts s on s.id = a.shift_id
+                where a.worker_id = p.worker_id and a.status = 'completed'
+                  and (s.starts_at at time zone 'Europe/London')::date between p.period_start and p.period_end
+                  and s.id <> all($3::uuid[])) as worked
+         from pay_records p
+        where p.firm_id = $1 and p.id <> all($2::uuid[])`,
+      [
+        ACME,
+        [...STORY.pay, ...MATCH.pay].map((p) => p.id),
+        [...STORY.sessions, ...MATCH.sessions].map((x) => x.id),
+      ],
+    );
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows)
+      expect({ id: r.id, hours: r.worked }).toEqual({ id: r.id, hours: r.paid });
+  });
+
+  it("every history booking is one the rules allowed when it was made (golden rule 6)", async () => {
+    const { previewBooking } = await import("@/lib/roster/book");
+    const { withFirm: run } = await import("@/lib/db/scoped");
+    for (const b of HISTORY.bookings) {
+      const verdict = await run(ACME, (tx) =>
+        previewBooking(tx, { shiftId: b.shiftId, workerId: b.workerId, now: b.confirmedAt }),
+      );
+      expect({ booking: b.id, reasons: verdict?.reasons }).toEqual({ booking: b.id, reasons: [] });
+    }
+  }, 180_000); // one rules check per history booking (about 350)
+
+  it("the casuals' counts: regulars, three who cancel often, worker 0 new", async () => {
+    const { loadCasualRecords } = await import("@/lib/office/reliability");
+    const { withFirm: run } = await import("@/lib/db/scoped");
+    const records = await run(ACME, (tx) => loadCasualRecords(tx, new Date(), null));
+    const all = [...records.values()];
+    expect(all.filter((r) => r.standing.regular).length).toBeGreaterThanOrEqual(10);
+    expect(
+      all
+        .filter((r) => r.standing.cancelOften)
+        .map((r) => r.workerId)
+        .sort(),
+    ).toEqual(LATE_CANCELLERS.map((i) => seedId(`acme/worker/${i}`)).sort());
+    expect(records.get(seedId("acme/worker/0"))?.lastWorked ?? null).toBeNull();
+    expect(all.filter((r) => r.standing.notWorkedLately).length).toBeLessThanOrEqual(
+      all.length - 50,
+    );
+  });
+
+  it("the plain seed (no demo server) has no planner key and no webhook", async () => {
+    const [row] = await acmeRows<{ keys: number; webhook: string | null; api: number }>(
+      `select (select count(*)::int from api_keys where firm_id = $1) as keys,
+              (select settings #>> '{webhook,url}' from firms where id = $1) as webhook,
+              (select count(*)::int from shifts where firm_id = $1 and source = 'api') as api`,
+    );
+    expect(row).toEqual({ keys: 0, webhook: null, api: 0 });
   });
 
   it("logs the day as the app would: each booking, the cancellation with its notice, each request", async () => {
@@ -1119,6 +1199,18 @@ describe("the demo's past event, pay queries and Northline's night", () => {
           and q.id <> all($3::uuid[]) and $2::uuid[] is not null`,
     );
     expect(logged).toEqual({ n: 10 });
+    // Phase 37.8: the hours queries name their work day's own weekday; the 7 rate queries each
+    // read differently.
+    const details = await extrasOf<{ issue: string; details: string; day: string }>(
+      `select issue_type as issue, details, trim(to_char(work_date, 'FMDay')) as day
+         from pay_queries where firm_id = $1 and id <> all($3::uuid[]) and $2::uuid[] is not null`,
+    );
+    for (const d of details.filter((x) => x.issue === "missing_hours")) {
+      expect(d.details).toBe(`My hours for ${d.day} aren't on my payslip.`);
+    }
+    const rates = details.filter((x) => x.issue === "wrong_rate").map((x) => x.details);
+    expect(rates).toHaveLength(7);
+    expect(new Set(rates).size).toBe(7);
   });
 
   it("Northline's night: 3 track operatives booked tomorrow at 23:00; one cancelled by the office at short notice, logged with the reason and the notice", async () => {

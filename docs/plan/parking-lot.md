@@ -1079,7 +1079,9 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   - Show each worker's no-show count (last 90 days) on their office record and in "Assign
     someone"; the pilot metrics task counts no-shows per week.
   - The demo seed has no past shifts: add last week's event with bookings to mark (also for the
-    notice report and metrics demos).
+    notice report and metrics demos). **Done in Phase 37.8 (Wave 1):** 30 casuals' worked weeks
+    behind their pay, late cancellations with strikes, and the pilot's figures
+    (`src/lib/db/admin/seed-history.ts`, `seed-pilot.ts`).
   - Pilot metrics: count no-shows from the bookings' current status, not from `shift.no_show`
     events (a correction logs both).
   - A worker marked as not attended mid-shift still sees it as "On now" with no sign of the mark;
@@ -2687,3 +2689,11 @@ From builder A (37.1, 37.2, 37.8; 2026-11-13):
   casual's own record (`src/lib/portal/my-record.ts`) say no strike, because they read only the
   strikes row. The planner API reports a null code as "none" (`src/lib/integrations/records.ts`).
   All concern cancellations older than `strikes.keep_months` (12 by default).
+- **The rest of the demo's data (37.8, w1-12):** Pilot metrics' explainer line and phone cards
+  (a3); the made-up licence numbers that look real (x2-copy-13); Kieran's "Last worked Never"
+  beside "New: 2 shifts so far" (x2-copy-13); Ben and the aud-14 six worked weeks with pay for
+  only some of them; and, needing Dylan's yes, the "New: not worked yet" split (decided to wait:
+  above), without which the match day's squad keeps "Not worked lately" at about 86 of 143.
+- **The demo planner's event-created entry (37.8):** the planner API logs no entry for a new
+  event itself (only each session's `shift.created`), so the seed logs none either.
+

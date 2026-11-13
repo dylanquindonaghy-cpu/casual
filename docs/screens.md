@@ -4593,3 +4593,15 @@ A cancellation's Strike never guesses why there's no strike (`src/lib/office/can
 Left as they are (Parking lot): the evidence email field, the event page, the dashboard map, the
 casual's record and the planner API for a strike whose record was deleted.
 
+
+### Demo data that agrees with itself (37.8)
+
+No screen's words change; what the demo shows does (`docs/testing.md`, "Fixtures and the demo
+seed"): Zoe Adeyemi's Profile reads "100% over the last 90 days" and "11 shifts worked · 0
+no-shows · 0 late cancellations", her Booked "Past 90 days 11", and the pay query picker opens on
+"Choose a shift" with her worked shifts; the office's Casuals has regulars, three who cancel often
+and worker 0 as a new starter; Pay queries' hours rows name the day's own weekday and the seven rate
+rows read differently; Pay's "Recently sorted" has the CSAS rate group; Pilot metrics has its
+baseline and tallies. On the demo server, Integrations shows "Connected by API", the "Demo planner"
+key and (with `INTEGRATIONS_SECRET`) a working webhook, and the Fun Run's sessions carry "· From your
+planner".

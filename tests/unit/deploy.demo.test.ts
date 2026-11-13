@@ -262,6 +262,8 @@ describe("the demo server's services (deploy/docker-compose.demo.yml with docker
         "DATABASE_JOBS_URL",
         "DATABASE_URL",
         "DEMO_MODE",
+        // Phase 37.8: whether the seeded planner gets its webhook (its value is never read).
+        "INTEGRATIONS_SECRET",
         "NODE_ENV",
       ].sort(),
     );

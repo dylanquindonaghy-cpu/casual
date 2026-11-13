@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { seedFirms } from "@/lib/db/admin/seed-data";
 import { acmeSaturday, FREE_WORKERS, nextSaturday } from "@/lib/db/admin/seed-saturday";
+import { HISTORY_HOURS, HISTORY_WORKERS } from "@/lib/db/admin/seed-history";
 
 // Acme's Saturday event day for the demo seed (src/lib/db/admin/seed-saturday.ts): the pure
 // builder. The loader and the database side are in tests/integration/seed.test.ts.
@@ -125,11 +126,25 @@ describe("acmeSaturday", () => {
     expect(winter.shifts[0]?.startsAt.toISOString()).toBe("2026-10-31T12:00:00.000Z");
   });
 
-  it("gives every worker 1 to 8 weekly pay lines from the last 8 complete weeks", () => {
+  // Phase 37.8: only the casuals with a worked history are paid (seed-history.ts), each week drawn
+  // from the worker and the week alone, in hours that split into whole sessions.
+  it("gives the history workers 1 to 8 weekly pay lines from the last 8 complete weeks, everyone else none", () => {
     const { acme, day } = acmeAt(new Date("2026-09-29T09:00:00Z")); // a Tuesday
     const byWorker = new Map<string, number>();
     for (const p of day.pay) byWorker.set(p.workerId, (byWorker.get(p.workerId) ?? 0) + 1);
-    expect(byWorker.size).toBe(acme.workers.length);
+    expect([...byWorker.keys()].sort()).toEqual(
+      HISTORY_WORKERS.map((i) => acme.workers[i]?.id).sort(),
+    );
+    expect(byWorker.has(acme.workers[0]?.id ?? "")).toBe(false);
+    for (const p of day.pay) expect(HISTORY_HOURS).toContain(p.hours);
+    // A week drawn the same whatever day the seed runs: a run a week later keeps each line.
+    const later = acmeAt(new Date("2026-10-06T09:00:00Z")).day.pay;
+    // (the last complete week is always paid, so only the weeks before it are compared)
+    for (const p of day.pay.filter(
+      (x) => x.periodStart >= "2026-08-10" && x.periodStart < "2026-09-21",
+    )) {
+      expect(later.find((x) => x.id === p.id)).toEqual(p);
+    }
     for (const n of byWorker.values()) expect(n).toBeGreaterThanOrEqual(1);
     for (const n of byWorker.values()) expect(n).toBeLessThanOrEqual(8);
     const starts = [...new Set(day.pay.map((p) => p.periodStart))].sort();

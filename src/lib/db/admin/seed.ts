@@ -22,6 +22,8 @@ import {
 import { seedLog, type SeedLog } from "./seed-log";
 import { seedFirms, STRIKES_TEAM, weekOffers, type SeedFirm } from "./seed-data";
 import { acmeSaturday, type SaturdaySeed } from "./seed-saturday";
+import { acmeHistory, type HistorySeed } from "./seed-history";
+import { loadDemoPlanner, loadPilotFigures, setDemoWebhook } from "./seed-demo-extras";
 import {
   acmePastEvent,
   acmePayQueries,
@@ -36,6 +38,7 @@ import { noticeHours } from "../../roster/notice";
 import { quietHours } from "../../rules/quiet-hours";
 import { strikeDecision } from "../../strikes/decide";
 import { strikeSettings } from "../../strikes/settings";
+import { STRIKE_WARNING_VERSION } from "../../strikes/words";
 import { hoursToStart, insideUrgentWindow, urgentWindowHours } from "../../rules/urgent";
 import { fakePoint } from "../../travel/geocoder";
 import { acmeMatchDay, type MatchSeed } from "./seed-match";
@@ -76,6 +79,9 @@ export async function seed(opts: {
   // checked it's a demo server and recreated the database.
   demoMode?: "on";
   today?: Date;
+  // With demoMode "on" only (Phase 37.8): the "Demo planner" gets its webhook, set after the log
+  // is written so no seeded booking queues a delivery.
+  webhook?: boolean;
 }): Promise<SeedSummary> {
   // Checked before any connection is made (golden rule 7: fake data, never near real data). In
   // production only on a demo server, whose database holds the made-up demo alone (ADR-025).
@@ -114,8 +120,20 @@ export async function seed(opts: {
           const past = acmePastEvent(firm.workers, firm.sites, now);
           await loadExtraShifts(tx, firm, past, log);
           await loadPayQueries(tx, acmePayQueries(firm.workers, past, now), log);
+          // The worked sessions behind the Saturday seed's pay lines (Phase 37.8).
+          if (saturday) {
+            const history = acmeHistory(firm.workers, firm.sites, saturday.pay, now, firm.settings);
+            await loadHistory(tx, firm, history, now, log);
+          }
         }
         if (story) await loadStory(tx, firm, story, now, log);
+        // The pilot's own figures: a baseline and four weekly tallies (Phase 37.8).
+        if (firm.slug === "acme") await loadPilotFigures(tx, firm, now, log);
+        // The demo server's planner (Phase 37.8): after the story (its Northgate site).
+        const planner =
+          firm.slug === "acme" && opts.demoMode === "on"
+            ? await loadDemoPlanner(tx, firm, now, log, { webhook: opts.webhook === true })
+            : null;
         if (match) {
           const freshMatch = await loadMatchDay(tx, firm, match, now, log);
           await loadMatchOffers(tx, firm, { match, fresh: freshMatch, log });
@@ -126,6 +144,9 @@ export async function seed(opts: {
           await loadExtraShifts(tx, firm, northlineNight(firm.workers, firm.sites, now), log);
         }
         await log.write(tx);
+        // The planner's webhook once the log is in, so none of the seeded bookings queues a
+        // delivery (src/lib/events/record.ts).
+        if (planner) await setDemoWebhook(tx, planner);
       });
       // Its messages answered by the shifts line's own job, once the story is in.
       if (story) {
@@ -783,6 +804,225 @@ async function loadExtraShifts(
         b.cancelledAt ?? log.now,
       );
     }
+  }
+}
+
+// Acme's worked history (seed-history.ts; Phase 37.8): its sessions added once (fixed ids, dated by
+// pay week), and their bookings only on sessions added just now, leaving out one that would overlap
+// a booking the worker already holds (as loadExtraShifts does). Each logged as the app logs it:
+// booked by the casual, marked worked (or not attending) by the office an hour after the end, a
+// late cancellation with the rules' strike code and the place reopened, its strike issued with its
+// evidence sent, and the casual's logins.
+async function loadHistory(
+  tx: FirmTx,
+  firm: SeedFirm,
+  history: HistorySeed,
+  now: Date,
+  log: SeedLog,
+): Promise<void> {
+  const firmId = firm.id;
+  const resourcer = firm.officeUsers.find((u) => u.role === "resourcer");
+  if (!resourcer) throw new Error(`${firm.slug} has no resourcer to mark the history`);
+  const added = await tx
+    .insert(shifts)
+    .values(
+      (await withEvents(tx, history.sessions)).map((s) => ({
+        ...s,
+        firmId,
+        headcount: 1,
+        status: "filled" as const,
+        source: "native" as const,
+        isUrgent: false,
+      })),
+    )
+    .onConflictDoNothing()
+    .returning({ id: shifts.id });
+  const fresh = new Set(added.map((s) => s.id));
+  for (const s of history.sessions.filter((x) => fresh.has(x.id))) {
+    log.add(
+      {
+        actorType: "system",
+        action: "shift.created",
+        entityType: "shift",
+        entityId: s.id,
+        data: { source: "seed" },
+      },
+      s.createdAt,
+    );
+  }
+  const candidates = history.bookings.filter((b) => fresh.has(b.shiftId));
+  // A booking the worker already holds over the same time (an earlier run's): left out.
+  const clashes = new Set<string>();
+  for (const b of candidates) {
+    if (b.status === "cancelled_worker") continue;
+    const s = history.sessions.find((x) => x.id === b.shiftId);
+    if (!s) continue;
+    const [held] = await tx
+      .select({ id: assignments.id })
+      .from(assignments)
+      .innerJoin(
+        shifts,
+        and(eq(shifts.firmId, assignments.firmId), eq(shifts.id, assignments.shiftId)),
+      )
+      .where(
+        and(
+          eq(assignments.workerId, b.workerId),
+          notInArray(assignments.status, [...CANCELLED_ASSIGNMENT_STATUSES]),
+          lt(shifts.startsAt, s.endsAt),
+          gt(shifts.endsAt, s.startsAt),
+        ),
+      )
+      .limit(1);
+    if (held) clashes.add(b.id);
+  }
+  const bookings = candidates.filter(
+    (b) => !clashes.has(b.id) && !(b.reopenedId !== null && clashes.has(b.reopenedId)),
+  );
+  if (bookings.length === 0) return;
+  const sessionOf = (id: string) => history.sessions.find((x) => x.id === id);
+  await tx.insert(assignments).values(
+    bookings.map((b) => ({
+      id: b.id,
+      firmId,
+      shiftId: b.shiftId,
+      slot: 1,
+      workerId: b.workerId,
+      status: b.status,
+      confirmedAt: b.confirmedAt,
+      cancelledAt: b.cancelledAt,
+      cancelReason: b.cancelReason,
+      noticeHours: b.noticeHours === null ? null : b.noticeHours.toFixed(2),
+      cancelAskedBy: b.status === "cancelled_worker" ? ("casual" as const) : null,
+      cancelVia: b.status === "cancelled_worker" ? ("app" as const) : null,
+      bookedVia: "app" as const,
+      ...(b.status === "cancelled_worker"
+        ? { strikeWarningVersion: STRIKE_WARNING_VERSION, strikeWarningShownAt: b.cancelledAt }
+        : {}),
+      createdAt: b.confirmedAt,
+    })),
+  );
+  for (const b of bookings) {
+    const session = sessionOf(b.shiftId);
+    log.add(
+      {
+        actorType: "worker",
+        actorId: b.workerId,
+        action: "shift.assigned",
+        entityType: "assignment",
+        entityId: b.id,
+        data: {
+          by: "worker",
+          shiftId: b.shiftId,
+          workerId: b.workerId,
+          slot: 1,
+          noticeHours: b.bookedNoticeHours,
+        },
+      },
+      b.confirmedAt,
+    );
+    if (b.status === "completed" || b.status === "no_show") {
+      // Marked by the office an hour after the session (src/lib/roster/attendance.ts).
+      log.add(
+        {
+          actorType: "office",
+          actorId: resourcer.id,
+          action: b.status === "completed" ? "shift.completed" : "shift.no_show",
+          entityType: "assignment",
+          entityId: b.id,
+          data: { by: "firm", shiftId: b.shiftId, workerId: b.workerId, from: "confirmed" },
+        },
+        new Date(Math.min((session?.endsAt ?? now).getTime() + 3_600_000, now.getTime())),
+      );
+    }
+    if (b.status === "cancelled_worker") {
+      log.add(
+        {
+          actorType: "worker",
+          actorId: b.workerId,
+          action: "shift.cancelled",
+          entityType: "assignment",
+          entityId: b.id,
+          data: {
+            by: "worker",
+            askedBy: "casual",
+            shiftId: b.shiftId,
+            workerId: b.workerId,
+            noticeHours: b.noticeHours,
+            strike: b.strikeCode,
+            place: "reopened",
+            reopenedId: b.reopenedId,
+          },
+        },
+        b.cancelledAt ?? now,
+      );
+    }
+  }
+  // The late cancellations' strikes, as the app issues them, their evidence sent.
+  const strikeRules = strikeSettings(firm.settings);
+  const booked = new Set(bookings.map((b) => b.id));
+  for (const k of history.strikes.filter((x) => booked.has(x.bookingId))) {
+    const evidenceAt = new Date(Math.min(k.issuedAt.getTime() + 2 * 60_000, now.getTime()));
+    await tx
+      .insert(strikes)
+      .values({
+        id: k.id,
+        firmId,
+        workerId: k.workerId,
+        assignmentId: k.bookingId,
+        shiftId: k.shiftId,
+        noticeHours: k.noticeHours.toFixed(2),
+        thresholdHours: strikeRules.noticeHours,
+        issuedAt: k.issuedAt,
+        expiresAt: k.expiresAt,
+        status: "live",
+        reviewNeeded: k.reviewReasons.length > 0,
+        reviewReasons: k.reviewReasons,
+        evidenceEmailStatus: "sent",
+        evidenceEmailTo: STRIKES_TEAM,
+        evidenceEmailSentAt: evidenceAt,
+        createdAt: k.issuedAt,
+      })
+      .onConflictDoNothing();
+    log.add(
+      {
+        actorType: "system",
+        action: "strike.issued",
+        entityType: "strike",
+        entityId: k.id,
+        data: {
+          assignmentId: k.bookingId,
+          shiftId: k.shiftId,
+          workerId: k.workerId,
+          noticeHours: k.noticeHours,
+          thresholdHours: strikeRules.noticeHours,
+        },
+      },
+      k.issuedAt,
+    );
+    log.add(
+      {
+        actorType: "system",
+        action: "strike.evidence_sent",
+        entityType: "strike",
+        entityId: k.id,
+        data: { request: `strike-evidence:${k.id}`, attempt: 1 },
+      },
+      evidenceAt,
+    );
+  }
+  // Their logins, for the weeks just added (the app's shape: src/lib/auth/link-login.ts).
+  for (const l of history.logins.filter((x) => fresh.has(x.sessionId))) {
+    log.add(
+      {
+        actorType: "worker",
+        actorId: l.workerId,
+        action: "auth.login",
+        entityType: "session",
+        entityId: l.id,
+        data: { kind: "worker" },
+      },
+      l.at,
+    );
   }
 }
 

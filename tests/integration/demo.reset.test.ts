@@ -242,6 +242,85 @@ describe("the demo reset, run", () => {
     expect(changed.rowCount).toBe(0);
   }, 180_000);
 
+  // Phase 37.8: the demo server's planner (a "Demo planner" key, one event with its sessions and
+  // two bookings), its webhook only when INTEGRATIONS_SECRET is set on the demo-reset service, and
+  // the pilot's own figures.
+  it("seeds the Demo planner, its webhook only when asked, and the pilot's figures; queues no delivery", async () => {
+    const acme = seedId("firm/acme");
+    // Without the secret (the reset above): the planner, but no webhook.
+    await demoReset(options());
+    const before = await asSuperuser((c) =>
+      c.query<{ url: string | null; keys: number }>(
+        `select settings #>> '{webhook,url}' as url,
+                (select count(*)::int from api_keys where firm_id = $1) as keys
+           from firms where id = $1`,
+        [acme],
+      ),
+    );
+    expect(before.rows[0]).toEqual({ url: null, keys: 1 });
+    await demoReset({ ...options(), webhook: true });
+    const app = new Pool({ connectionString: at(urls.app), max: 1 });
+    try {
+      const withFirm = createWithFirm(app);
+      const { plannerLink } = await import("@/lib/office/integrations");
+      const { loadPilotReport } = await import("@/lib/office/pilot-report");
+      const { readWebhookStatusRow } = await import("@/lib/integrations/status");
+      const now = new Date("2026-10-20T09:00:00Z");
+      const seen = await withFirm(acme, async (tx) => ({
+        planner: await plannerLink(tx),
+        status: await readWebhookStatusRow(tx),
+        report: await loadPilotReport(tx, { from: "2026-09-22", to: "2026-10-19" }, now),
+      }));
+      expect(seen.planner.kind).toBe("api");
+      expect(seen.status?.lastDeliveredAt).not.toBeNull();
+      expect(seen.status?.failingSince ?? null).toBeNull();
+      expect(Object.keys(seen.report.baseline.values)).toHaveLength(8);
+      expect(seen.report.tally.weeks).toBeGreaterThanOrEqual(1);
+      expect(seen.report.live.activeLoggedIn).toBeGreaterThan(0);
+    } finally {
+      await app.end();
+    }
+    const rows = await asSuperuser((c) =>
+      c.query<{
+        label: string;
+        hint: string;
+        url: string | null;
+        api_shifts: number;
+        booked: number;
+        jobs: number;
+      }>(
+        `select k.label, k.hint, f.settings #>> '{webhook,url}' as url,
+                (select count(*)::int from shifts s join shift_events e on e.id = s.event_id
+                  where s.firm_id = f.id and s.source = 'api' and e.source = 'api'
+                    and e.planner_ref = 'DEMO-PLANNER-FUN-RUN') as api_shifts,
+                (select count(*)::int from assignments a join shifts s on s.id = a.shift_id
+                  where s.firm_id = f.id and s.source = 'api' and a.status = 'confirmed') as booked,
+                (select count(*)::int from pgboss.job where name = 'webhook-deliver') as jobs
+           from firms f join api_keys k on k.firm_id = f.id where f.id = $1`,
+        [acme],
+      ),
+    );
+    expect(rows.rows).toHaveLength(1);
+    expect(rows.rows[0]).toMatchObject({
+      label: "Demo planner",
+      url: "https://planner.example/hooks/acme-demo-k3F9",
+      api_shifts: 3,
+      booked: 2,
+      jobs: 0,
+    });
+    expect(rows.rows[0]?.hint).toMatch(/^[A-Za-z0-9_-]{4}$/);
+    // Still in time order, the webhook's entries included.
+    const outOfOrder = await asSuperuser((c) =>
+      c.query<{ n: number }>(
+        `select count(*)::int as n from (
+           select created_at, lag(created_at) over (partition by firm_id order by id) as before
+             from events) e
+          where e.created_at < e.before`,
+      ),
+    );
+    expect(outOfOrder.rows[0]?.n).toBe(0);
+  }, 300_000);
+
   it("its database refuses real people, as the app writes them too; the app can't switch that off; it survives a deploy's migrations", async () => {
     const acme = seedId("firm/acme");
     const app = new Pool({ connectionString: at(urls.app), max: 1 });

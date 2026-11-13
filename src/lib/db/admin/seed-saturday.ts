@@ -4,7 +4,8 @@ import { strikeDecision, type StrikeCode } from "../../strikes/decide";
 import type { StrikeReviewReason } from "../schema/strikes";
 import { strikeSettings } from "../../strikes/settings";
 import { addDays, localDateOf, zonedToUtc } from "../../time/zoned";
-import { rng, seedId, type SeedFirm } from "./seed-data";
+import { seedId, type SeedFirm } from "./seed-data";
+import { HISTORY_HOURS, HISTORY_WORKERS, weekDraw } from "./seed-history";
 
 // Acme's Saturday event day for the demo (docs/testing.md, "Fixtures and the demo seed"): a pure
 // builder, loaded by seed.ts. Fake data only (golden rule 7).
@@ -17,8 +18,11 @@ import { rng, seedId, type SeedFirm } from "./seed-data";
 //   37.2): enough notice on most days; on a Friday, under the firm's 48 hours, a strike, flagged
 //   for a review (she was unwell), with its strike row, its id scoped to the Saturday's day.
 // - Two open requests from booked workers: a time change and a swap.
-// - Pay records for every Acme worker for the last 8 complete weeks, as payroll's file would
-//   give them (hours, rate, gross, pay date).
+// - Pay records for the 30 casuals with a worked history (seed-history.ts HISTORY_WORKERS; Phase
+//   37.8) for the last 8 complete weeks, as payroll's file would give them (hours, rate, gross, pay
+//   date), each week drawn from the worker and the week alone, so a re-run on a later day draws
+//   the same; the worked sessions behind them are seed-history.ts's. Everyone else (worker 0, a
+//   new starter, among them) has no work and no pay.
 // Workers 0 to FREE_WORKERS - 1 (07700 900100 to 900104) are never booked: free for a demo login.
 // Ids are fixed and include the Saturday's date, so a re-run the same week adds nothing and a
 // re-run the next week adds that week's Saturday without moving anything already booked. The
@@ -192,7 +196,6 @@ const RATE_PENCE: Record<string, number> = {
   door_supervisor: 1450,
   security_officer: 1350,
 };
-const HOURS = ["8.00", "10.50", "16.00", "21.00", "24.00", "32.00", "37.50"];
 
 export function acmeSaturday(
   workers: SeedFirm["workers"],
@@ -330,14 +333,16 @@ export function acmeSaturday(
   const thisMonday = addDays(today, -weekday(today));
   const pay: SaturdaySeed["pay"] = [];
   workers.forEach((w, i) => {
-    const r = rng(1000 + i);
+    if (!HISTORY_WORKERS.includes(i)) return;
     const rate = RATE_PENCE[w.roles[0] ?? "steward"] ?? RATE_PENCE.steward ?? 1300;
     for (let week = 1; week <= 8; week++) {
-      // Most weeks worked; the last complete week always, so everyone has something to see.
-      if (week > 1 && r() < 0.35) continue;
       const periodStart = addDays(thisMonday, -7 * week);
+      const r = weekDraw(i, periodStart);
+      // Most weeks worked; the last complete week always, so each of them has something to see.
+      const worked = r() >= 0.35;
+      if (week > 1 && !worked) continue;
       const periodEnd = addDays(periodStart, 6);
-      const hours = HOURS[Math.floor(r() * HOURS.length)] ?? "16.00";
+      const hours = HISTORY_HOURS[Math.floor(r() * HISTORY_HOURS.length)] ?? "16.00";
       pay.push({
         id: seedId(`acme/pay/${i}/${periodStart}`),
         workerId: w.id,

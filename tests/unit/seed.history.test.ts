@@ -10,6 +10,7 @@ import {
   rateDayFor,
 } from "@/lib/db/admin/seed-history";
 import { acmeSaturday } from "@/lib/db/admin/seed-saturday";
+import { urgentWindowHours } from "@/lib/rules/urgent";
 import { localDateOf, mondayOf } from "@/lib/time/zoned";
 
 // Acme's worked history (src/lib/db/admin/seed-history.ts; Phase 37.8): the pure builder. The
@@ -110,6 +111,9 @@ describe("acmeHistory", () => {
       for (const n of by.values()) expect(n).toBe(3);
       for (const b of late) {
         expect(b.noticeHours).toBeLessThan(48);
+        // Outside Acme's urgent window (24 hours): the app marks a dropout inside it urgent and
+        // logs it (cancel.ts), which the history doesn't.
+        expect(b.noticeHours).toBeGreaterThanOrEqual(urgentWindowHours(acme.settings));
         expect(b.cancelledAt!.getTime()).toBeGreaterThan(now.getTime() - 60 * 24 * HOUR);
         expect(b.strikeCode).toBe("issued");
         expect(history.strikes.filter((k) => k.bookingId === b.id)).toHaveLength(1);

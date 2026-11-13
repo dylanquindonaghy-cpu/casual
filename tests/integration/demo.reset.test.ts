@@ -309,6 +309,24 @@ describe("the demo reset, run", () => {
       jobs: 0,
     });
     expect(rows.rows[0]?.hint).toMatch(/^[A-Za-z0-9_-]{4}$/);
+    // Each booking's delivery logged once, as the delivery job does (deliver.ts): delivered, or
+    // failed on its last try with nothing after it; one failed, and one went after it.
+    const hooks = await asSuperuser((c) =>
+      c.query<{ booking: string; actions: string[]; at: Date[] }>(
+        `select data ->> 'bookingId' as booking, array_agg(action order by id) as actions,
+                array_agg(created_at order by id) as at
+           from events where firm_id = $1 and action in ('webhook.delivered', 'webhook.failed')
+          group by 1`,
+        [acme],
+      ),
+    );
+    expect(hooks.rows.map((h) => h.actions).sort()).toEqual([
+      ["webhook.delivered"],
+      ["webhook.failed"],
+    ]);
+    const when = (a: string) =>
+      new Date(hooks.rows.find((h) => h.actions[0] === a)?.at[0] ?? 0).getTime();
+    expect(when("webhook.delivered")).toBeGreaterThan(when("webhook.failed"));
     // Still in time order, the webhook's entries included.
     const outOfOrder = await asSuperuser((c) =>
       c.query<{ n: number }>(

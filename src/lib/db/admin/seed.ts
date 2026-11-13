@@ -127,8 +127,11 @@ export async function seed(opts: {
           }
         }
         if (story) await loadStory(tx, firm, story, now, log);
-        // The pilot's own figures: a baseline and four weekly tallies (Phase 37.8).
-        if (firm.slug === "acme") await loadPilotFigures(tx, firm, now, log);
+        // The pilot's own figures, a baseline and four weekly tallies (Phase 37.8): on the demo
+        // server only, so the e2e and walkthrough seeds keep a firm with none entered
+        // (tests/e2e/office.pilot.spec.ts enters its own).
+        if (firm.slug === "acme" && opts.demoMode === "on")
+          await loadPilotFigures(tx, firm, now, log);
         // The demo server's planner (Phase 37.8): after the story (its Northgate site).
         const planner =
           firm.slug === "acme" && opts.demoMode === "on"
@@ -360,7 +363,12 @@ export async function loadSaturday(
         noticeHours: b.noticeHours === null ? null : b.noticeHours.toFixed(2),
         // Who asked (P3.4): the casual, for their own.
         cancelAskedBy: b.status === "cancelled_worker" ? ("casual" as const) : null,
+        // In the app, past the cancel screen's strike warning, as the app records it (37.2).
+        cancelVia: b.status === "cancelled_worker" ? ("app" as const) : null,
         bookedVia: "app" as const, // logged below as the worker's own booking (P2.2)
+        ...(b.status === "cancelled_worker" && b.cancelledAt
+          ? { strikeWarningVersion: STRIKE_WARNING_VERSION, strikeWarningShownAt: b.cancelledAt }
+          : {}),
       })),
     )
     .onConflictDoNothing()
@@ -823,34 +831,21 @@ async function loadHistory(
   const firmId = firm.id;
   const resourcer = firm.officeUsers.find((u) => u.role === "resourcer");
   if (!resourcer) throw new Error(`${firm.slug} has no resourcer to mark the history`);
-  const added = await tx
-    .insert(shifts)
-    .values(
-      (await withEvents(tx, history.sessions)).map((s) => ({
-        ...s,
-        firmId,
-        headcount: 1,
-        status: "filled" as const,
-        source: "native" as const,
-        isUrgent: false,
-      })),
-    )
-    .onConflictDoNothing()
-    .returning({ id: shifts.id });
-  const fresh = new Set(added.map((s) => s.id));
-  for (const s of history.sessions.filter((x) => fresh.has(x.id))) {
-    log.add(
-      {
-        actorType: "system",
-        action: "shift.created",
-        entityType: "shift",
-        entityId: s.id,
-        data: { source: "seed" },
-      },
-      s.createdAt,
-    );
-  }
-  const candidates = history.bookings.filter((b) => fresh.has(b.shiftId));
+  // Sessions already there (an earlier run's) are left exactly as they are, with no new booking.
+  const existing = new Set(
+    (
+      await tx
+        .select({ id: shifts.id })
+        .from(shifts)
+        .where(
+          inArray(
+            shifts.id,
+            history.sessions.map((s) => s.id),
+          ),
+        )
+    ).map((r) => r.id),
+  );
+  const candidates = history.bookings.filter((b) => !existing.has(b.shiftId));
   // A booking the worker already holds over the same time (an earlier run's): left out.
   const clashes = new Set<string>();
   for (const b of candidates) {
@@ -875,9 +870,44 @@ async function loadHistory(
       .limit(1);
     if (held) clashes.add(b.id);
   }
-  const bookings = candidates.filter(
+  const kept = candidates.filter(
     (b) => !clashes.has(b.id) && !(b.reopenedId !== null && clashes.has(b.reopenedId)),
   );
+  // Only a session whose worked booking goes in is added ("filled"): one left out as an overlap is
+  // never a filled session with nobody on it.
+  const worked = new Set(kept.filter((b) => b.status !== "cancelled_worker").map((b) => b.shiftId));
+  const toAdd = history.sessions.filter((s) => worked.has(s.id));
+  const added =
+    toAdd.length === 0
+      ? []
+      : await tx
+          .insert(shifts)
+          .values(
+            (await withEvents(tx, toAdd)).map((s) => ({
+              ...s,
+              firmId,
+              headcount: 1,
+              status: "filled" as const,
+              source: "native" as const,
+              isUrgent: false,
+            })),
+          )
+          .onConflictDoNothing()
+          .returning({ id: shifts.id });
+  const fresh = new Set(added.map((s) => s.id));
+  for (const s of history.sessions.filter((x) => fresh.has(x.id))) {
+    log.add(
+      {
+        actorType: "system",
+        action: "shift.created",
+        entityType: "shift",
+        entityId: s.id,
+        data: { source: "seed" },
+      },
+      s.createdAt,
+    );
+  }
+  const bookings = kept.filter((b) => fresh.has(b.shiftId));
   if (bookings.length === 0) return;
   const sessionOf = (id: string) => history.sessions.find((x) => x.id === id);
   await tx.insert(assignments).values(
@@ -1010,8 +1040,12 @@ async function loadHistory(
       evidenceAt,
     );
   }
-  // Their logins, for the weeks just added (the app's shape: src/lib/auth/link-login.ts).
-  for (const l of history.logins.filter((x) => fresh.has(x.sessionId))) {
+  // Their logins, for the weeks whose first worked session went in just now, with its booking
+  // (the app's shape: src/lib/auth/link-login.ts).
+  const workedIn = new Set(
+    bookings.filter((b) => b.status !== "cancelled_worker").map((b) => b.shiftId),
+  );
+  for (const l of history.logins.filter((x) => workedIn.has(x.sessionId))) {
     log.add(
       {
         actorType: "worker",

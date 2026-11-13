@@ -10,13 +10,14 @@ import { acmePilotFigures } from "./seed-pilot";
 
 // Two more parts of Acme's demo (Phase 37.8, w1-12; docs/testing.md "Fixtures and the demo seed"):
 //
+// On the demo server only (seed()'s demoMode "on"):
 // - The pilot's own figures (seed-pilot.ts): saved as the office saves them
 //   (src/lib/metrics/entry.ts), each row dated its save and logged then, added once.
-// - On the demo server only (seed()'s demoMode "on"): a "Demo planner" API key, one event it sent
+// - A "Demo planner" API key, one event it sent
 //   ("Northgate Demo Fun Run", 9 days ahead, three sessions: "· From your planner"), two of them
 //   booked by casuals in the app, each logged as the planner API and the app log them; and, when
 //   the demo-reset service has INTEGRATIONS_SECRET (seed()'s `webhook`), its webhook: the
-//   address set three days ago by the admin, a delivery that timed out and the two that went
+//   address set three days ago by the admin, a delivery that failed and the one that went after it
 //   (setDemoWebhook writes the address and its status after the log, so no seeded booking queues
 //   a real delivery). The key itself is random, never stored or shown: nobody can use it.
 
@@ -29,6 +30,10 @@ export const DEMO_PLANNER_REF = "DEMO-PLANNER-FUN-RUN";
 export const DEMO_WEBHOOK_URL = "https://planner.example/hooks/acme-demo-k3F9";
 // Casuals with a worked history (seed-history.ts) that no browser test uses.
 const PLANNER_BOOKERS = [21, 24];
+// When a delivery's last try fails: the webhook queue's retries (src/worker/jobs/queues.ts:
+// retryLimit 6, retryDelay 60, retryBackoff, retryDelayMax 1800) wait 60 + 120 + 240 + 480 + 960 +
+// 1800 seconds, 61 minutes in all.
+const WEBHOOK_LAST_TRY_AFTER = 61 * 60_000;
 
 const adminOf = (firm: SeedFirm) => {
   const admin = firm.officeUsers.find((u) => u.role === "admin");
@@ -218,7 +223,10 @@ export async function loadDemoPlanner(
   if (!o.webhook) return { webhook: false, addressSetAt: created, lastDeliveredAt: null };
 
   // The webhook, added by the admin as the office logs it (src/lib/office/webhook-settings.ts),
-  // before the bookings; the first booking's delivery timed out on every try, then both went.
+  // before the bookings. As the delivery job logs it (src/lib/integrations/deliver.ts): the first
+  // booking's delivery timed out on every try and was logged failed on its last, about an hour
+  // later (WEBHOOK_LAST_TRY_AFTER), with nothing sent for it after; the second booking's, a few
+  // minutes after that, went, so the webhook is working again.
   const addressSetAt = new Date(created.getTime() + 30 * 60_000);
   log.add(
     {
@@ -238,34 +246,42 @@ export async function loadDemoPlanner(
     addressSetAt,
   );
   let lastDeliveredAt: Date | null = null;
+  let failedAt: Date | null = null;
   bookings.forEach((b, k) => {
     const eventRef = refs[k];
     if (!eventRef) return;
+    const data = { eventRef, bookingId: b.id, type: "booking.created" };
     if (k === 0) {
+      failedAt = new Date(b.confirmedAt.getTime() + WEBHOOK_LAST_TRY_AFTER);
       log.add(
         {
           actorType: "system",
           action: "webhook.failed",
           entityType: "assignment",
           entityId: b.id,
-          data: { eventRef, bookingId: b.id, type: "booking.created", code: "timeout" },
+          data: { ...data, code: "timeout" },
         },
-        new Date(b.confirmedAt.getTime() + 20 * 60_000),
+        failedAt,
       );
+      return;
     }
-    const delivered = new Date(b.confirmedAt.getTime() + (k === 0 ? 3 : 1) * HOUR);
+    const delivered = new Date(b.confirmedAt.getTime() + 5 * 60_000);
     log.add(
       {
         actorType: "system",
         action: "webhook.delivered",
         entityType: "assignment",
         entityId: b.id,
-        data: { eventRef, bookingId: b.id, type: "booking.created" },
+        data,
       },
       delivered,
     );
     if (!lastDeliveredAt || delivered > lastDeliveredAt) lastDeliveredAt = delivered;
   });
+  // A delivery that worked after the failure: working, not failing (status.ts).
+  if (!lastDeliveredAt || !failedAt || lastDeliveredAt <= failedAt) {
+    throw new Error("the demo webhook's last delivery must come after its failure");
+  }
   return { webhook: true, addressSetAt, lastDeliveredAt };
 }
 

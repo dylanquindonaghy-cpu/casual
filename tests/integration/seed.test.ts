@@ -8,6 +8,7 @@ import { resolveFirmBySlug } from "@/lib/db/directory";
 import { withFirm, type FirmTx } from "@/lib/db/scoped";
 import { superuserPool, urls } from "../helpers/db";
 import { createTenant, type Tenant } from "../helpers/tenant-rows";
+import { STRIKE_WARNING_VERSION } from "@/lib/strikes/words";
 import { seedFirms, weekOffers } from "@/lib/db/admin/seed-data";
 import { acmeSaturday } from "@/lib/db/admin/seed-saturday";
 import { acmeHistory, HISTORY_WORKERS, LATE_CANCELLERS } from "@/lib/db/admin/seed-history";
@@ -425,8 +426,13 @@ describe("Acme's Saturday event day", () => {
       code: string | null;
       strikes: number;
       review_needed: boolean | null;
+      cancel_via: string | null;
+      warning_version: string | null;
+      warning_at: boolean;
     }>(
       `select a.id::text, a.notice_hours::text, e.data ->> 'strike' as code,
+              a.cancel_via, a.strike_warning_version as warning_version,
+              a.strike_warning_shown_at = a.cancelled_at as warning_at,
               (select count(*)::int from strikes k where k.assignment_id = a.id) as strikes,
               (select bool_and(k.review_needed) from strikes k where k.assignment_id = a.id) as review_needed
          from assignments a join shifts s on s.id = a.shift_id
@@ -439,6 +445,10 @@ describe("Acme's Saturday event day", () => {
     expect(r?.code).toBe(issued ? "issued" : "enough_notice");
     expect(r?.strikes).toBe(issued ? 1 : 0);
     if (issued) expect(r?.review_needed).toBe(true);
+    // Cancelled in the app, past the cancel screen's warning, as the app records it: a strike's
+    // evidence never says no warning was shown.
+    expect(r).toMatchObject({ cancel_via: "app", warning_version: STRIKE_WARNING_VERSION });
+    expect(r?.warning_at).toBe(true);
   });
 
   it("books only workers the rules allow, and never the five kept free for demo logins", async () => {

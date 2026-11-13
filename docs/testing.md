@@ -800,19 +800,21 @@ worked sessions behind them (6, 8 or 10 hours each, on weekdays, in their first 
 site, at the line's rate; the rate query's week at the new £13.50), each booking one the rules
 allowed when it was made (golden rule 6), each week drawn from the worker and the week alone so a
 re-run a week later agrees; two have a no-show; 3 late cancellers (`LATE_CANCELLERS`, workers 19, 20
-and 55) cancelled 3 sessions each under 48 hours' notice in the last 60 days, each with its strike,
+and 55) cancelled 3 sessions each with 30, 36 and 44 hours' notice (under 48, outside the 24-hour urgent window) in the last 60 days, each with its strike,
 the place filled again by the worker whose session it is; a login the day before each week worked.
 The other 30 (worker 0, a new starter, among them: "No shifts in the last 90 days.") have no pay
 and no work. Zoe Adeyemi's 11 worked sessions are her five pay weeks ("11 shifts worked · 0
 no-shows · 0 late cancellations"), so her Booked past and pay query picker list them. The pay
 queries name their work day's weekday and the 7 rate queries each read differently; one sorted
-group falls in "Recently sorted"'s 7 days. The Pilot metrics page has a baseline (5 Mondays back)
-and four weekly tallies (`src/lib/db/admin/seed-pilot.ts`), saved by Acme's admin. On a demo
-server only (`seed({ demoMode: "on" })`, `src/lib/db/admin/seed-demo-extras.ts`): a "Demo planner"
+group falls in "Recently sorted"'s 7 days. On a demo server only (`seed({ demoMode: "on" })`,
+`src/lib/db/admin/seed-demo-extras.ts`): the Pilot metrics page's baseline (5 Mondays back) and
+four weekly tallies (`src/lib/db/admin/seed-pilot.ts`), saved by Acme's admin (the e2e seed has
+none: `office.pilot.spec.ts` enters its own); a "Demo planner"
 API key (random, never stored), its event "Northgate Demo Fun Run" 9 days ahead with three sessions
 ("· From your planner") and two bookings, and, when the demo-reset service has
 `INTEGRATIONS_SECRET`, its webhook (`https://planner.example/…k3F9`, working); each change logged as
-the office and the planner API log it. The local, e2e and walkthrough seeds have no planner.
+the office and the planner API log it. The local, e2e and walkthrough seeds have no planner and
+no pilot figures.
 
 **Northline Rail Labour (rail):** 30 workers with PTS/Sentinel/D&A dates, tomorrow night's
 possession with one short-notice firm cancellation. (Its mocked rota sheet is still to come: no

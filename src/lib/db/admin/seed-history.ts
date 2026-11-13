@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { noticeHours } from "../../roster/notice";
 import { strikeDecision, type StrikeCode } from "../../strikes/decide";
 import { strikeSettings } from "../../strikes/settings";
+import { urgentWindowHours } from "../../rules/urgent";
 import { addDays, localDateOf, zonedToUtc } from "../../time/zoned";
 import type { StrikeReviewReason } from "../schema/strikes";
 import { rng, seedId, type SeedFirm } from "./seed-data";
@@ -162,7 +163,9 @@ export interface HistorySeed {
 }
 
 const CANCEL_REASONS = ["Travel problem", "Something else: childcare fell through", "I'm unwell"];
-const CANCEL_NOTICE = [20, 30, 40]; // hours, all under Acme's 48
+// Hours: each under Acme's 48 (a strike) and at least its urgent window of 24, so the reopened
+// place didn't go urgent (the app would have marked it and sent offer waves: cancel.ts).
+const CANCEL_NOTICE = [30, 36, 44];
 
 export function acmeHistory(
   workers: SeedFirm["workers"],
@@ -273,6 +276,14 @@ export function acmeHistory(
   // weeks 2 to 7 (inside 60 days), on days the canceller had no session. The canceller booked it
   // first, cancelled under 48 hours before, and the worker it belongs to filled the place again.
   const rules = strikeSettings(settings);
+  const urgentHours = urgentWindowHours(settings);
+  for (const n of CANCEL_NOTICE) {
+    if (n < urgentHours || n >= rules.noticeHours) {
+      throw new Error(
+        `a late cancellation's notice of ${n} hours isn't a strike outside the urgent window`,
+      );
+    }
+  }
   const strikes: HistoryStrike[] = [];
   const earliest = addDays(thisMonday, -49);
   const latest = addDays(thisMonday, -7);
@@ -303,7 +314,7 @@ export function acmeHistory(
     picked.forEach((filler, k) => {
       const s = sessions.find((x) => x.id === filler.shiftId);
       if (!s) return;
-      const notice = CANCEL_NOTICE[k] ?? 20;
+      const notice = CANCEL_NOTICE[k] ?? 30;
       const reason = CANCEL_REASONS[k] ?? "Travel problem";
       const cancelledAt = new Date(s.startsAt.getTime() - notice * HOUR);
       const confirmedAt = new Date(s.startsAt.getTime() - 6 * DAY);

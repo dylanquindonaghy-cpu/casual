@@ -272,7 +272,7 @@ describe("Acme's Saturday event day", () => {
   // dated a week before it ran), Acme's quiet hours, and the Saturday's own bookings.
   const plannedFromStore = async () => {
     const acme = seedFirms().find((f) => f.slug === "acme")!;
-    const day = acmeSaturday(acme.workers, acme.sites, new Date());
+    const day = acmeSaturday(acme.workers, acme.sites, new Date(), acme.settings);
     const {
       rows: [stored],
     } = await su.query<{ settings: Record<string, unknown>; created_at: Date | null }>(
@@ -404,6 +404,31 @@ describe("Acme's Saturday event day", () => {
       worker_id: seedId("acme/worker/37"),
     });
     expect(Number(rows[0]?.notice_hours)).toBeGreaterThan(0);
+  });
+
+  // Phase 37.2: the log stores the code the rules give (Acme: 48 hours), and a strike row exists
+  // exactly when that code is "issued" (a Friday's run), flagged for a review (she was unwell).
+  it("logs the dropout's strike code as the rules give it, with its strike row exactly when issued", async () => {
+    const rows = await saturdayRows<{
+      id: string;
+      notice_hours: string;
+      code: string | null;
+      strikes: number;
+      review_needed: boolean | null;
+    }>(
+      `select a.id::text, a.notice_hours::text, e.data ->> 'strike' as code,
+              (select count(*)::int from strikes k where k.assignment_id = a.id) as strikes,
+              (select bool_and(k.review_needed) from strikes k where k.assignment_id = a.id) as review_needed
+         from assignments a join shifts s on s.id = a.shift_id
+         join events e on e.firm_id = a.firm_id and e.entity_id = a.id and e.action = 'shift.cancelled'
+        where a.firm_id = $1 and a.status = 'cancelled_worker' and s.id <> all($2::uuid[])`,
+    );
+    expect(rows).toHaveLength(1);
+    const [r] = rows;
+    const issued = Number(r?.notice_hours) < 48;
+    expect(r?.code).toBe(issued ? "issued" : "enough_notice");
+    expect(r?.strikes).toBe(issued ? 1 : 0);
+    if (issued) expect(r?.review_needed).toBe(true);
   });
 
   it("books only workers the rules allow, and never the five kept free for demo logins", async () => {
@@ -689,7 +714,7 @@ describe("Acme's Saturday event day", () => {
     const inQuiet = (t: Date) =>
       !mayMessageNow({ now: t, timeZone: LONDON, quiet, urgent: false }).ok;
     const plan = (now: Date) => {
-      const day = acmeSaturday(acme.workers, acme.sites, now);
+      const day = acmeSaturday(acme.workers, acme.sites, now, acme.settings);
       const bookings = day.bookings.filter((b) => b.status === "confirmed");
       const offers = weekOffers({
         now,
@@ -844,7 +869,7 @@ describe("Acme's Saturday event day", () => {
     class Rollback extends Error {}
     const now = new Date("2026-01-04T12:00:00Z"); // Sunday 4 Jan 2026, 12:00 GMT
     const firm = seedFirms(now).find((f) => f.slug === "acme")!;
-    const day = acmeSaturday(firm.workers, firm.sites, now);
+    const day = acmeSaturday(firm.workers, firm.sites, now, firm.settings);
     const cancelled = day.bookings.find((b) => b.workerId === seedId("acme/worker/5"));
     if (!cancelled) throw new Error("no booking for worker 5");
     const shiftIds = sql.join(
@@ -1137,7 +1162,8 @@ describe("the demo's past event, pay queries and Northline's night", () => {
     expect(cancelled).toMatchObject({
       actor_type: "office",
       actor_id: seedId("northline/office/resourcer"),
-      data: { by: "firm", reason: "Weather or safety", noticeHours: notice },
+      // The rules' code for a firm's cancellation, as the app logs it (37.2).
+      data: { by: "firm", reason: "Weather or safety", noticeHours: notice, strike: "by_firm" },
     });
   });
 
@@ -1191,5 +1217,21 @@ describe("the seed run again a week later", () => {
       [[ACME, NORTHLINE]],
     );
     expect(wrong).toEqual([{ n: 0 }]);
+    // Phase 37.2: every cancellation logged "issued" still has its strike row, on both runs (a
+    // strike id that weren't scoped to its Saturday would leave the second week's without one).
+    const { rows: noRow } = await su.query<{ id: string }>(
+      `select e.entity_id::text as id from events e
+        where e.firm_id = $1 and e.action = 'shift.cancelled' and e.data ->> 'strike' = 'issued'
+          and not exists (select 1 from strikes k where k.firm_id = e.firm_id and k.assignment_id = e.entity_id)`,
+      [ACME],
+    );
+    expect(noRow).toEqual([]);
+    // And none says "issued" for a cancellation by the firm, or leaves a casual's without a code.
+    const { rows: unknown } = await su.query<{ n: number }>(
+      `select count(*)::int as n from events e
+        where e.firm_id = $1 and e.action = 'shift.cancelled' and e.data ->> 'strike' is null`,
+      [ACME],
+    );
+    expect(unknown).toEqual([{ n: 0 }]);
   });
 });

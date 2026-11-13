@@ -16,10 +16,11 @@ import {
   requests,
   shifts,
   sites,
+  strikes,
   workers,
 } from "../schema";
 import { seedLog, type SeedLog } from "./seed-log";
-import { seedFirms, weekOffers, type SeedFirm } from "./seed-data";
+import { seedFirms, STRIKES_TEAM, weekOffers, type SeedFirm } from "./seed-data";
 import { acmeSaturday, type SaturdaySeed } from "./seed-saturday";
 import {
   acmePastEvent,
@@ -33,6 +34,8 @@ import { groupFactsFor, payGroupKey } from "../../pay/grouping";
 import { lockOfferCounts } from "../../offers/candidates";
 import { noticeHours } from "../../roster/notice";
 import { quietHours } from "../../rules/quiet-hours";
+import { strikeDecision } from "../../strikes/decide";
+import { strikeSettings } from "../../strikes/settings";
 import { hoursToStart, insideUrgentWindow, urgentWindowHours } from "../../rules/urgent";
 import { fakePoint } from "../../travel/geocoder";
 import { acmeMatchDay, type MatchSeed } from "./seed-match";
@@ -92,7 +95,8 @@ export async function seed(opts: {
     const summary: SeedSummary = { firms: [] };
     for (const firm of firms) {
       await provisionFirm(owner, firm);
-      const saturday = firm.slug === "acme" ? acmeSaturday(firm.workers, firm.sites, now) : null;
+      const saturday =
+        firm.slug === "acme" ? acmeSaturday(firm.workers, firm.sites, now, firm.settings) : null;
       // The mock-up's story (seed-story.ts, 12I.1): Acme only.
       const story = firm.slug === "acme" ? acmeStory(firm, now) : null;
       // The match day to play with (seed-match.ts, Phase 36.5): Acme only.
@@ -373,6 +377,8 @@ export async function loadSaturday(
             shiftId: b.shiftId,
             workerId: b.workerId,
             noticeHours: b.noticeHours,
+            // The rules' decision, as the app logs it (src/lib/roster/cancel.ts; Phase 37.2).
+            strike: b.strikeCode,
           },
         },
         b.cancelledAt ?? now,
@@ -429,6 +435,60 @@ export async function loadSaturday(
       entityId: r.id,
       data: { type: r.type, shiftId: r.shiftId },
     });
+  }
+  // The dropout's strike when the rules gave one (37.2), only for a booking added just now: stored
+  // and logged as the app does (src/lib/roster/cancel.ts), flagged for a review when her reason is
+  // one a person should look at, its evidence sent to the strikes team.
+  const strikeRules = strikeSettings(firm.settings);
+  for (const s of day.strikes.filter((x) => newlyAdded.has(x.bookingId))) {
+    const evidenceAt = new Date(Math.min(s.issuedAt.getTime() + 2 * 60_000, now.getTime()));
+    await tx
+      .insert(strikes)
+      .values({
+        id: s.id,
+        firmId,
+        workerId: s.workerId,
+        assignmentId: s.bookingId,
+        shiftId: s.shiftId,
+        noticeHours: s.noticeHours.toFixed(2),
+        thresholdHours: strikeRules.noticeHours,
+        issuedAt: s.issuedAt,
+        expiresAt: s.expiresAt,
+        status: "live",
+        reviewNeeded: s.reviewReasons.length > 0,
+        reviewReasons: s.reviewReasons,
+        evidenceEmailStatus: "sent",
+        evidenceEmailTo: STRIKES_TEAM,
+        evidenceEmailSentAt: evidenceAt,
+        createdAt: s.issuedAt,
+      })
+      .onConflictDoNothing();
+    log.add(
+      {
+        actorType: "system",
+        action: "strike.issued",
+        entityType: "strike",
+        entityId: s.id,
+        data: {
+          assignmentId: s.bookingId,
+          shiftId: s.shiftId,
+          workerId: s.workerId,
+          noticeHours: s.noticeHours,
+          thresholdHours: strikeRules.noticeHours,
+        },
+      },
+      s.issuedAt,
+    );
+    log.add(
+      {
+        actorType: "system",
+        action: "strike.evidence_sent",
+        entityType: "strike",
+        entityId: s.id,
+        data: { request: `strike-evidence:${s.id}`, attempt: 1 },
+      },
+      evidenceAt,
+    );
   }
   await loadPay(tx, firmId, day);
   return fresh;
@@ -717,6 +777,7 @@ async function loadExtraShifts(
             workerId: b.workerId,
             noticeHours: b.noticeHours,
             ...(b.cancelReason ? { reason: b.cancelReason } : {}),
+            strike: strikeDecision({ cancelledBy: "firm" }).code, // "by_firm", as the app logs it
           },
         },
         b.cancelledAt ?? log.now,

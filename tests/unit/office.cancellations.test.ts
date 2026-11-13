@@ -24,6 +24,7 @@ import {
   type CancellationRow,
 } from "@/lib/office/cancellations-copy";
 import { eventWords } from "@/lib/office/event-words";
+import type { StrikeCode } from "@/lib/strikes/decide";
 import { recordPdf } from "@/lib/pdf/record";
 import { embeddedFontSizes, fontFileSizes, pdfText } from "../helpers/pdf-text";
 
@@ -31,6 +32,17 @@ import { embeddedFontSizes, fontFileSizes, pdfText } from "../helpers/pdf-text";
 // CSV and the PDF. Pure (the PDF reads the fonts from the repo). Times in London (GMT in November).
 
 const TZ = "Europe/London";
+// Every strike code the rules give (a Record, so a new code fails typecheck until it's listed).
+const EVERY_CODE: Record<StrikeCode, true> = {
+  issued: true,
+  by_firm: true,
+  strikes_off: true,
+  enough_notice: true,
+  booked_by_office: true,
+  rules_override: true,
+  changed_after_booking: true,
+};
+const STRIKE_CODES = Object.keys(EVERY_CODE) as StrikeCode[];
 const at = (iso: string) => new Date(iso);
 
 const row = (o: Partial<CancellationRow> = {}): CancellationRow => ({
@@ -156,9 +168,13 @@ describe("the record's fields", () => {
     expect(strikeText({ strike: null, strikeCode: "booked_by_office" }, TZ)).toBe(
       "Exempt: booked by the office",
     );
-    expect(strikeText({ strike: null, strikeCode: null }, TZ)).toBe(
-      "Not recorded (before strikes)",
+    // Phase 37.2: no code says only that nothing was recorded (it used to guess "before strikes").
+    expect(strikeText({ strike: null, strikeCode: null }, TZ)).toBe("Not recorded");
+    // Issued, its strike row deleted after the firm's keep time: say so.
+    expect(strikeText({ strike: null, strikeCode: "issued" }, TZ)).toBe(
+      "Issued (its record was deleted)",
     );
+    expect(strikeShort({ strike: null, strikeCode: "issued" })).toBe("yes");
     expect(strikeShort({ strike: null, strikeCode: "rules_override" })).toBe(
       "exempt: booked by the office over a rest or hours rule",
     );
@@ -254,7 +270,18 @@ describe("the list, round 8", () => {
     expect(none({ strikeCode: "changed_after_booking" })).toBe(
       "No strike · the office changed it after booking",
     );
-    expect(none({ strikeCode: null })).toBe("No strike: cancelled before strikes were turned on");
+    // Phase 37.2: what is known, never a guess.
+    expect(none({ strikeCode: null })).toBe("No strike recorded");
+    expect(strikeBadge(row({ strike: null, strikeCode: "issued" }), TZ)).toEqual({
+      kind: "none",
+      text: "Strike issued · its record was deleted",
+    });
+    // No code and no row, whatever the code: never "before strikes".
+    for (const code of [...STRIKE_CODES, null]) {
+      const r = { strike: null, strikeCode: code };
+      expect(strikeBadge(row(r), TZ).text).not.toMatch(/before strikes/);
+      expect(strikeText(r, TZ)).not.toMatch(/before strikes/);
+    }
     // The firm cancelled: who, whatever the code says.
     expect(none({ by: "office", strikeCode: "by_firm" })).toBe("No strike · the office cancelled");
     expect(none({ by: "planner", via: "api", strikeCode: "by_firm" })).toBe(

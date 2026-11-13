@@ -1,5 +1,8 @@
 import { requestPayloadSchemas } from "../../portal/request-kinds";
 import { noticeHours } from "../../roster/notice";
+import { strikeDecision, type StrikeCode } from "../../strikes/decide";
+import type { StrikeReviewReason } from "../schema/strikes";
+import { strikeSettings } from "../../strikes/settings";
 import { addDays, localDateOf, zonedToUtc } from "../../time/zoned";
 import { rng, seedId, type SeedFirm } from "./seed-data";
 
@@ -9,8 +12,10 @@ import { rng, seedId, type SeedFirm } from "./seed-data";
 // - The next Saturday after the day the seed runs: 40 shifts across Acme's three sites, each
 //   with instructions; 32 booked by workers who hold the right licence, 8 open.
 // - The urgent dropout: the early door supervisor at the arena was booked, then the worker
-//   cancelled at 06:00 on the day the seed runs (or just now, before 06:00), giving notice; the
-//   shift is open again and marked urgent.
+//   cancelled at 06:00 on the day the seed runs (or just now, before 06:00); the shift is open
+//   again and marked urgent. Whether it's a strike is the rules' decision (strikeDecision, Phase
+//   37.2): enough notice on most days; on a Friday, under the firm's 48 hours, a strike, flagged
+//   for a review (she was unwell), with its strike row, its id scoped to the Saturday's day.
 // - Two open requests from booked workers: a time change and a swap.
 // - Pay records for every Acme worker for the last 8 complete weeks, as payroll's file would
 //   give them (hours, rate, gross, pay date).
@@ -49,6 +54,19 @@ export interface SaturdaySeed {
     cancelReason: string | null;
     noticeHours: number | null; // only for the cancellation
     bookedNoticeHours: number; // shift start minus when it was booked, for the log
+    strikeCode: StrikeCode | null; // the rules' decision, for the cancellation (37.2)
+  }[];
+  // The strike the rules gave the dropout, when they gave one (37.2): logged and stored as the app
+  // does (src/lib/roster/cancel.ts).
+  strikes: {
+    id: string;
+    bookingId: string;
+    workerId: string;
+    shiftId: string;
+    noticeHours: number;
+    issuedAt: Date;
+    expiresAt: Date;
+    reviewReasons: StrikeReviewReason[];
   }[];
   requests: {
     id: string;
@@ -180,6 +198,7 @@ export function acmeSaturday(
   workers: SeedFirm["workers"],
   sites: SeedFirm["sites"],
   now: Date,
+  settings: Record<string, unknown>, // the firm's, for its strike rules
 ): SaturdaySeed {
   const today = localDateOf(now, TZ);
   const day = nextSaturday(today);
@@ -227,6 +246,7 @@ export function acmeSaturday(
           cancelReason: null,
           noticeHours: null,
           bookedNoticeHours: noticeHours(startsAt, confirmedAt),
+          strikeCode: null,
         });
       }
     }
@@ -238,17 +258,47 @@ export function acmeSaturday(
   const six = at(today, "06:00");
   const cancelledAt = six.getTime() <= now.getTime() ? six : now;
   const bookedAt = new Date(now.getTime() - 72 * HOUR);
+  const dropoutNotice = noticeHours(dropoutStart, cancelledAt);
+  const rules = strikeSettings(settings);
+  const decision = strikeDecision({
+    cancelledBy: "worker",
+    noticeHours: dropoutNotice,
+    thresholdHours: rules.noticeHours,
+    booking: { by: "worker", overridden: false },
+    changedAfterBooking: false,
+    reason: DROPOUT.reason,
+    ...(rules.enabled ? {} : { strikesOff: true as const }),
+  });
+  const dropoutBooking = id(`booking/${DROPOUT.key}/0`);
+  const dropoutWorker = worker(DROPOUT.worker).id;
   bookings.push({
-    id: id(`booking/${DROPOUT.key}/0`),
+    id: dropoutBooking,
     shiftId: dropoutShift,
-    workerId: worker(DROPOUT.worker).id,
+    workerId: dropoutWorker,
     status: "cancelled_worker",
     confirmedAt: bookedAt,
     cancelledAt,
     cancelReason: DROPOUT.reason,
-    noticeHours: noticeHours(dropoutStart, cancelledAt),
+    noticeHours: dropoutNotice,
     bookedNoticeHours: noticeHours(dropoutStart, bookedAt),
+    strikeCode: decision.code,
   });
+  const strikes: SaturdaySeed["strikes"] =
+    decision.result === "strike"
+      ? [
+          {
+            // Scoped to the Saturday's day, like every row here: a re-run a week later adds its own.
+            id: id(`strike/${DROPOUT.key}/0`),
+            bookingId: dropoutBooking,
+            workerId: dropoutWorker,
+            shiftId: dropoutShift,
+            noticeHours: dropoutNotice,
+            issuedAt: cancelledAt,
+            expiresAt: new Date(cancelledAt.getTime() + rules.liveDays * 24 * HOUR),
+            reviewReasons: decision.reviewReasons,
+          },
+        ]
+      : [];
 
   const firstShift = (key: string) => id(`shift/${key}/0`);
   const colleague = worker(21);
@@ -307,6 +357,7 @@ export function acmeSaturday(
     shiftsCreatedAt: new Date(now.getTime() - 7 * 24 * HOUR),
     shifts,
     bookings,
+    strikes,
     requests,
     pay,
   };

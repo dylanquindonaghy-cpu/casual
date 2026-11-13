@@ -139,7 +139,7 @@ function dropoutShiftId(): string {
   const now = new Date();
   const firm = seedFirms(now).find((f) => f.slug === "acme");
   if (!firm) throw new Error("no Acme in the seed");
-  return acmeSaturday(firm.workers, firm.sites, now).urgentShiftId;
+  return acmeSaturday(firm.workers, firm.sites, now, firm.settings).urgentShiftId;
 }
 
 test.beforeAll(async () => {

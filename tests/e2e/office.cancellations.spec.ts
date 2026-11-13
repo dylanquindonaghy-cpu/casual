@@ -99,6 +99,14 @@ test("a resourcer opens a cancellation's record and downloads its PDF and the CS
     }
     await expect(page.getByText("Red rows had under 48 hours' notice.")).toBeVisible();
     await noApproval(page);
+    // Phase 37.2: the strike says what is known, never "before strikes". The seeded Saturday
+    // dropout carries the rules' own code: enough notice, or a strike on a Friday's seed.
+    await expect(page.getByRole("main")).not.toContainText("before strikes");
+    const dropout = page.locator("main [data-record]:visible").filter({ hasText: "Chloe Quigley" });
+    await expect(dropout.first()).toBeVisible();
+    await expect(
+      dropout.first().getByText(/^(No strike · enough notice|Strike 1 issued)$/),
+    ).toBeVisible();
     // Rhona's: 4 or 5 days' notice (the session is 5 days ahead), no strike, not red.
     const mine = page.locator("main [data-record]:visible").filter({ hasText: "Rhona Record" });
     await expect(mine.getByText(/^[45] days$/)).toBeVisible();

@@ -199,7 +199,12 @@ describe("the demo story", () => {
     const minutes = urgent.map((s) => nearest(s.travel));
     expect(minutes).toEqual([...minutes].sort((a, b) => a - b));
     const now = new Date();
-    const dropout = acmeSaturday(acmeFirm().workers, acmeFirm().sites, now).urgentShiftId;
+    const dropout = acmeSaturday(
+      acmeFirm().workers,
+      acmeFirm().sites,
+      now,
+      acmeFirm().settings,
+    ).urgentShiftId;
     const verdict = await withFirm(ACME, (tx) =>
       previewBooking(tx, { shiftId: dropout, workerId: who("zoe"), now }),
     );
@@ -296,6 +301,15 @@ describe("the demo story", () => {
       { by: "worker", strike: "issued" },
       { by: "worker", strike: "issued" },
     ]);
+    // Phase 37.2: each logged "issued" has its strike row (the log never says more than the rows).
+    const { rows: noRow } = await su.query<{ id: string }>(
+      `select e.entity_id::text as id from events e
+        where e.firm_id = $1 and e.action = 'shift.cancelled' and e.data ->> 'strike' = 'issued'
+          and e.entity_id = any($2::uuid[])
+          and not exists (select 1 from strikes k where k.firm_id = e.firm_id and k.assignment_id = e.entity_id)`,
+      [ACME, STORY.bookings.map((b) => b.id)],
+    );
+    expect(noRow).toEqual([]);
   });
 
   // Phase 35.4: and, in the app, Zoe's "what do I wear" answered from the answer library by its

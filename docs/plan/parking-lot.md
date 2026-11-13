@@ -2680,3 +2680,10 @@ From builder A (37.1, 37.2, 37.8; 2026-11-13):
   the whole firm's records (a colleague's, or one for part of a period, can move it); the casual's
   reads only her own whole-period ones. They agree whenever the records do (one calendar, one
   payroll date per period), which is every firm today.
+- **A strike whose record was deleted, on the other screens (37.2, w1-02):** for a strike whose row
+  the nightly purge deleted after the firm's keep time, the record's evidence field
+  (`evidenceText`, `src/lib/office/cancellations-copy.ts`) says "No strike: nothing to send", and
+  the event page (`event-page-copy.ts`), the dashboard map (`dashboard-map-copy.ts`) and the
+  casual's own record (`src/lib/portal/my-record.ts`) say no strike, because they read only the
+  strikes row. The planner API reports a null code as "none" (`src/lib/integrations/records.ts`).
+  All concern cancellations older than `strikes.keep_months` (12 by default).

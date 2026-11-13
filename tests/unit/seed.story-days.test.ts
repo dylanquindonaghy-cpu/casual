@@ -20,7 +20,7 @@ function restAround(now: Date) {
   if (!firm) throw new Error("no acme");
   const story = acmeStory(firm, now);
   const zoe = story.workers.find((w) => w.key === "zoe")?.id;
-  const saturday = acmeSaturday(firm.workers, firm.sites, now);
+  const saturday = acmeSaturday(firm.workers, firm.sites, now, firm.settings);
   const dropout = saturday.shifts.find((s) => s.id === saturday.urgentShiftId);
   if (!zoe || !dropout) throw new Error("no Zoe or no dropout");
   const gaps = story.bookings

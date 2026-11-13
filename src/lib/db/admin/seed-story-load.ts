@@ -57,6 +57,13 @@ const pointOf = (postcode: string) => {
 };
 const sha256 = (data: Buffer) => createHash("sha256").update(data).digest("hex");
 
+// A story casual's own cancellation is logged "issued" only when the story gives it its strike
+// (Phase 37.2: the log never says more than the rows): one without would fail the seed here.
+function storyStrikeCode(story: StorySeed, bookingId: string): "issued" {
+  if (story.strikes.some((s) => s.bookingId === bookingId)) return "issued";
+  throw new Error(`the story's cancellation ${bookingId} has no strike`);
+}
+
 export async function loadStory(
   tx: FirmTx,
   firm: SeedFirm,
@@ -493,7 +500,8 @@ export async function loadStory(
           workerId: b.workerId,
           noticeHours: b.noticeHours,
           ...(byFirm && b.cancelReason ? { reason: b.cancelReason } : {}),
-          strike: byFirm ? "by_firm" : "issued",
+          // The story's own decision (37.2): every casual cancellation in it has its strike.
+          strike: byFirm ? "by_firm" : storyStrikeCode(story, b.id),
           place: "reopened",
           reopenedId: b.reopenedId,
         },

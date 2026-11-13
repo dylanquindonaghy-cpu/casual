@@ -10,7 +10,9 @@ function expectedPay() {
   const acme = seedFirms(now).find((f) => f.slug === "acme");
   if (!acme) throw new Error("no Acme in the seed");
   const worker = acme.workers[2];
-  return acmeSaturday(acme.workers, acme.sites, now).pay.filter((p) => p.workerId === worker?.id);
+  return acmeSaturday(acme.workers, acme.sites, now, acme.settings).pay.filter(
+    (p) => p.workerId === worker?.id,
+  );
 }
 
 // The pay pages' step-up in a real browser: a 6‑digit code by text (console mode; by WhatsApp

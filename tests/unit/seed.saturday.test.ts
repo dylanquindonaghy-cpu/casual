@@ -8,7 +8,7 @@ import { acmeSaturday, FREE_WORKERS, nextSaturday } from "@/lib/db/admin/seed-sa
 const acmeAt = (now: Date) => {
   const acme = seedFirms(now).find((f) => f.slug === "acme");
   if (!acme) throw new Error("no Acme");
-  return { acme, day: acmeSaturday(acme.workers, acme.sites, now) };
+  return { acme, day: acmeSaturday(acme.workers, acme.sites, now, acme.settings) };
 };
 const london = (d: Date) =>
   d.toLocaleString("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit" });
@@ -49,6 +49,58 @@ describe("acmeSaturday", () => {
     const now = new Date("2026-09-29T04:30:00Z"); // 05:30 in London
     const dropout = acmeAt(now).day.bookings.find((b) => b.status === "cancelled_worker");
     expect(dropout?.cancelledAt).toEqual(now);
+  });
+
+  // Phase 37.2: the dropout's strike code is the rules' (strikeDecision), decided here, with its
+  // strike row whenever the code is "issued"; the strike's id is scoped to the Saturday's day.
+  it("the dropout's strike code is the rules': enough notice midweek, none stored", () => {
+    // Wednesday 30 Sep 2026, 04:00 London: cancelled now, 75 hours before Sat 08:00.
+    const { day } = acmeAt(new Date("2026-09-30T03:00:00Z"));
+    const dropout = day.bookings.find((b) => b.status === "cancelled_worker");
+    expect(dropout?.strikeCode).toBe("enough_notice");
+    expect(day.strikes).toEqual([]);
+    // The others carry no code.
+    expect(day.bookings.filter((b) => b.strikeCode !== null)).toHaveLength(1);
+  });
+
+  it("on a Friday it's a strike, flagged for a review (she was unwell), its id the Saturday's", () => {
+    // Friday 2 Oct 2026, 07:00 London: cancelled at 06:00, 26 hours before Sat 08:00, under 48.
+    const { day } = acmeAt(new Date("2026-10-02T06:00:00Z"));
+    const dropout = day.bookings.find((b) => b.status === "cancelled_worker");
+    expect(dropout?.strikeCode).toBe("issued");
+    expect(dropout?.noticeHours).toBe(26);
+    expect(day.strikes).toHaveLength(1);
+    const [strike] = day.strikes;
+    expect(strike).toMatchObject({
+      bookingId: dropout?.id,
+      workerId: dropout?.workerId,
+      shiftId: dropout?.shiftId,
+      noticeHours: 26,
+      issuedAt: dropout?.cancelledAt,
+      reviewReasons: ["unwell"],
+    });
+    // 90 days live (Acme's default).
+    expect(strike?.expiresAt.getTime()).toBe(
+      (dropout?.cancelledAt?.getTime() ?? 0) + 90 * 24 * 3_600_000,
+    );
+    // A Friday a week later: its own Saturday, its own strike id.
+    const later = acmeAt(new Date("2026-10-09T06:00:00Z")).day;
+    expect(later.strikes).toHaveLength(1);
+    expect(later.strikes[0]?.id).not.toBe(strike?.id);
+  });
+
+  it("strikes switched off: the code says so, and no strike", () => {
+    const now = new Date("2026-10-02T06:00:00Z");
+    const acme = seedFirms(now).find((f) => f.slug === "acme");
+    if (!acme) throw new Error("no Acme");
+    const day = acmeSaturday(acme.workers, acme.sites, now, {
+      ...acme.settings,
+      strikes: { enabled: false },
+    });
+    expect(day.bookings.find((b) => b.status === "cancelled_worker")?.strikeCode).toBe(
+      "strikes_off",
+    );
+    expect(day.strikes).toEqual([]);
   });
 
   it("keeps the same ids all week, and a new Saturday gets new ones", () => {

@@ -6,8 +6,11 @@ import { requireOfficeArea } from "@/lib/auth/current-office";
 import { ANSWERS_TITLE } from "@/lib/office/answers-copy";
 import { officeNewAnswer } from "@/lib/office/answers-page";
 import { AnswerForm } from "../answer-form";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Add an answer" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("answers", { title: "Add an answer" });
+}
 
 // Add an answer (Phase 35.3; docs/screens.md "## Phase 35", "Add and Edit"). Admins only (others:
 // not found). From "Make this an answer" (`?from=` a message's or an email's id, on "No answer yet"

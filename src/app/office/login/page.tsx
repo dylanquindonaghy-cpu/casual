@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { loginTitle, officeLoginCard, page } from "@/app/ui/classes";
 import { getOfficeSession } from "@/lib/auth/current-office";
@@ -7,6 +8,9 @@ import { appEnv } from "@/lib/env";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 import { StaffDemoLink } from "../../start/staff-demo-link";
 import { OfficeLoginForm } from "./office-login-form";
+
+// Its tab: "Office login · Acme Events shifts" (Phase 37.6, w1-09).
+export const metadata: Metadata = { title: "Office login" };
 
 // The office login (docs/screens.md `/office/login`). Outside the office shell (nobody is logged
 // in yet): the same layout as the worker login (/login): the brand bar's 448px column, so its words

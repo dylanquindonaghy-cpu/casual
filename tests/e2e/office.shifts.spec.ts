@@ -56,6 +56,14 @@ test("a resourcer creates a shift and assigns someone the rules allow", async ({
   // Round 8 (Phase 26.6): the role and day, then its times and how full it is.
   await expect(page.getByRole("heading", { name: /^Steward · /, level: 1 })).toBeVisible();
   await expect(page.getByText(/· 0 of 2 booked$/)).toBeVisible();
+  // Its tab names it (Phase 37.6, w1-09): role, day, then its event.
+  await expect(page).toHaveTitle(/^Steward, \w{3} \d{1,2} \w{3} · .+ · Acme Events shifts$/);
+  // A session that isn't there: the office's not-found, and its tab says so.
+  expect(
+    (await page.goto(`${acme}/office/shifts/6f9619ff-8b86-4011-b42d-00c04fc964ff`))?.status(),
+  ).toBe(404);
+  await expect(page).toHaveTitle("Page not found · Acme Events shifts");
+  await page.goto(session);
   // The history is a tab away.
   await page
     .getByRole("navigation", { name: "Show" })
@@ -169,4 +177,10 @@ test("payroll doesn't get the shift screens", async ({ page }) => {
   await page.keyboard.press("Escape");
   await expect((await accountMenu(page)).getByRole("button", { name: "Log out" })).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Log out" })).toHaveCount(1);
+  // Phase 37.6 (w1-08): the tab doesn't give the refused page away, and no "Updated" time.
+  await expect(page).toHaveTitle("Page not found · Acme Events shifts");
+  await expect(page.locator("#main").getByText(/^Updated \d/)).toHaveCount(0);
+  expect((await page.goto(`${acme}/office/events`))?.status()).toBe(404);
+  await expect(page).toHaveTitle("Page not found · Acme Events shifts");
+  await expect(page.locator("#main").getByText(/^Updated \d/)).toHaveCount(0);
 });

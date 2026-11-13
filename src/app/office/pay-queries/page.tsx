@@ -16,8 +16,11 @@ import { dayLabel } from "@/lib/rules/reasons";
 import { SendDigestButton } from "./send-digest-button";
 import { SortGroupForm } from "./sort-group-form";
 import { Ref } from "@/app/ui/ref";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Pay queries" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("pay", { title: "Pay queries" });
+}
 
 // A group's card: on a desk, the queries on the left and "Tell them what payroll did" beside them.
 const group = `${card} mt-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-x-8`;

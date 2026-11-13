@@ -8,8 +8,11 @@ import { dayLabel } from "@/lib/rules/reasons";
 import { keepTimeLines } from "@/lib/office/data-copy";
 import { FindWorkerForm } from "../find-worker-form";
 import { findWorkersAction } from "./actions";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Data requests" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("data", { title: "Data requests" });
+}
 
 // Data requests (docs/screens.md `/office/data`): find the worker a GDPR request is about, and
 // download all the firm's data. Admins only (checked here and in every function it calls). The
@@ -50,6 +53,9 @@ export default async function OfficeDataPage() {
             shifts, bookings, offers, requests, pay records and queries, messages and the action
             log. Login records aren&rsquo;t included.
           </p>
+          {/* A download from a route handler, so a plain link. (The rule reads the office's
+              catch-all, src/app/office/[...missing], as a page at every /office address.) */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a file download */}
           <a href="/office/data/export" className={`${btn.secondary} mt-4`}>
             Download all your data
           </a>

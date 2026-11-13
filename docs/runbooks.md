@@ -893,8 +893,8 @@ OpenStreetMap contributors" shows on the map: never hide it.
 
 Since Phase 27.8 the map shows its names (towns, areas, streets, water) and zooms to building level
 with + and − buttons. The names' letter shapes come from our own server too: they're in the app
-itself (`public/map-glyphs/`, served at `/map-glyphs/...` by the web app, so Caddy needs nothing
-new), not in the map file. The detail is in the map file: zoom 15 has every building, road and path,
+itself (`public/map-glyphs/`, served at `/map-glyphs/...` by the web app; since Phase 37.7 Caddy
+compresses them and lets browsers keep them for a week), not in the map file. The detail is in the map file: zoom 15 has every building, road and path,
 so the file is bigger (below).
 
 The browser tests' street-map run (`npm run e2e:streets`, part of `npm run e2e`) runs this whole
@@ -945,6 +945,30 @@ Termius; `docs/mockups/round-8/launch-review-2026-11-03.md` §4):
    every street's name, still sharp (with the zoom-13 file they blur past zoom 13).
 
 To refresh the map later, step 2 again: the new file replaces the old one.
+
+**A new Caddyfile** (Phase 37.7: the safe headers, compression and cache times). Live on the server
+is a step of its own, after the tick, outside 05:30 to 09:00 (Dylan, 2026-11-13). Copy the newest
+server files out of the image as in step 3 above (never `.env`), then recreate Caddy:
+
+```
+cd /opt/shiftdesk && docker compose up -d --force-recreate caddy
+```
+
+Not `caddy reload`: the copy replaces the `Caddyfile` with a new file, and the running container's
+single-file mount (`./Caddyfile:/etc/caddy/Caddyfile:ro`) keeps seeing the old one, so a reload
+reloads the old file and says it worked. `deploy.sh` doesn't recreate Caddy either. Certificates
+stay in the `caddy_data` volume; the site is down for a few seconds. Then check, with the demo's
+password on a demo server (`-u demo:<the demo password>`: without it every answer is the demo's
+401):
+
+- `curl -sI -u demo:<password> https://<address>/start/login` shows `content-security-policy:
+  frame-ancestors 'self'`, `x-content-type-options: nosniff`, `referrer-policy:
+  strict-origin-when-cross-origin` and `permissions-policy`, and no `x-powered-by`;
+- `curl -s -o /dev/null -w '%{size_download}\n' --compressed -u demo:<password>
+  "https://<address>/map-glyphs/Noto%20Sans%20Regular/0-255.pbf"` is about 46 KB, not 76 KB;
+- `curl -sI --compressed -u demo:<password> https://<address>/office/map-worker` shows
+  `content-encoding`;
+- by eye, on a laptop: `/start/phone` still shows the casual app in its frame.
 
 **The map shows no streets** (the foot still says "Placed by each venue's postcode"):
 

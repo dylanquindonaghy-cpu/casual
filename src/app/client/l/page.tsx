@@ -5,7 +5,7 @@ import { LinkLogin } from "../../l/link-login";
 import { consumeClientLinkAction } from "./actions";
 
 // Never tell another site which page this was.
-export const metadata: Metadata = { referrer: "no-referrer" };
+export const metadata: Metadata = { referrer: "no-referrer", title: "Client login link" };
 
 // The client link login (Phase 36.3; `/client/l#<token>`): the office link page's layout, with
 // "Log me in" (a POST: the link is used only when they tap it).

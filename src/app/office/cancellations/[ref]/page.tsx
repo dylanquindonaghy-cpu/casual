@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { btn, card, nums, page, row, rows } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
@@ -16,12 +17,40 @@ import {
   strikeText,
 } from "@/lib/office/cancellations-copy";
 import { strikeButtons, withdrawText } from "@/lib/office/strike-actions-copy";
+import { cancellationTabTitle } from "@/lib/office/tab-titles";
 import { roleLabel, timeOnDay } from "@/lib/portal/format";
 import { ResendEvidence } from "./resend-evidence";
 import { StrikeActions } from "./strike-actions";
 import { Ref } from "@/app/ui/ref";
 
-export const metadata: Metadata = { title: "Cancellation record" };
+// The record, read once per request for the page and its tab title (Phase 37.6, w1-09:
+// "Cancellation 8CE76FA4 · Ben Carter"; "Cancellation 8CE76FA4" when two share the ref), after the
+// page's own access check: a role without "cancellations" gets the not-found page. Reads only.
+// The PDF and the evidence keep "Cancellation record {ref}".
+const load = cache(async (ref: string) => {
+  const session = await requireOfficeArea("cancellations");
+  const found = await officeCancellationRecord(
+    { firm: session.firm },
+    (await readSessionToken("office")) ?? "",
+    ref,
+  );
+  return { session, found };
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ ref: string }>;
+}): Promise<Metadata> {
+  const { found } = await load((await params).ref);
+  if (!found) notFound();
+  return {
+    title:
+      found.status === "several"
+        ? cancellationTabTitle(found.shared.ref)
+        : cancellationTabTitle(found.record.row.ref, found.record.row.casual),
+  };
+}
 
 // One cancellation's record (docs/office-v2.md 3.4's table; docs/screens.md
 // `/office/cancellations/[ref]`): every field, the reason as given (admins and resourcers only:
@@ -36,13 +65,11 @@ export default async function CancellationRecordPage({
 }: {
   params: Promise<{ ref: string }>;
 }) {
-  const { firm, officeUser } = await requireOfficeArea("cancellations");
   const { ref } = await params;
-  const found = await officeCancellationRecord(
-    { firm },
-    (await readSessionToken("office")) ?? "",
-    ref,
-  );
+  const {
+    session: { officeUser },
+    found,
+  } = await load(ref);
   if (!found) notFound();
   if (found.status === "several") return <ChooseOne shared={found.shared} />;
   const { record } = found;

@@ -24,8 +24,11 @@ import {
   type OfficeNoticeReport as NoticeReport,
   type ReportKind,
 } from "@/lib/office/notice-report";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Notice and cancellation report" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("reports", { title: "Notice and cancellation report" });
+}
 
 // Column headings stay in view while the rows scroll (the table's region has a height limit). The
 // region pads its scrolling top by more than the heading row (about 37px) plus a focus ring (4px),

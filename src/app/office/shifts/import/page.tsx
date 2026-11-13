@@ -4,8 +4,11 @@ import { btn, page, sectionGap } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { ImportForm } from "./import-form";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Import sessions from a file" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("shifts", { title: "Import sessions from a file" });
+}
 
 // "Import from a file" (docs/screens.md `/office/shifts`). Admins and resourcers; the import
 // checks the office user again inside its transaction.

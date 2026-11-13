@@ -7,8 +7,11 @@ import { requireOfficeArea } from "@/lib/auth/current-office";
 import { ANSWERS_TITLE, lastEditedText, usesText } from "@/lib/office/answers-copy";
 import { officeAnswer } from "@/lib/office/answers-page";
 import { AnswerForm } from "../answer-form";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Edit an answer" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("answers", { title: "Edit an answer" });
+}
 
 // Edit an answer (Phase 35.3; docs/screens.md "## Phase 35", "Add and Edit"). Admins only (others,
 // and an answer that isn't this firm's: not found). Whether it's on, its uses and its last edit

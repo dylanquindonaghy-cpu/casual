@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { btn, card, headingGap, page, tab, tabCount, tabCurrent, tabs } from "@/app/ui/classes";
 import { Icon } from "@/app/ui/icons";
@@ -29,6 +31,7 @@ import {
 } from "@/lib/office/event-page-copy";
 import { officeEventPage } from "@/lib/office/events";
 import { CASUALS_ASK } from "@/lib/office/session-page-copy";
+import { eventTabTitle } from "@/lib/office/tab-titles";
 import { roleLabel, shiftWhen } from "@/lib/portal/format";
 import { eventStatus, eventSummary, spansDays, uniqueSessionNames } from "@/lib/office/events-copy";
 import { SessionItem } from "../session-row";
@@ -40,8 +43,28 @@ import { StaffingTab } from "./staffing";
 // casuals" (or "Show to casuals"), "Add shifts" (to this event) and the main "Offer N open places";
 // then tabs: Staffing (the default: every place laid out, beside the open places), Overview (every
 // session as before, past and cancelled too, each with its switch, who is booked and its menu),
-// Cancellations and History. Admins and resourcers. Like a shift's page, it keeps the firm's tab
-// title.
+// Cancellations and History. Admins and resourcers. Its tab names the event and the tab open
+// (Phase 37.6, w1-09): "Northern Lights Live · Staffing".
+// The event, read once per request for the page and its tab title, after the page's own access
+// check (a role without "shifts" gets the not-found page, never the event's name).
+const load = cache(async (id: string) => {
+  const { firm } = await requireOfficeArea("shifts");
+  const data = await officeEventPage({ firm }, (await readSessionToken("office")) ?? "", id);
+  return { firm, data };
+});
+
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}): Promise<Metadata> {
+  const { data } = await load((await params).id);
+  if (!data) notFound();
+  return { title: eventTabTitle(data.event.name, (await searchParams).tab) };
+}
+
 export default async function EventPage({
   params,
   searchParams,
@@ -49,10 +72,9 @@ export default async function EventPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ tab?: string; place?: string }>;
 }) {
-  const { firm } = await requireOfficeArea("shifts");
   const { id } = await params;
   const { tab: tabParam, place } = await searchParams;
-  const data = await officeEventPage({ firm }, (await readSessionToken("office")) ?? "", id);
+  const { data } = await load(id);
   if (!data) notFound();
   const { event: e, timeZone: tz, staffing: st } = data;
   const now = new Date();

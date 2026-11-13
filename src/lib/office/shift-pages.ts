@@ -228,6 +228,30 @@ export interface ShiftDetail {
   } | null;
 }
 
+// What a session's browser tab names (Phase 37.6, w1-09): its role, start, the firm's zone and its
+// event. One row, read like the page itself (the office session and the "shifts" area first, then
+// RLS), so a role that can't open the page, another firm's session or a bad id give null. Reads
+// only; it writes no events row.
+export async function officeSessionTitle(
+  ctx: AuthContext,
+  token: string,
+  shiftId: string,
+): Promise<{ role: string; startsAt: Date; timeZone: string; eventName: string | null } | null> {
+  if (!z.uuid().safeParse(shiftId).success) return null;
+  return asOffice(ctx, token, async (tx) => {
+    const [s] = await tx
+      .select({ role: shifts.role, startsAt: shifts.startsAt, eventName: shiftEvents.name })
+      .from(shifts)
+      .leftJoin(
+        shiftEvents,
+        and(eq(shiftEvents.firmId, shifts.firmId), eq(shiftEvents.id, shifts.shiftEventId)),
+      )
+      .where(eq(shifts.id, shiftId));
+    if (!s) return null;
+    return { ...s, timeZone: await timeZoneOf(tx) };
+  });
+}
+
 export async function officeShiftDetail(
   ctx: AuthContext,
   token: string,

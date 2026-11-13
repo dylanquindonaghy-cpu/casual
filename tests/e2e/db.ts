@@ -257,9 +257,16 @@ export async function addEventWithSession(
 // own spec, tests/e2e/casual.tour.spec.ts).
 export async function addSteward(
   slug: string,
-  who: { firstName: string; lastName: string; mobileE164: string; tourSeen?: boolean },
+  who: {
+    firstName: string;
+    lastName: string;
+    mobileE164: string;
+    tourSeen?: boolean;
+    // false: no Level 2 spectator safety qualification on file (Phase 37.3's "Not offered, and why").
+    qualified?: boolean;
+  },
 ): Promise<string> {
-  const { tourSeen, ...o } = who;
+  const { tourSeen, qualified, ...o } = who;
   const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
   try {
     const { rows } = await pool.query<{ db: string }>("select current_database() as db");
@@ -277,9 +284,11 @@ export async function addSteward(
         .onConflictDoNothing()
         .returning({ id: workers.id });
       if (added) {
-        await tx
-          .insert(credentials)
-          .values({ firmId, workerId: added.id, type: "STEWARD_L2", status: "valid" });
+        if (qualified !== false) {
+          await tx
+            .insert(credentials)
+            .values({ firmId, workerId: added.id, type: "STEWARD_L2", status: "valid" });
+        }
         return added.id;
       }
       const [found] = await tx

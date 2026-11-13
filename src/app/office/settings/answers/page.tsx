@@ -32,8 +32,11 @@ import { timeOnDay } from "@/lib/portal/format";
 import { preview } from "../../enquiries/enquiry-row";
 import { AnswerSwitch, ChannelSwitch } from "./answer-switches";
 import { AnswerWords } from "./answer-words";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Automatic answers" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("answers", { title: "Automatic answers" });
+}
 
 // Settings → Automatic answers (Phase 35.3; docs/screens.md "## Phase 35", "The office's page";
 // the approved mock-up). Admins only (others: not found; checked here, in the loader and again in

@@ -101,6 +101,15 @@ describe("who can be offered it, how, and who can't and why", () => {
       ["Ivy Booker", "cap"],
     ]);
     expect(page.notOffered.find((n) => n.why === "licence")?.workerId).toBe(hal);
+    // The card, by the firm's own name (Phase 37.3): Hal holds no SIA licence at all.
+    expect(page.notOffered.find((n) => n.workerId === hal)?.licence).toEqual({
+      names: ["SIA door supervisor licence"],
+      state: "missing",
+      date: null,
+      year: 2026,
+    });
+    // Only "licence" carries the card.
+    expect(page.notOffered.filter((n) => n.licence).map((n) => n.workerId)).toEqual([hal]);
     expect(page.notOfferedMore).toBe(0);
     // Every casual with the role is in one list or the other, once.
     const listed = [
@@ -110,6 +119,80 @@ describe("who can be offered it, how, and who can't and why", () => {
     expect(new Set(listed).size).toBe(listed.length);
     expect(listed).toHaveLength(9);
     expect(listed).not.toContain(stranger);
+  });
+
+  // "Not offered, and why" names the card (Phase 37.3, w1-03): the first card the rules found, its
+  // state and date, by this firm's own name for it. Another firm's name for the same code never
+  // shows (credential_types is read inside withFirm).
+  it("a licence or card: the session's extra card, a licence out of date, and the firm's names", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const other = await bookingFirm(su, withFirm);
+    await su.query(
+      `update credential_types set name = 'Other firm door badge' where firm_id = $1 and code = 'SIA_DS'`,
+      [other.firmId],
+    );
+    await su.query(
+      `update credential_types set name = 'Other firm lifting card' where firm_id = $1 and code = 'MANUAL_HANDLING'`,
+      [other.firmId],
+    );
+    const resourcer = await f.office("resourcer");
+    const token = (
+      await withFirm(f.firmId, (tx) =>
+        createSession(tx, { kind: "office", subjectId: resourcer, now: NOW }),
+      )
+    ).token;
+    const page = (shiftId: string) =>
+      officeOfferPage(
+        { firm: { id: f.firmId }, run: withFirm, clock: { now: () => NOW } },
+        token,
+        shiftId,
+      );
+    // Lee: a valid licence, but no manual handling certificate, which this session asks for.
+    const lee = await f.worker({ first: "Lee" });
+    // Mo: his licence ran out on 7 Oct, before NOW (Mon 2 Nov 2026).
+    const mo = await f.worker({
+      first: "Mo",
+      credentials: [{ type: "SIA_DS", expiresOn: "2026-10-07" }],
+    });
+    // The other firm's door supervisor without either card: never in this list.
+    const stranger = await other.worker({ first: "Lee", credentials: [] });
+
+    const plain = await page(await f.shift({ startsAt: hoursFromNow(30) }));
+    if (!plain) throw new Error("no page");
+    expect(plain.candidates.map((c) => c.workerId)).toEqual([lee]);
+    expect(plain.notOffered.map((n) => [n.workerId, n.licence])).toEqual([
+      [
+        mo,
+        {
+          names: ["SIA door supervisor licence"],
+          state: "out_of_date",
+          date: "2026-10-07",
+          year: 2026,
+        },
+      ],
+    ]);
+
+    const handling = await f.shift({ startsAt: hoursFromNow(54) });
+    await su.query(`update shifts set required_credentials = '{MANUAL_HANDLING}' where id = $1`, [
+      handling,
+    ]);
+    const extra = await page(handling);
+    if (!extra) throw new Error("no page");
+    expect(extra.candidates).toEqual([]);
+    const byId = Object.fromEntries(extra.notOffered.map((n) => [n.workerId, n.licence]));
+    // Mo's licence is the first card the rules found, so it's the one named.
+    expect(byId).toEqual({
+      [lee]: { names: ["manual handling certificate"], state: "missing", date: null, year: 2026 },
+      [mo]: {
+        names: ["SIA door supervisor licence"],
+        state: "out_of_date",
+        date: "2026-10-07",
+        year: 2026,
+      },
+    });
+    const text = JSON.stringify([plain, extra]);
+    expect(text).not.toContain("Other firm");
+    expect(text).not.toContain(stranger);
   });
 
   // The offer waves (M2 of the 26.9 guardrails review): no place for someone nothing can reach.

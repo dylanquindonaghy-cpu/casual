@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import type { TakeShiftOutcome } from "@/lib/portal/take-shift";
 import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { staffBtn } from "../../ui/classes";
+import { useHydrated } from "../../use-hydrated";
 import { takeShiftAction } from "./actions";
 import { ReviewForm } from "../[id]/review-form";
 import { TakeShiftResult } from "./take-shift-result";
@@ -15,7 +16,8 @@ type Shown = Exclude<TakeShiftOutcome, { status: "logged_out" }>;
 // "Take shift": one tap books it (the server decides), then the answer shows in place of the
 // button. After "just filled" or "not open any more", the list can be refreshed. When the rules
 // say no, the worker can ask the office to review: a link to the shift's page from the list, or the
-// review form right there on the shift's page.
+// review form right there on the shift's page. Its work is a click handler, so it stays disabled
+// until the page is ready (Phase 37.7, useHydrated): before then a tap would do nothing.
 export function TakeShiftButton({
   shiftId,
   onShiftPage = false,
@@ -29,6 +31,8 @@ export function TakeShiftButton({
   // A second tap before the first answer arrives sends nothing (it would only come back "already
   // booked" and hide the confirmation).
   const sending = useRef(false);
+  const ready = useHydrated();
+  const off = !ready || pending;
 
   const take = () => {
     if (sending.current) return;
@@ -62,6 +66,7 @@ export function TakeShiftButton({
         {askInstead && (
           <button
             type="button"
+            disabled={!ready}
             onClick={() => (onShiftPage ? router.refresh() : router.push(`/shifts/${shiftId}`))}
             className={`${staffBtn.primary} mt-3`}
           >
@@ -71,7 +76,7 @@ export function TakeShiftButton({
         {(retry || refresh) && (
           <button
             type="button"
-            disabled={pending}
+            disabled={off}
             onClick={retry ? take : () => router.push("/shifts/open")}
             className={`${retry ? staffBtn.secondary : staffBtn.primary} mt-3`}
           >
@@ -82,7 +87,7 @@ export function TakeShiftButton({
     );
   }
   return (
-    <button type="button" disabled={pending} onClick={take} className={staffBtn.primary}>
+    <button type="button" disabled={off} onClick={take} className={staffBtn.primary}>
       {pending ? "Booking…" : "Take shift"}
     </button>
   );

@@ -1319,7 +1319,8 @@ describe("shared pieces add no words", () => {
     const worker = renderToStaticMarkup(
       createElement(LogoutButton, { kind: "worker", after: "/login?out=1", className: "w" }),
     );
-    expect(worker).toMatch(/^<button type="button" class="w">/);
+    // Disabled in the server's HTML until the page is ready (Phase 37.7: a rule in this phase).
+    expect(worker).toMatch(/^<button type="button" disabled="" class="w">/);
     expect(text(worker)).toBe("Log out");
     const office = renderToStaticMarkup(
       createElement(LogoutButton, {

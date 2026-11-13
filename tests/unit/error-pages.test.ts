@@ -13,10 +13,18 @@ vi.mock("@/app/use-online", () => ({ useOnline: () => true }));
 // Whether React has taken over the page yet (src/app/use-hydrated.ts).
 const page = vi.hoisted(() => ({ hydrated: true }));
 vi.mock("@/app/use-hydrated", () => ({ useHydrated: () => page.hydrated }));
+// The address the page failed on (src/app/error.tsx uses the office's words on /office ones).
+const nav = vi.hoisted(() => ({ path: "/" as string | null }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  usePathname: () => nav.path,
+}));
 
 const { default: ErrorPage } = await import("@/app/error");
 const { ErrorBody, loadPageAgain } = await import("@/app/error-body");
 const { default: GlobalError } = await import("@/app/global-error");
+const { default: OfficeError } = await import("@/app/office/error");
+const { OfficeErrorView } = await import("@/app/office/error-view");
 
 type Props = {
   children?: ReactNode;
@@ -54,6 +62,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   page.hydrated = true;
+  nav.path = "/";
 });
 
 describe("a page fails (src/app/error.tsx)", () => {
@@ -99,6 +108,69 @@ describe("a page fails (src/app/error.tsx)", () => {
     );
     expect(link.type).toBe("a");
     expect(link.props.href).toBe("/");
+  });
+});
+
+// Phase 37.6 (w1-08): an office page that fails keeps the office's frame and words.
+describe("an office page fails (src/app/office/error.tsx, error-view.tsx)", () => {
+  type ViewProps = { retry: unknown; online: unknown; ready: unknown };
+
+  it("inside the office: the office's view, with Next's retry(), never reset()", () => {
+    const retry = vi.fn();
+    const reset = vi.fn();
+    const body = OfficeError({ retry, reset, error: new Error("x") } as Parameters<
+      typeof OfficeError
+    >[0]) as ReactElement<ViewProps>;
+    expect(body.type).toBe(OfficeErrorView);
+    expect(body.props.retry).toBe(retry);
+    expect(body.props.online).toBe(true);
+    expect(body.props.ready).toBe(true);
+  });
+
+  it("the root error page uses the office's view on /office addresses (the frame itself failed)", () => {
+    const retry = vi.fn();
+    for (const path of ["/office", "/office/pay", "/office/shifts/abc"]) {
+      nav.path = path;
+      const body = ErrorPage({ retry }) as ReactElement<ViewProps>;
+      expect(body.type, path).toBe(OfficeErrorView);
+      expect(body.props.retry).toBe(retry);
+    }
+    for (const path of ["/shifts", "/", "/officers", null]) {
+      nav.path = path;
+      expect((ErrorPage({ retry }) as ReactElement).type, String(path)).toBe(ErrorBody);
+    }
+  });
+
+  it("'Try again' calls retry, and waits for the page and the signal; 'Back to the office' is a full load", () => {
+    const retry = vi.fn();
+    const tree = OfficeErrorView({ online: true, ready: true, retry });
+    const button = named(tree, "Try again");
+    expect(button.type).toBe("button");
+    expect(button.props.onClick).toBe(retry);
+    expect(button.props.disabled).toBe(false);
+    const notReady = OfficeErrorView({ online: true, ready: false, retry });
+    expect(named(notReady, "Try again").props.disabled).toBe(true);
+    const offline = OfficeErrorView({ online: false, ready: true, retry });
+    expect(named(offline, "Try again").props.disabled).toBe(true);
+    const back = named(tree, "Back to the office");
+    expect(back.type).toBe("a");
+    expect(back.props.href).toBe("/office");
+  });
+
+  it("its words: no 'contact the office' and no 'Go to my shifts'", () => {
+    for (const online of [true, false]) {
+      const tree = OfficeErrorView({ online, ready: true, retry: vi.fn() });
+      const words = elements(tree)
+        .flatMap((e) => [textOf(e), (e.props as { title?: unknown }).title])
+        .filter((w): w is string => typeof w === "string")
+        .join(" | ");
+      expect(words).toContain(online ? "Something went wrong" : "No signal");
+      expect(words).toContain(
+        online ? "It's not you. Try again in a moment." : "Check your signal and try again.",
+      );
+      expect(words).not.toContain("contact the office");
+      expect(words).not.toContain("Go to my shifts");
+    }
   });
 });
 

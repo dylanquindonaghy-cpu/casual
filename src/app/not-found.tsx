@@ -1,5 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { page, staffBtn } from "./ui/classes";
+
+// Its tab: "Page not found · Acme Events shifts" ("Page not found · ShiftDesk" on the platform's
+// own address; Phase 37.6, w1-09).
+export const metadata: Metadata = { title: "Page not found" };
 
 // A link that goes nowhere: an old or mistyped address, a firm address that doesn't exist, or a
 // page that's been removed. Plain words instead of "404". "Go to my shifts" goes to the Shifts tab

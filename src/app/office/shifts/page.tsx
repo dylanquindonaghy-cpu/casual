@@ -26,8 +26,11 @@ import { parseSheetDate } from "@/lib/roster/sheets/parse";
 import { systemClock } from "@/lib/auth/clock";
 import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "@/lib/time/zoned";
 import { SHIFT_TONE } from "./shift-tones";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Sessions" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("shifts", { title: "Sessions" });
+}
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const hhmm = (d: Date, tz: string) => {

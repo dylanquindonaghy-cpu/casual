@@ -21,8 +21,11 @@ import { pilotRows } from "@/lib/office/pilot-copy";
 import { officePilotReport, parsePilotQuery } from "@/lib/office/pilot-report";
 import { timeOnDay } from "@/lib/portal/format";
 import { FiguresForm, UpdateNowButton } from "./forms";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Pilot metrics" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("pilot", { title: "Pilot metrics" });
+}
 
 // A figure column: right aligned, digits the same width so they line up.
 const num = `${table.td} ${table.num}`;

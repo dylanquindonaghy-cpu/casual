@@ -12,6 +12,9 @@ import { PayQueryForm } from "@/app/pay/query/pay-query-form";
 import { AvailabilityForm } from "@/app/profile/availability-form";
 import { NotificationForm } from "@/app/profile/notification-form";
 import { RequestForm } from "@/app/requests/new/request-form";
+import { LogoutButton } from "@/app/logout-button";
+import { AskButton } from "@/app/shifts/open/ask-button";
+import { TakeShiftButton } from "@/app/shifts/open/take-shift-button";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push() {}, replace() {}, refresh() {} }),
@@ -32,6 +35,17 @@ vi.mock("next/navigation", () => ({
 // file and line, for such an <input>, <select> or <textarea> that has no `disabled`, or whose
 // `disabled` doesn't depend on the useHydrated() flag (`disabled={locked}` alone still loses typing
 // when nothing is locked), and for a file with such fields that never calls useHydrated().
+//
+// Buttons too (Phase 37.7, w1-10): a <button> whose only work is a click handler (`onClick`) does
+// nothing when tapped before React takes over the page: no request, no message, no form to fall
+// back on. So in the casual app (every "use client" file under src/app but office/, client/ and
+// start/, which are parked: docs/plan/parking-lot.md) such a button's `disabled` must depend on
+// the useHydrated() flag ("Take shift", "I can do this", "Log out", cancel...). A file's buttons
+// that only appear once the page is ready (in a sheet, after an answer, in the tour, or after an
+// effect) are counted in SHOWN_AFTER_READY, with why; the count must match, so a new button that
+// doesn't wait fails, and so does a stale allowance. Like the field rule, it reads only files with
+// the "use client" directive: a component file without it (push-setting-view.tsx, whose parent
+// draws nothing until an effect runs; error-body.tsx, given `ready` as a prop) isn't read.
 
 const APP = join(process.cwd(), "src", "app");
 const FIELDS = new Set(["input", "select", "textarea"]);
@@ -184,6 +198,67 @@ function hydrationProblems(file: string, text: string): string[] {
   return problems;
 }
 
+// Every <button> with an onClick in a client component whose disabled doesn't wait for the page,
+// as "file:line <button> why". Not a client component: [].
+function buttonProblems(file: string, text: string): string[] {
+  const source = parse(file, text);
+  if (!isClient(source)) return [];
+  const ready = readyNames(source);
+  const dependsOnReady = (expr: ts.Expression) => {
+    let found = false;
+    forEachNode(expr, (n) => {
+      if (isHydratedCall(n) || (ts.isIdentifier(n) && ready.has(n.text))) found = true;
+    });
+    return found;
+  };
+  const problems: string[] = [];
+  const fix = "add disabled={!ready || pending} with const ready = useHydrated()";
+  forEachNode(source, (n) => {
+    if (!ts.isJsxOpeningElement(n) && !ts.isJsxSelfClosingElement(n)) return;
+    if (!ts.isIdentifier(n.tagName) || n.tagName.text !== "button") return;
+    const where = `${file}:${source.getLineAndCharacterOfPosition(n.getStart(source)).line + 1} <button>`;
+    const props = n.attributes.properties;
+    if (props.some(ts.isJsxSpreadAttribute)) {
+      problems.push(
+        `${where} spreads props ({...x}), so this check can't see its onClick or disabled`,
+      );
+      return;
+    }
+    const attr = (name: string) =>
+      props.find((p): p is ts.JsxAttribute => ts.isJsxAttribute(p) && attrName(p) === name);
+    if (!attr("onClick")) return; // a form's submit button works without the page's scripts
+    const disabled = attr("disabled");
+    if (!disabled) {
+      problems.push(`${where} runs only from onClick but has no disabled: ${fix}`);
+      return;
+    }
+    const init = disabled.initializer;
+    if (!init) return; // always disabled
+    const expr = ts.isJsxExpression(init) ? init.expression : undefined;
+    if (!expr || !dependsOnReady(expr)) {
+      problems.push(
+        `${where} runs only from onClick but its ${disabled.getText(source)} doesn't wait for the page: ${fix}`,
+      );
+    }
+  });
+  return problems;
+}
+
+// The casual app's buttons that only appear once the page is ready, per file (under src/app).
+const SHOWN_AFTER_READY: Record<string, { count: number; why: string }> = {
+  "confirm-email/confirm-email.tsx": { count: 1, why: "drawn only after an effect reads the link" },
+  "home-screen-hint.tsx": { count: 1, why: "null until an effect has run" },
+  "l/link-login.tsx": { count: 1, why: "drawn only after an effect reads the link" },
+  "offered-to-you.tsx": { count: 1, why: "in its sheet, opened by a tap" },
+  "profile/travel/travel-form.tsx": { count: 1, why: "in its sheet, opened by a tap" },
+  "requests/requests-list.tsx": { count: 1, why: "in its sheet, opened by a tap" },
+  "shifts/[id]/review-form.tsx": { count: 1, why: "after an answer" },
+  "shifts/cancel-shift.tsx": { count: 5, why: "in its sheet, opened by a tap" },
+  "tour/tour.tsx": { count: 3, why: "in the tour, opened from state" },
+  "tour/welcome.tsx": { count: 4, why: "in the tour's welcome, opened from state" },
+};
+const OUT_OF_SCOPE = ["src/app/office/", "src/app/client/", "src/app/start/"];
+
 const rel = (path: string) => relative(process.cwd(), path).replace(/\\/g, "/");
 const clientFiles = tsxFiles(APP)
   .map((path) => ({ file: rel(path), text: readFileSync(path, "utf8") }))
@@ -276,6 +351,109 @@ describe("fields React controls wait for the page before taking input", () => {
     expect(
       hydrationProblems("f.tsx", `export function F() { return <input value={v} />; }`),
     ).toEqual([]);
+  });
+});
+
+describe("buttons that act on a tap wait for the page (Phase 37.7)", () => {
+  const casual = clientFiles.filter(({ file }) => !OUT_OF_SCOPE.some((d) => file.startsWith(d)));
+  const key = (file: string) => file.replace(/^src\/app\//, "");
+
+  it("finds the casual app's tap buttons (a broken scan fails)", () => {
+    const withButtons = casual
+      .filter(({ text }) => /<button\b[^>]*onClick/s.test(text))
+      .map(({ file }) => key(file));
+    expect(withButtons).toEqual(
+      expect.arrayContaining([
+        "shifts/open/take-shift-button.tsx",
+        "shifts/open/ask-button.tsx",
+        "shifts/cancel-shift.tsx",
+        "offered-to-you.tsx",
+        "logout-button.tsx",
+      ]),
+    );
+    // Every allowance is for a file the scan reads.
+    for (const file of Object.keys(SHOWN_AFTER_READY)) {
+      expect(casual.map(({ file: f }) => key(f))).toContain(file);
+    }
+  });
+
+  it.each(casual.map((f) => f.file))(
+    "%s keeps its onClick buttons disabled until ready",
+    (file) => {
+      const text = casual.find((f) => f.file === file)?.text ?? "";
+      const problems = buttonProblems(file, text);
+      const allowed = SHOWN_AFTER_READY[key(file)]?.count ?? 0;
+      if (allowed === 0) expect(problems).toEqual([]);
+      else expect(problems, problems.join("\n")).toHaveLength(allowed);
+    },
+  );
+
+  it("would catch a tap button that doesn't wait, and pass one that does", () => {
+    const client = (body: string) =>
+      `"use client";\nimport { useHydrated } from "@/app/use-hydrated";\n${body}`;
+    expect(
+      buttonProblems(
+        "a.tsx",
+        client(
+          `export function A() { return <button type="button" onClick={take}>Take shift</button>; }`,
+        ),
+      ),
+    ).toEqual([
+      expect.stringMatching(/^a\.tsx:3 <button> runs only from onClick but has no disabled/),
+    ]);
+    expect(
+      buttonProblems(
+        "b.tsx",
+        client(`export function B() { const [pending] = useTransition();
+          return <button type="button" disabled={pending} onClick={take}>Take shift</button>; }`),
+      ),
+    ).toEqual([expect.stringMatching(/disabled=\{pending\} doesn't wait for the page/)]);
+    expect(
+      buttonProblems(
+        "c.tsx",
+        client(`export function C(p: object) { return <button {...p} onClick={go} />; }`),
+      ),
+    ).toEqual([expect.stringMatching(/spreads props/)]);
+    expect(
+      buttonProblems(
+        "d.tsx",
+        client(`export function D() { const ready = useHydrated(); const off = !ready || pending;
+          return <><button type="button" disabled={!ready || pending} onClick={a}>A</button>
+            <button type="button" disabled={off} onClick={b}>B</button>
+            <button type="submit">Send</button><button type="button" disabled onClick={c} /></>; }`),
+      ),
+    ).toEqual([]);
+    expect(
+      buttonProblems("e.tsx", `export function E() { return <button onClick={go}>Go</button>; }`),
+    ).toEqual([]);
+    expect(OUT_OF_SCOPE).toContain("src/app/office/");
+  });
+
+  it("an allowance above or below what the file has fails", () => {
+    const text = `"use client";\nexport function F() { return <button onClick={go}>Go</button>; }`;
+    const problems = buttonProblems("f.tsx", text);
+    expect(problems).toHaveLength(1);
+    expect(problems).not.toHaveLength(2); // an allowance of 2 would fail
+    expect(problems).not.toHaveLength(0); // and so would none
+  });
+});
+
+// The buttons a casual taps, in the HTML the server sends: disabled until the page is ready.
+describe("in the server's HTML, the buttons a casual taps are disabled", () => {
+  it.each([
+    ["Take shift", createElement(TakeShiftButton, { shiftId: "s1" })],
+    ["Take shift", createElement(TakeShiftButton, { shiftId: "s1", onShiftPage: true })],
+    ["I can do this", createElement(AskButton, { shiftId: "s1" })],
+    [
+      "Log out",
+      createElement(LogoutButton, { kind: "worker", after: "/login?out=1", className: "w" }),
+    ],
+  ] as [string, ReactElement][])("%s", (words, element) => {
+    const html = renderToStaticMarkup(element);
+    const buttons = html.match(/<button\b[^>]*>/g) ?? [];
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toContain('disabled=""');
+    expect(html).toContain(`>${words}</button>`);
   });
 });
 

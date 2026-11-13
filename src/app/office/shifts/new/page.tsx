@@ -9,8 +9,11 @@ import { readSessionToken } from "@/lib/auth/session-cookie";
 import { officeShiftForm } from "@/lib/office/shift-pages";
 import { localDateOf } from "@/lib/time/zoned";
 import { ShiftCreateForm } from "../shift-create-form";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "New session" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("shifts", { title: "New session" });
+}
 
 // "New shift" (docs/screens.md `/office/shifts`). Admins and resourcers.
 export default async function Page() {

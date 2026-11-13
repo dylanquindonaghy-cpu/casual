@@ -4,7 +4,7 @@ import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 import { LinkLogin } from "./link-login";
 
 // Never tell another site which page this was.
-export const metadata: Metadata = { referrer: "no-referrer" };
+export const metadata: Metadata = { referrer: "no-referrer", title: "Your login link" };
 
 // The login link's page: the same layout as /login (the brand bar's 448px column, a card framed
 // from 640px up).

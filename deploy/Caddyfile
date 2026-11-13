@@ -7,10 +7,23 @@
 #   (src/app/api/caddy/ask/route.ts). So nobody can make us fetch certificates for other names.
 # Every request goes to the web app with its real Host (the app finds the firm from it) and
 # X-Real-IP set from the connection, replacing any the client sent (the app's only source of the
-# client's IP, for rate limits: src/lib/request.ts). Every answer says HSTS: a browser that has been
-# here once uses https for the next year, even when the address is typed without it. Checked by Caddy
-# itself (tests/integration/deploy.caddy.test.ts: validated, then read as Caddy's own JSON); not run
-# for real yet: that's with the deploy (PLAN.md, Phase 8).
+# client's IP, for rate limits: src/lib/request.ts). Every answer (Phase 37.7, w1-11; set as the
+# answer leaves, so they replace the app's own rather than sit beside them) says:
+# - HSTS: a browser that has been here once uses https for the next year, even typed without it;
+# - frame-ancestors 'self': only our own pages may frame the app (the staffing demo's phone frame,
+#   /start/phone, frames / on the same address); no other site can. Only when the app sent no
+#   policy of its own (/files/[id] sends its sandboxed one). Never DENY: the phone frame needs it;
+# - nosniff: browsers take each file as the type it says it is;
+# - Referrer-Policy: other sites are told only our address, never the page;
+# - Permissions-Policy: no microphone, no location, the camera only for our own pages;
+# - no X-Powered-By (next.config.ts stops sending it too).
+# Answers are compressed (zstd or gzip), except the street map's file (/maps/*: range requests); the
+# map's letter shapes (/map-glyphs/*, sent as application/octet-stream) too. Browsers may keep the
+# letter shapes a week and the tour's posters and video a day, on good answers only (2xx and 304),
+# so the demo's password answer and a missing file are never kept.
+# Checked by Caddy itself (tests/integration/deploy.caddy.test.ts: validated, then read as Caddy's
+# own JSON). A new Caddyfile goes live only when Caddy's container is recreated (docs/runbooks.md
+# "A new Caddyfile").
 {
 	email {$ACME_EMAIL}
 	on_demand_tls {
@@ -19,7 +32,40 @@
 }
 
 (app) {
-	header Strict-Transport-Security "max-age=31536000"
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(self), microphone=(), geolocation=()"
+		-X-Powered-By
+		defer
+	}
+	header ?Content-Security-Policy "frame-ancestors 'self'"
+	@compressible not path /maps/* /map-glyphs/*
+	encode @compressible zstd gzip
+	@glyphs path /map-glyphs/*
+	encode @glyphs {
+		zstd
+		gzip
+		match {
+			header Content-Type application/octet-stream
+		}
+	}
+	header @glyphs {
+		Cache-Control "public, max-age=604800"
+		defer
+		match {
+			status 2xx 304
+		}
+	}
+	@tour path /tour/*
+	header @tour {
+		Cache-Control "public, max-age=86400"
+		defer
+		match {
+			status 2xx 304
+		}
+	}
 	# The street map's file (MAP_TILES_URL=/maps/uk.pmtiles; docs/runbooks.md "The street map"):
 	# straight from the server's maps folder, never the web app. A map reads only the parts of the
 	# file it shows (range requests, which Caddy answers itself), and the file changes rarely.

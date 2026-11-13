@@ -92,6 +92,13 @@ test("on a laptop: log in, choose the office, then the casual's phone view", asy
   await page.goto(`${acme}/start`);
   await page.getByRole("button", { name: /Casual mobile view/ }).click();
   await expect(page).toHaveURL(`${acme}/start/phone`);
+  // Phase 37.7: the production answer doesn't announce Next (poweredByHeader: false). The button
+  // moves inside the app (no page load of its own), so the page is loaded once more to read its
+  // answer; the frame below still loads (Caddy's frame-ancestors 'self' is checked in
+  // tests/integration/deploy.caddy.test.ts).
+  const phoneAnswer = await page.reload();
+  expect(phoneAnswer?.status()).toBe(200);
+  expect(phoneAnswer?.headers()["x-powered-by"]).toBeUndefined();
   await expect(page.getByRole("heading", { name: "Casual mobile view", level: 1 })).toBeVisible();
   const frame = page.frameLocator('iframe[title="The casual app"]');
   // Phase 32 (32.2): the page is "Home"; her name is in the top bar.

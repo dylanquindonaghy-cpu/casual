@@ -2599,3 +2599,10 @@ Each task adds what it left out here as its wave is merged.
   `src/lib/office/casuals-ask.ts` lock the event first. Postgres breaks a deadlock and accept
   retries, but the other side can get a 40P01 (a planner request it has to resend). Take the event's
   share lock before the session's, or retry those paths too.
+
+## Phase 37 (Wave 1), deferred by decision (2026-11-13)
+
+- **"New: not worked yet" on the casuals list** (audit a8-people-07, the mock-up's decision 3,
+  Dylan: wait). "Not worked lately" counts casuals who have never worked, so the demo shows most
+  casuals as lapsed. Split them into their own count and tab ("New: not worked yet"), as the
+  casual's own page already does.

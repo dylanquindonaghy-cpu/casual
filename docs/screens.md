@@ -4435,7 +4435,8 @@ and office side). Words: `src/lib/client/page-copy.ts` (the client's), `src/lib/
   else", "Your note: "…"", "Sent by a colleague on your contract." (another contact's), "Reason
   from {firm}: "…"" (declined), "{firm}: "…"" (a word with an acceptance), "Open the event". A question:
   an amber slip "{firm} asks" with the question, **Your answer** and **Send my answer**; sent: "Sent"
-  / "Sent. {firm} will look at your request again."; "Type your answer first." with none.
+  / "Sent. {firm} will look at your request again.", kept on that request after the page
+  refreshes (the address carries `?answered={request}`); "Type your answer first." with none.
 - **Client requests** (`/office/client-requests`, title "Client requests"; admins and resourcers;
   in the menu after Enquiries with its count of those waiting; the top bar's "Client requests {n}"
   while any wait; Needs attention's "Client requests" part: "{n} waiting for you ({u} urgent) · {p}

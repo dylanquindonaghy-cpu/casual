@@ -8,6 +8,7 @@ import { NO_REQUESTS, replyProblemText, REQUESTS_TITLE } from "@/lib/client/page
 import { clientRequestList } from "@/lib/client/reads";
 import { replySentWords } from "@/lib/client/words";
 import { RequestLine } from "../../client-parts";
+import { Slip } from "@/app/ui/slip";
 import { ReplyForm } from "./reply-form";
 
 export const metadata: Metadata = { title: "Your requests" };
@@ -25,8 +26,16 @@ const PROBLEMS = {
   error: replyProblemText("error"),
 };
 
-export default async function ClientRequestsPage() {
+export default async function ClientRequestsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ answered?: string }>;
+}) {
   const s = await requireClient();
+  // The request just answered (the reply box adds it to the address): its "Sent" stays once the
+  // page has refreshed and the reply box has gone (golden rule 11). Matched against this client's
+  // own requests only.
+  const { answered } = await searchParams;
   const requests = await clientRequestList({ firm: s.firm, clientContactId: s.contact.id });
   if (!requests) notFound();
   const now = new Date();
@@ -57,6 +66,11 @@ export default async function ClientRequestsPage() {
               now={now}
               timeZone={s.firm.timezone}
             >
+              {answered === r.id && r.status !== "asked" && (
+                <Slip tone="done" role="status" title="Sent">
+                  <p>{replySentWords(s.firm.name)}</p>
+                </Slip>
+              )}
               {r.status === "asked" && r.officeAnswer && (
                 <ReplyForm
                   requestId={r.id}

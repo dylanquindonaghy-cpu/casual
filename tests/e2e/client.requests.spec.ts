@@ -284,6 +284,8 @@ test("a client logs in, asks for places and gets answers; the office accepts, de
     ).toBeVisible();
     // The confirmation stays after the page refreshes under it (it did once vanish: answered, the
     // request has no question any more, so the reply box, and its "Sent", went from the page).
+    // The address names the request answered first (that's what keeps it), then a reload.
+    await expect(client).toHaveURL(/\/client\/requests\?answered=[0-9a-f-]{36}$/);
     await client.reload();
     await expect(
       client

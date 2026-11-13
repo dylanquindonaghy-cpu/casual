@@ -12,6 +12,8 @@ import { ENQUIRY_REPLY_QUEUE, runEnquiryReply } from "@/lib/notices/enquiry-repl
 import { loadEnquiries, loadEnquiry, needPersonCount, officeEnquiry } from "@/lib/office/enquiries";
 import { closeEnquiry, replyToEnquiry } from "@/lib/office/enquiry-actions";
 import { WHATSAPP_WINDOW_MS } from "@/lib/office/enquiry-rules";
+import { loadUpdatesPage } from "@/lib/office/updates";
+import { DEFAULT_VIEW } from "@/lib/office/updates-view";
 import { canWithdrawRequest, myRequests, withdrawRequest } from "@/lib/portal/requests";
 import { captureTransport } from "../helpers/auth";
 import { bookingFirm } from "../helpers/booking-fixture";
@@ -685,6 +687,42 @@ describe("a message the shifts line never sorted", () => {
     expect((await row(id))?.handled_at).toBeNull();
   });
 
+  it("Updates lists it for a person from 10 minutes, named as the casual; another firm's never", async () => {
+    const t = await enquiryFirm();
+    const other = await enquiryFirm();
+    const id = await t.incoming("Can someone ring me about Saturday?", { answer: false });
+    const theirs = await other.incoming("hello", { answer: false, from: t.mobile });
+    await su.query(
+      "update messages set created_at = date_trunc('milliseconds', created_at) where id = any($1)",
+      [[id, theirs]],
+    );
+    const c = (await t.createdAt(id)).getTime();
+    const view = { ...DEFAULT_VIEW, period: "7" as const };
+    const enquiriesIn = async (firm: typeof t, now: Date) =>
+      (
+        await withFirm(firm.f.firmId, (tx) => loadUpdatesPage(tx, now, firm.resourcer, view))
+      ).everything.filter((u) => u.kind === "enquiry");
+
+    // 9 minutes 59 seconds: not yet.
+    expect(
+      (await enquiriesIn(t, new Date(c + 10 * MIN - 1000))).map((u) => u.messageId),
+    ).not.toContain(id);
+    // 10 minutes: for a person, named as Zoe (the casual whose number it came from).
+    const late = new Date(Math.max(c, (await other.createdAt(theirs)).getTime()) + 10 * MIN);
+    const mine = await enquiriesIn(t, late);
+    expect(mine.filter((u) => u.messageId === id)).toMatchObject([
+      { kind: "enquiry", who: "Zoe Booker", channel: "whatsapp" },
+    ]);
+    // Another firm's unsorted message, from the same number, never shows here; in its own firm it
+    // reads as an unknown number, never this firm's Zoe.
+    expect(mine.map((u) => u.messageId)).not.toContain(theirs);
+    const theirList = await enquiriesIn(other, late);
+    expect(theirList.filter((u) => u.messageId === theirs)).toMatchObject([
+      { who: "Unknown number" },
+    ]);
+    expect(theirList.map((u) => u.messageId)).not.toContain(id);
+  });
+
   it("answering it marks it for a person, so the shifts line never answers it too", async () => {
     const t = await enquiryFirm();
     const id = await t.incoming("Is there parking at the venue?", { answer: false });
@@ -815,7 +853,18 @@ describe("a message the shifts line never sorted", () => {
     // never this firm's Zoe.
     expect(await withFirm(other.f.firmId, (tx) => needPersonCount(tx, now))).toBe(1);
     const row_ = (await other.load("all", now)).rows.find((r) => r.messageId === theirs);
-    expect(row_?.who).not.toMatchObject({ workerId: t.zoe });
+    expect(row_).toBeDefined();
+    expect(row_?.who).toEqual({ kind: "unknown", from: t.mobile });
+
+    // The other firm's own casual with the same number (numbers are one per number in a firm,
+    // not across firms): its list names her, never this firm's Zoe.
+    await su.query("update workers set mobile_e164 = $2 where id = $1", [other.zoe, t.mobile]);
+    const named = (await other.load("all", now)).rows.find((r) => r.messageId === theirs);
+    expect(named?.who).toMatchObject({ kind: "casual", workerId: other.zoe });
+    expect(named?.who).not.toMatchObject({ workerId: t.zoe });
+    expect((await other.detail(theirs, now))?.who).toMatchObject({ workerId: other.zoe });
+    // And this firm still sees none of it.
+    expect((await t.load("all", now)).rows.map((r) => r.messageId)).not.toContain(theirs);
   });
 });
 

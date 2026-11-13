@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { CANCELLED_ASSIGNMENT_STATUSES, firms, shifts } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
@@ -146,6 +146,41 @@ export async function loadAllocationGate(
   });
 }
 
+// The week's confirmed and completed hours on shifts that aren't cancelled, for this worker and
+// every active worker with the role (and, with `notOn`, not already on that shift; workers with
+// none count as 0). The hours are added up once, in a materialized CTE, then looked up for each
+// worker: as a plain subquery joined to the workers, a planner that expects one row (tables not
+// yet analysed: a database just made or seeded, or rows just imported) nests it inside the loop
+// over the workers and adds the week up again for every one of them (120 stewards: 7.6 seconds
+// instead of 1 ms on the e2e seed, which held the dashboard's pick of a session for that long).
+export function weekHoursQuery(q: {
+  role: string;
+  week: { from: number; to: number };
+  workerId: string;
+  notOn?: string;
+}): SQL {
+  const notOn = q.notOn
+    ? sql`and not exists (select 1 from assignments held
+                           where held.firm_id = w.firm_id and held.shift_id = ${q.notOn}
+                             and held.worker_id = w.id and held.status not in (${CANCELLED}))`
+    : sql``;
+  return sql`
+    with booked as materialized (
+      select a.worker_id, sum(extract(epoch from (s2.ends_at - s2.starts_at)) / 3600) as hours
+        from assignments a
+        join shifts s2 on s2.firm_id = a.firm_id and s2.id = a.shift_id
+       where a.status in (${BOOKED}) and s2.status <> 'cancelled'
+         and s2.starts_at >= ${new Date(q.week.from)} and s2.starts_at < ${new Date(q.week.to)}
+       group by a.worker_id
+    )
+    select w.id::text as worker_id, coalesce(booked.hours, 0) as hours
+      from workers w
+      left join booked on booked.worker_id = w.id
+     where w.id = ${q.workerId}
+        or (w.status = 'active' and ${q.role} = any (w.roles) ${notOn})
+  `;
+}
+
 // Confirmed and completed hours, in the week, on shifts that aren't cancelled: for this worker,
 // and for every active worker with the role who isn't already on the shift (workers with none
 // count as 0).
@@ -153,23 +188,9 @@ export async function weeklyHours(
   tx: FirmTx,
   q: { shiftId: string; role: string; week: { from: number; to: number }; workerId: string },
 ): Promise<Map<string, number>> {
-  const { rows } = await tx.execute<{ worker_id: string; hours: string | number }>(sql`
-    select w.id as worker_id, coalesce(booked.hours, 0) as hours
-      from workers w
-      left join (
-        select a.worker_id, sum(extract(epoch from (s2.ends_at - s2.starts_at)) / 3600) as hours
-          from assignments a
-          join shifts s2 on s2.firm_id = a.firm_id and s2.id = a.shift_id
-         where a.status in (${BOOKED}) and s2.status <> 'cancelled'
-           and s2.starts_at >= ${new Date(q.week.from)} and s2.starts_at < ${new Date(q.week.to)}
-         group by a.worker_id
-      ) booked on booked.worker_id = w.id
-     where w.id = ${q.workerId}
-        or (w.status = 'active' and ${q.role} = any (w.roles)
-            and not exists (select 1 from assignments held
-                             where held.firm_id = w.firm_id and held.shift_id = ${q.shiftId}
-                               and held.worker_id = w.id and held.status not in (${CANCELLED})))
-  `);
+  const { rows } = await tx.execute<{ worker_id: string; hours: string | number }>(
+    weekHoursQuery({ ...q, notOn: q.shiftId }),
+  );
   return new Map(rows.map((r) => [r.worker_id, Number(r.hours)]));
 }
 
@@ -269,19 +290,9 @@ export async function loadAllocationGates(
   for (const w of waiting) {
     const key = `${w.role}|${w.week.from}`;
     if (hoursFor.has(key)) continue;
-    const { rows } = await tx.execute<{ worker_id: string; hours: string | number }>(sql`
-      select w.id::text as worker_id, coalesce(booked.hours, 0) as hours
-        from workers w
-        left join (
-          select a.worker_id, sum(extract(epoch from (s2.ends_at - s2.starts_at)) / 3600) as hours
-            from assignments a
-            join shifts s2 on s2.firm_id = a.firm_id and s2.id = a.shift_id
-           where a.status in (${BOOKED}) and s2.status <> 'cancelled'
-             and s2.starts_at >= ${new Date(w.week.from)} and s2.starts_at < ${new Date(w.week.to)}
-           group by a.worker_id
-        ) booked on booked.worker_id = w.id
-       where w.id = ${request.workerId} or (w.status = 'active' and ${w.role} = any (w.roles))
-    `);
+    const { rows } = await tx.execute<{ worker_id: string; hours: string | number }>(
+      weekHoursQuery({ role: w.role, week: w.week, workerId: request.workerId }),
+    );
     hoursFor.set(key, new Map(rows.map((r) => [r.worker_id, Number(r.hours)])));
   }
   for (const w of waiting) {

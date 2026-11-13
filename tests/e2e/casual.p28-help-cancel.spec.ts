@@ -224,7 +224,9 @@ test("Help states the firm's rules and why a shift may not show; the cancel shee
         await expect(sheet.getByRole("note")).toBeVisible();
         await sheet.getByLabel("I'm unwell").check();
         await sheet.evaluate((d) =>
-          Promise.all(d.getAnimations({ subtree: true }).map((a) => a.finished)),
+          Promise.all(
+            d.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => undefined)),
+          ),
         );
         await shoot(page, testInfo, `cancel-sheet-${size.name}-${theme}`, false);
         await sheet.getByRole("button", { name: "Keep my shift" }).click();

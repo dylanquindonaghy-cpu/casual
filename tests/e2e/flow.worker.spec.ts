@@ -85,7 +85,7 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
     await expect(reasons).toHaveCount(4);
     // Measured once the sheet has finished rising.
     await sheet.evaluate((d) =>
-      Promise.all(d.getAnimations({ subtree: true }).map((a) => a.finished)),
+      Promise.all(d.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => undefined))),
     );
     const boxes = [];
     for (const [i, name] of [
@@ -135,7 +135,9 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
     if (phone) await page.setViewportSize(phone);
     const pull = async (by: number) => {
       // Where the handle is once the sheet has stopped moving (it springs back after a short pull).
-      await sheet.evaluate((d) => Promise.all(d.getAnimations().map((a) => a.finished)));
+      await sheet.evaluate((d) =>
+        Promise.all(d.getAnimations().map((a) => a.finished.catch(() => undefined))),
+      );
       const box = await handle.boundingBox();
       if (!box) throw new Error("no handle");
       const x = box.x + box.width / 2;

@@ -108,6 +108,7 @@ test("Open shifts and the urgent board: grouped lists, 48px day tiles, tags, 28.
   const noor = await logIn(browser, P28_8_EMPTY_CASUAL, P28_8_EMPTY_TYPED);
 
   const context = await phone(browser, ola);
+  let paidHref = "";
   try {
     const page = await context.newPage();
     await page.goto(`${acme}/shifts/open`);
@@ -178,6 +179,7 @@ test("Open shifts and the urgent board: grouped lists, 48px day tiles, tags, 28.
     await expect(places).toHaveClass(/(^| )glass-button( |$)/);
     await expect(places).toHaveClass(/(^| )rounded-full( |$)/);
     await expect(paid).toContainText("£13.00/hour");
+    paidHref = (await shiftLinks(paid).first().getAttribute("href")) ?? "";
     await expect(more.getByRole("listitem").filter({ hasText: scene.unpaidSite })).toContainText(
       "Pay not given yet",
     );
@@ -238,6 +240,31 @@ test("Open shifts and the urgent board: grouped lists, 48px day tiles, tags, 28.
     await noSidewaysScroll(page);
   } finally {
     await context.close();
+  }
+
+  // Phase 37.7 (w1-10): "Take shift" waits for the page. Without the page's scripts (as on a slow
+  // signal, before they arrive) it's disabled, so a tap can't do nothing; with them it's on. It
+  // lives only on the shift's own page: the list's tiles open that page (docs/screens.md).
+  expect(paidHref).toMatch(/^\/shifts\/[0-9a-f-]{36}$/);
+  const plain = await browser.newContext({
+    storageState: ola,
+    javaScriptEnabled: false,
+    extraHTTPHeaders: { "x-real-ip": IP },
+  });
+  try {
+    const page = await plain.newPage();
+    await page.goto(`${acme}${paidHref}`);
+    await expect(page.getByRole("button", { name: "Take shift" }).first()).toBeDisabled();
+  } finally {
+    await plain.close();
+  }
+  const live = await phone(browser, ola);
+  try {
+    const page = await live.newPage();
+    await page.goto(`${acme}${paidHref}`);
+    await expect(page.getByRole("button", { name: "Take shift" }).first()).toBeEnabled();
+  } finally {
+    await live.close();
   }
 
   // A casual with nothing open: both pages' empty states are the one empty box.

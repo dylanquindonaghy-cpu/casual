@@ -6,6 +6,7 @@ import { useRef, useState, useTransition } from "react";
 import type { AskShiftOutcome } from "@/lib/portal/ask-shift";
 import { LOGIN_AGAIN } from "@/lib/auth/login-again";
 import { staffBtn } from "../../ui/classes";
+import { useHydrated } from "../../use-hydrated";
 import { askShiftAction } from "./actions";
 import { AskResult } from "./ask-result";
 
@@ -19,6 +20,8 @@ export function AskButton({ shiftId }: { shiftId: string }) {
   const [outcome, setOutcome] = useState<Shown | null>(null);
   const [pending, startTransition] = useTransition();
   const sending = useRef(false);
+  // Its work is a click handler: disabled until the page is ready (Phase 37.7).
+  const ready = useHydrated();
 
   const ask = () => {
     if (sending.current) return;
@@ -39,7 +42,7 @@ export function AskButton({ shiftId }: { shiftId: string }) {
         {outcome.status === "error" && (
           <button
             type="button"
-            disabled={pending}
+            disabled={!ready || pending}
             onClick={ask}
             className={`${staffBtn.secondary} mt-3`}
           >
@@ -55,7 +58,7 @@ export function AskButton({ shiftId }: { shiftId: string }) {
     );
   }
   return (
-    <button type="button" disabled={pending} onClick={ask} className={staffBtn.primary}>
+    <button type="button" disabled={!ready || pending} onClick={ask} className={staffBtn.primary}>
       {pending ? "Asking…" : "I can do this"}
     </button>
   );

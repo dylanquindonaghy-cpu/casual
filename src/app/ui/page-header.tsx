@@ -23,6 +23,7 @@ export function PageHeader({
   children,
   actions,
   beside = false,
+  stamp = true,
 }: {
   back?: { href: string; label: string };
   title: ReactNode;
@@ -33,6 +34,9 @@ export function PageHeader({
   // Phase 32 (32.2): the casual app's Home puts its actions beside the headline from 1024px, as
   // the office's dashboard does, and only there (on a phone they're the tab bar's own pages).
   beside?: boolean;
+  // Phase 37.6: false leaves out the empty place for "Updated hh:mm" (a page that isn't live data,
+  // like the office's not-found and error pages, says no time).
+  stamp?: boolean;
 }) {
   return (
     <header className="mb-6">
@@ -75,9 +79,9 @@ export function PageHeader({
             >
               {updated}
             </small>
-          ) : (
+          ) : stamp ? (
             <small data-updated-slot="" className="text-xs text-ink-faint tabular-nums" />
-          )}
+          ) : null}
           {/* The lines on a line of their own under the headline in the office (the whole row's
               width, so they never sit beside a short headline), at a reading width inside it. */}
           {children ? (

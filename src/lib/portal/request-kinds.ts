@@ -80,6 +80,14 @@ export function statusWord(type: string, status: string): string {
   return STATUS_WORDS[status] ?? status;
 }
 
+// An answer where the office's yes changes nothing yet (Wave 1, w1-05): an approved time change or
+// swap. Approving only stores the answer; the office makes the change on the shift's page (it
+// mirrors approveHint in src/lib/office/requests-copy.ts). Its message is `request_change_agreed`,
+// not `request_update` (src/lib/notices/request-update.ts). statusWord is unchanged.
+export function agreedNotApplied(type: string, status: string): boolean {
+  return status === "approved" && (type === "time_change" || type === "swap");
+}
+
 export type CreateRequestOutcome =
   | {
       status: "created";

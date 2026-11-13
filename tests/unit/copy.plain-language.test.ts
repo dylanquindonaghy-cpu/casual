@@ -54,6 +54,8 @@ const { default: NotFound } = await import("@/app/not-found");
 const { default: ErrorPage } = await import("@/app/error");
 const { ErrorBody } = await import("@/app/error-body");
 const { default: GlobalError } = await import("@/app/global-error");
+const { default: OfficeNotFound } = await import("@/app/office/not-found");
+const { OfficeErrorView } = await import("@/app/office/error-view");
 const { tryAgainText } = await import("@/lib/portal/copy");
 const { PushSetting } = await import("@/app/profile/push-setting");
 const { PushSettingView } = await import("@/app/profile/push-setting-view");
@@ -902,6 +904,16 @@ const SCREENS: [string, ReactElement][] = [
     createElement(ErrorBody, { online: false, ready: true, retry: () => undefined }),
   ],
   ["The whole page failed", createElement(GlobalError)],
+  // Phase 37.6: the office's not-found and error pages.
+  ["Office page not found", createElement(OfficeNotFound)],
+  [
+    "An office page failed",
+    createElement(OfficeErrorView, { online: true, ready: true, retry: () => undefined }),
+  ],
+  [
+    "An office page failed with no signal",
+    createElement(OfficeErrorView, { online: false, ready: true, retry: () => undefined }),
+  ],
   ["Help", createElement(HelpView, { firmName: "Acme Events", facts: HELP_FACTS, year: 2026 })],
   [
     "Help, strikes off",

@@ -22,6 +22,8 @@ import {
   payQueryUpdatePush,
   officeReplyPush,
   reminderPush,
+  requestChangeAgreedMessage,
+  requestChangeAgreedPush,
   requestUpdateMessage,
   requestUpdatePush,
   bookedPush,
@@ -138,6 +140,7 @@ describe("the doc's templates table", () => {
       "shift_cancelled_by_firm",
       "shift_not_booked",
       "request_update",
+      "request_change_agreed",
       "credential_expiring",
       "credential_expired",
       "pay_query_update",
@@ -163,6 +166,7 @@ describe("the doc's templates table", () => {
     "shift_confirmed",
     "shift_not_booked",
     "request_update",
+    "request_change_agreed",
     "pay_query_update",
     "voicemail_received",
     "unknown_number",
@@ -261,6 +265,17 @@ describe("the code says what the doc says", () => {
     expect(requestUpdateMessage(docVoice, { ...request, note: null })).toBe(
       docBody("request_update").replace(" The office says: {note}", ""),
     );
+  });
+
+  // Wave 1 (w1-05): an approved time change or swap says the office said yes, and that the shift
+  // changes only when they update it. No promise of a later message.
+  it("request_change_agreed, with and without the office's note", () => {
+    const request = { type: "{type}", ref: "{ref}", note: "{note}" };
+    expect(requestChangeAgreedMessage(docVoice, request)).toBe(docBody("request_change_agreed"));
+    expect(requestChangeAgreedMessage(docVoice, { ...request, note: null })).toBe(
+      docBody("request_change_agreed").replace(" The office says: {note}", ""),
+    );
+    expect(docBody("request_change_agreed")).not.toMatch(/you'll get|we'll tell you/i);
   });
 
   it("the call-to-text recording, as the doc says it, and its no-link versions", () => {
@@ -1047,7 +1062,20 @@ describe("every message to a worker ends with the firm's sign-off (golden rule 8
     ],
     [
       "request_update (no note)",
-      requestUpdateMessage(voice, { type: "swap", ref: "R", status: "approved", note: null }),
+      requestUpdateMessage(voice, {
+        type: "availability",
+        ref: "R",
+        status: "approved",
+        note: null,
+      }),
+    ],
+    [
+      "request_change_agreed",
+      requestChangeAgreedMessage(voice, { type: "swap", ref: "R", note: "See you at 13:00." }),
+    ],
+    [
+      "request_change_agreed (no note)",
+      requestChangeAgreedMessage(voice, { type: "time change", ref: "R", note: null }),
     ],
     ["pay_query_update", payQueryUpdateMessage(voice, { ref: "R", link: "L" })],
     [
@@ -1170,6 +1198,8 @@ describe("the pushes", () => {
   it("request update", () => {
     const [title, body] = quotes(push, "Request update:");
     expect(requestUpdatePush({ type: "{type}", status: "{status}" })).toEqual({ title, body });
+    const [agreedTitle, agreedBody] = quotes(push, "Agreed time change or swap:");
+    expect(requestChangeAgreedPush("{Type}")).toEqual({ title: agreedTitle, body: agreedBody });
     const [payTitle, payBody] = quotes(push, "Pay query update:");
     expect(payQueryUpdatePush()).toEqual({ title: payTitle, body: payBody });
   });
@@ -1238,6 +1268,9 @@ describe("emails to casuals: their subjects", () => {
     );
     expect(templates.requestUpdateEmailSubject({ ref: "{ref}", status: "{status}" })).toBe(
       subject("A request's answer (`request_update`)"),
+    );
+    expect(templates.requestChangeAgreedEmailSubject("{type}")).toBe(
+      subject("An agreed time change or swap (`request_change_agreed`)"),
     );
     expect(templates.payQueryUpdateEmailSubject()).toBe(
       subject("A pay query's answer (`pay_query_update`)"),
@@ -1433,6 +1466,9 @@ describe("every template function is checked here", () => {
         "reminderPush",
         "requestUpdateMessage",
         "requestUpdatePush",
+        // Wave 1 (w1-05): an approved time change or swap, checked above.
+        "requestChangeAgreedMessage",
+        "requestChangeAgreedPush",
         "shiftCancelledByFirmMessage",
         "shiftChangedByFirmMessage",
         "shiftConfirmedMessage",
@@ -1471,6 +1507,7 @@ describe("every template function is checked here", () => {
         "credentialExpiringEmailSubject",
         "payQueryUpdateEmailSubject",
         "requestUpdateEmailSubject",
+        "requestChangeAgreedEmailSubject",
         "shiftCancelledByFirmEmailSubject",
         "shiftChangedByFirmEmailSubject",
         "shiftConfirmedEmailSubject",
@@ -1693,6 +1730,18 @@ describe("the WhatsApp submission pack", () => {
       }),
     voicemail_received: () =>
       voicemailReceivedMessage(voice("voicemail_received"), ex("voicemail_received", "ref")),
+    request_change_agreed: () =>
+      requestChangeAgreedMessage(voice("request_change_agreed"), {
+        type: ex("request_change_agreed", "type"),
+        ref: ex("request_change_agreed", "ref"),
+        note: ex("request_change_agreed", "note"),
+      }),
+    request_change_agreed_no_note: () =>
+      requestChangeAgreedMessage(voice("request_change_agreed_no_note"), {
+        type: ex("request_change_agreed_no_note", "type"),
+        ref: ex("request_change_agreed_no_note", "ref"),
+        note: null,
+      }),
     request_update_no_note: () =>
       requestUpdateMessage(voice("request_update_no_note"), {
         type: ex("request_update_no_note", "type"),

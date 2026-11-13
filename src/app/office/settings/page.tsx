@@ -15,8 +15,11 @@ import { firmShiftsLine, shiftsLineText } from "@/lib/tenancy/shifts-line";
 import { ContractsList } from "./contracts-list";
 import { SitePostcodeForm } from "./site-postcode-form";
 import { StrikesEmailForm } from "./strikes-email-form";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Settings" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("settings", { title: "Settings" });
+}
 
 // Settings (docs/office-v2.md 3.10; docs/screens.md `/office/settings`; 12B.7). Admins only
 // (checked here, in the loader and again in every change). The strikes team's email, the firm's

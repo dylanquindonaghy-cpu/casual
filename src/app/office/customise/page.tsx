@@ -7,8 +7,11 @@ import { BACK_TO_DASHBOARD, CUSTOMISE_TITLE } from "@/lib/office/customise-copy"
 import { btn, page } from "../../ui/classes";
 import { PageHeader } from "../../ui/page-header";
 import { CustomiseForm } from "../customise-panel";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Customise" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("today", { title: "Customise" });
+}
 
 // Customise as a page of its own (Phase 26.3; docs/screens.md "Customise"): what the dashboard's
 // "Customise" opens until the page is ready, or with a modifier key. The same form as the panel;

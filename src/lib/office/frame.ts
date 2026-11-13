@@ -6,7 +6,7 @@ import type { FirmTx } from "../db/scoped";
 import { localDateOf } from "../time/zoned";
 import { waitingCount } from "./casuals";
 import { firmFacts, loadNeedsAttention, part, type NeedsAttention, type Part } from "./dashboard";
-import { needPersonCount } from "./enquiries";
+import { appRequestsWaiting, needPersonCount } from "./enquiries";
 import { parts, type OfficeContext } from "./office-context";
 import { loadShellCounts, type ShellCounts } from "./shell-counts";
 import { clientRequestCounts, type ClientRequestCounts } from "../client/queue";
@@ -20,6 +20,7 @@ export interface OfficeFrame {
   payQueries: Part<number> | null; // pay queries waiting (admins and payroll)
   uploads: Part<number> | null; // uploads waiting for a check (Casuals)
   needPerson: Part<number> | null; // enquiries that need a person (Enquiries)
+  appRequests: Part<number> | null; // requests from the app waiting for an answer (Enquiries; w1-07)
   needs: { timeZone: string; today: string; needs: Part<NeedsAttention> } | null; // (dashboard)
   shell: Part<ShellCounts> | null; // the top bar's sessions (Events & sessions)
   updates: Part<UpdatesBell> | null; // the bell and the pop-up (Phase 26.4: admins, resourcers)
@@ -32,6 +33,7 @@ const NO_FRAME: OfficeFrame = {
   payQueries: null,
   uploads: null,
   needPerson: null,
+  appRequests: null,
   needs: null,
   shell: null,
   updates: null,
@@ -56,6 +58,8 @@ export async function loadOfficeFrame(ctx: OfficeContext): Promise<OfficeFrame> 
       needPerson: may("enquiries")
         ? await part(tx, "need-person", (sp) => needPersonCount(sp, now))
         : null,
+      // Its own savepoint, like needPerson: a failed read shows "+", not an error page.
+      appRequests: may("enquiries") ? await part(tx, "app-requests", appRequestsWaiting) : null,
       needs: may("today") ? await needsOf(tx, now, may("client_requests")) : null,
       shell: may("shifts") ? await part(tx, "shell", (sp) => loadShellCounts(sp, now)) : null,
       updates: may("today")

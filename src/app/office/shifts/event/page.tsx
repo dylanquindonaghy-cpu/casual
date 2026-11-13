@@ -10,8 +10,11 @@ import { officeShiftForm } from "@/lib/office/shift-pages";
 import { localDateOf } from "@/lib/time/zoned";
 import { officeEventBasics } from "@/lib/office/events";
 import { ShiftCreateForm } from "../shift-create-form";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Sessions for an event" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("shifts", { title: "Sessions for an event" });
+}
 
 // "Shifts for an event" (docs/screens.md `/office/shifts`). Admins and resourcers.
 // Phase 26.5: from an event's page ("Add shifts", `?event=`), the shifts join that event.

@@ -164,17 +164,24 @@ export async function answerOptOut(
 
 // The claim for a STOP or START, in the caller's transaction: the message locked and, if nobody has
 // handled it, marked `opt_out`, the worker's setting changed and logged (only when it changes), and
-// `message.received`. Null: already handled. Also the shifts line's last try (src/lib/inbound/
-// reply.ts), with the failure's code (`answerFailed`): the word still counts, though no
-// confirmation goes. `holdReply`: the firm's automatic replies are off, so none goes either, and
-// `message.received` says `replyHeld` where one would have (`held`).
+// `message.received`. Null: already handled. Also the mark for a person (src/lib/inbound/
+// for-a-person.ts): the shifts line's last try, with the failure's code (`answerFailed`), or the
+// office's reply or close on a message the shifts line hadn't sorted after 10 minutes (`late`,
+// Wave 1 w1-04): the word still counts, though no confirmation goes. `holdReply`: the firm's
+// automatic replies are off, so none goes either, and `message.received` says `replyHeld` where one
+// would have (`held`).
 export async function claimOptOut(
   tx: FirmTx,
   messageId: string,
   c: { word: OptOutWord; byTwilio: boolean; from: string },
-  o: { answerFailed?: string; holdReply?: boolean } = {},
+  o: { answerFailed?: string; late?: true; holdReply?: boolean } = {},
 ): Promise<{ changed: boolean; workerId: string | null; confirm: boolean; held: boolean } | null> {
-  const lastTry = o.answerFailed !== undefined ? { answerFailed: o.answerFailed } : undefined;
+  const lastTry =
+    o.answerFailed !== undefined
+      ? { answerFailed: o.answerFailed }
+      : o.late === true
+        ? { late: true as const }
+        : undefined;
   if (!(await lockUnhandled(tx, messageId))) return null;
   // The worker with this number, whatever their status (one per number in a firm).
   const [worker] = await tx
@@ -209,8 +216,8 @@ export async function claimOptOut(
       data: { via: "sms", byTwilio: c.byTwilio },
     });
   }
-  // A confirmation would go (it changed, Twilio didn't confirm it, not the last try): held if the
-  // firm's automatic replies are off.
+  // A confirmation would go (it changed, Twilio didn't confirm it, not the mark for a person): held
+  // if the firm's automatic replies are off.
   const wouldConfirm = changed && !c.byTwilio && !lastTry;
   const held = wouldConfirm && o.holdReply === true;
   await tx
@@ -229,7 +236,7 @@ export async function claimOptOut(
       optOut: c.word,
       changed,
       ...(superseded ? { superseded } : {}),
-      ...(lastTry ? { answerFailed: lastTry.answerFailed } : {}),
+      ...(lastTry ?? {}),
       ...(held ? { replyHeld: true } : {}),
       workerId: worker?.id ?? null,
     },

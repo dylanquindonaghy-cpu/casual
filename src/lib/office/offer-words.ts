@@ -1,6 +1,7 @@
 import type { OfficeCandidate } from "../offers/office-offer";
 import type { Reach } from "../offers/reach";
-import type { NotOfferedWhy } from "./not-offered";
+import { dayLabel, orList, shortDate } from "../rules/reasons";
+import type { NotOfferedLicence, NotOfferedWhy } from "./not-offered";
 import type { OfferPage } from "./offer-page";
 
 // "Offer to someone" in words, the same on the offer page and in the dashboard's offer panel
@@ -57,7 +58,43 @@ export const OUTSIDE_AREA = "Outside their travel area";
 export const NOT_OFFERED = "Not offered, and why";
 export const NOBODY_LEFT_OUT = "Everyone with the role can be offered it.";
 export const notOfferedMore = (n: number) => `And ${n} more.`;
-export function notOfferedWhy(why: NotOfferedWhy, cap: number): string {
+// When the rules found no card detail (Phase 37.3): the office's existing phrase
+// (event-words.ts), with a capital.
+export const LICENCE_FALLBACK = "A licence or card missing or out of date";
+
+const upperFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// The first card the rules found, by the firm's own name for it, in the office's existing words
+// ("Considered but not offered", the check lines and the licence chip; Phase 37.3, w1-03). Pure.
+export function licenceWhy(l: NotOfferedLicence): string {
+  const name = upperFirst(l.names[0] ?? "");
+  switch (l.state) {
+    case "missing":
+      return `Needs ${orList(l.names)} (none on file)`;
+    case "out_of_date":
+      return l.date ? `${name} out of date (${shortDate(l.date, l.year)})` : `${name} out of date`;
+    case "runs_out":
+      // The year too when the card runs out in another year than the session's (as "out of
+      // date" does).
+      return l.date
+        ? `${name} runs out ${dayLabel(l.date)}${Number(l.date.slice(0, 4)) === l.year ? "" : ` ${l.date.slice(0, 4)}`}`
+        : `${name} out of date`;
+    case "marked_expired":
+      return `${name} marked expired`;
+    case "suspended":
+      return `${name} suspended`;
+    case "applied":
+      return `${name} applied for, not counted`;
+    case "over_allowance":
+      return `${name} applied for, over the allowance`;
+  }
+}
+
+export function notOfferedWhy(
+  why: NotOfferedWhy,
+  cap: number,
+  licence?: NotOfferedLicence,
+): string {
   switch (why) {
     case "booked":
       return "Booked on it";
@@ -70,7 +107,7 @@ export function notOfferedWhy(why: NotOfferedWhy, cap: number): string {
     case "cap":
       return `Over today's ${cap} offers`;
     case "licence":
-      return "No licence in date";
+      return licence ? licenceWhy(licence) : LICENCE_FALLBACK;
     case "elsewhere":
       return "Booked elsewhere then";
     case "rest":

@@ -718,6 +718,16 @@ WhatsApp to a casual. A push that one of their phones takes is the message: noth
   read-only at `/app/db-ca.pem`; the app refuses a production database address without the
   `sslmode=verify-full&sslrootcert=/app/db-ca.pem` ending, and Docker refuses to start without the
   file).)
+- Safe headers on every answer (Phase 37.7): `Content-Security-Policy: frame-ancestors 'self'`
+  (only when the app sent no policy of its own; never DENY: the staffing demo's phone frame needs
+  it), `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, a
+  `Permissions-Policy` (no microphone, no location, the camera for our own pages), and no
+  `X-Powered-By` (`next.config.ts` sets `poweredByHeader: false` too). Answers are compressed
+  except the street map's file (`/maps/*`), the map's letter shapes cached a week and the tour's
+  files a day, on 2xx and 304 only. `deploy/Caddyfile`, checked by
+  `tests/unit/deploy.caddyfile.test.ts` and by Caddy itself in
+  `tests/integration/deploy.caddy.test.ts`; a new Caddyfile goes live only when Caddy's container is
+  recreated (`docs/runbooks.md` "A new Caddyfile").
 - Verify Twilio signatures on every webhook.
 - Rate limit login and OTP.
 - No personal data in logs (mask phone numbers). (Built: `src/lib/log/mask.ts` masks numbers,

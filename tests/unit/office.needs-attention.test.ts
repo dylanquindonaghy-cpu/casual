@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { NeedsAttention } from "@/lib/office/dashboard";
 import { attentionCount, attentionOf, needsCount } from "@/lib/office/dashboard";
 import {
+  appRequestsNeedText,
   COUNT_ERROR,
   expiredText,
   plannerRefusedText,
@@ -289,6 +290,13 @@ describe("the words", () => {
     expect(attentionOf(ok(noNeeds), failed)).toEqual({ count: 0, more: true });
     expect(attentionOf(ok(noNeeds), null)).toEqual({ count: 0, more: false });
     expect(attentionOf(failed, ok(3))).toBeNull();
+    // Wave 1 (w1-07): the requests from the app waiting for an answer count too; unread ones make
+    // it "at least"; without them (the default) as before.
+    expect(attentionCount(noNeeds, 0, 2)).toBe(2);
+    expect(attentionOf(ok(noNeeds), ok(1), ok(2))).toEqual({ count: 3, more: false });
+    expect(attentionOf(ok(noNeeds), ok(1), failed)).toEqual({ count: 1, more: true });
+    expect(attentionOf(ok(noNeeds), ok(1))).toEqual({ count: 1, more: false });
+    expect(attentionOf(ok(noNeeds), null, null)).toEqual({ count: 0, more: false });
   });
 });
 
@@ -571,6 +579,44 @@ describe("Needs attention's page (Phase 18: the top bar's To check opens it sinc
     );
     expect(section(asked, "enquiries")).toMatch(/href="\/office\/enquiries"/);
     expect(words(asked)).not.toContain(SECTIONS.needs.empty);
+  });
+
+  // Wave 1 (w1-07): the requests casuals made in the app, waiting: a part of their own, counted,
+  // to Enquiries' Requests from the app.
+  it("the requests from the app waiting for an answer: their own part, to Requests from the app", () => {
+    expect(appRequestsNeedText(1)).toBe(
+      "1 request a casual made in the app is waiting for an answer.",
+    );
+    expect(appRequestsNeedText(2)).toBe(
+      "2 requests casuals made in the app are waiting for an answer.",
+    );
+    const two = renderToStaticMarkup(
+      createElement(NeedsItems, {
+        n: noNeeds,
+        timeZone: TZ,
+        today: TODAY,
+        isAdmin: true,
+        appRequests: 2,
+      }),
+    );
+    expect(words(section(two, "app-requests"))).toBe(
+      "Requests from the app 2 2 requests casuals made in the app are waiting for an answer. Open requests from the app",
+    );
+    expect(section(two, "app-requests")).toContain('href="/office/enquiries?view=app"');
+    expect(words(two)).not.toContain(SECTIONS.needs.empty);
+    expect(two).not.toContain('aria-labelledby="enquiries"');
+    const one = renderToStaticMarkup(
+      createElement(NeedsItems, {
+        n: noNeeds,
+        timeZone: TZ,
+        today: TODAY,
+        isAdmin: true,
+        appRequests: 1,
+      }),
+    );
+    expect(words(section(one, "app-requests"))).toContain(
+      "1 request a casual made in the app is waiting for an answer.",
+    );
   });
 
   it("nothing: says so", () => {

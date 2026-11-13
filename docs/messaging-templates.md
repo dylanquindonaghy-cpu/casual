@@ -103,7 +103,8 @@ a firm that later adds its own WhatsApp Business number, and for the Twilio shif
 | `shift_changed_by_firm` | Utility | "Change to your shift on {date} at {site}: {change}. New time: {start}–{end}. Details: {link}. — {firm} Shift Team" ({date} and {site} are the shift as it was; {change} is "the times have changed", "it's now shorter", "it's now at {new site}" or "new times, and it's now at {new site}"; {start} names the day too when the shift moved to another day; "at {site}" left out when there was none. Sent to each booked worker when the office moves or shortens a shift, `src/lib/notices/firm-change.ts`) |
 | `shift_cancelled_by_firm` | Utility | "Your shift on {date} {start}–{end} at {site} has been cancelled by the office. Open shifts: {link}. — {firm} Shift Team" ("at {site}" left out when there's none. Sent when the office cancels a shift, or someone's booking) |
 | `shift_not_booked` | Utility | "Not this time: you're not booked for {date} {start}–{end} at {site} ({role}). Thanks for asking. Open shifts: {link}. — {firm} Shift Team" ("at {site}" left out when there's none: `shift_not_booked_no_site`. Phase 26.6, "Casuals ask, you choose": sent when the office answers a casual's "I can do this" with "Not this time", or the session fills with others while they wait, `src/lib/notices/ask-answer.ts`; one the office books gets `shift_confirmed`. Nobody is told when the office cancels or moves the session: they may ask again. Quiet hours hold it unless the session starts within the urgent window) |
-| `request_update` | Utility | "Your request ({type}, ref {ref}) is {status}. The office says: {note} — {firm} Shift Team" ({type} is the kind in words: "time change", "swap", "availability", "question", "review" or "attendance question" (Phase 28.2: "Think this mark is wrong?"); {status} "approved" or "declined", and "answered" for a question the office answered ("approved" can read as "booked") and for an attendance question, approved or declined (a request never changes a mark); {note} is the office's note on one line; "The office says: {note}" is left out when there isn't one: `request_update_no_note`. Sent when the office answers a request, `src/lib/notices/request-update.ts`, and as the office's reply on Enquiries outside WhatsApp's 24-hour window, below) |
+| `request_update` | Utility | "Your request ({type}, ref {ref}) is {status}. The office says: {note} — {firm} Shift Team" ({type} is the kind in words: "time change", "swap", "availability", "question", "review" or "attendance question" (Phase 28.2: "Think this mark is wrong?"); {status} "approved" or "declined", and "answered" for a question the office answered ("approved" can read as "booked") and for an attendance question, approved or declined (a request never changes a mark); {note} is the office's note on one line; "The office says: {note}" is left out when there isn't one: `request_update_no_note`. Sent when the office answers a request, `src/lib/notices/request-update.ts`, and as the office's reply on Enquiries outside WhatsApp's 24-hour window, below. Wave 1 (w1-05): an approved time change or swap goes as `request_change_agreed` instead, so {status} "approved" is now used only for availability and review) |
+| `request_change_agreed` | Utility | "The office said yes to your {type}. Your shift changes when they update it. Ref {ref}. The office says: {note} — {firm} Shift Team" ({type} is "time change" or "swap"; saying yes changes nothing yet: the office makes the change on the shift's page, so the words promise no later message (a change made on the rota sheet sends none); "The office says: {note}" is left out when there is no note: `request_change_agreed_no_note`. Sent when the office approves a time change or swap, `src/lib/notices/request-update.ts`) |
 | `credential_expiring` | Utility | "Your {credential} expires on {date}. Upload the new one so you can keep taking shifts that need it: {link} — {firm} Shift Team" ({link}: her upload page for it, `/profile/upload/{type}`; 12F.2). One she can't upload (the office records it, or none of her roles needs it, like a shift's own extra), `credential_expiring_to_office`: "Your {credential} expires on {date}. Renew it to keep taking shifts that need it. Once you've renewed it, tell the office under Messages: {messages} — {firm} Shift Team" ({messages}: her Messages, `/messages`; Phase 27.2) |
 | `credential_expired` | Utility | "Your {credential} expired on {date}. You can't take shifts that need it until you upload the new one and the office checks it: {link} — {firm} Shift Team". One she can't upload, `credential_expired_to_office`: "Your {credential} expired on {date}. You can't take shifts that need it until it's renewed. Once you've renewed it, tell the office under Messages: {messages} — {firm} Shift Team" |
 | (screen only: My shifts' "Needs updating") | — | One row per qualification to sort out (12F.1; the words are `needsText()` in `src/lib/portal/qualification-copy.ts`, in `docs/screens.md`). A row she can sort herself ends "Upload it", linking to the same upload page (12F.2) |
@@ -118,12 +119,13 @@ with only the variable parts filled in. The submission pack is
 `src/lib/messaging/whatsapp-templates.ts`: every template the code sends by WhatsApp, with its
 category, language, body in Meta's `{{1}}` style and sample values. Built so far: `login_link`,
 `login_code`, `shift_offer`, `shift_urgent`, `shift_reminder_24h`, `shift_reminder_2h`,
-`shift_changed_by_firm`, `shift_cancelled_by_firm`, `request_update`, `credential_expiring`,
-`credential_expired`, `pay_query_update`, `voicemail_received`.
+`shift_changed_by_firm`, `shift_cancelled_by_firm`, `request_update`, `request_change_agreed`,
+`credential_expiring`, `credential_expired`, `pay_query_update`, `voicemail_received`.
 - Words that are sometimes left out need their own template: `shift_offer`, `shift_urgent`,
   `shift_reminder_24h`, `shift_reminder_2h`, `shift_changed_by_firm` and
   `shift_cancelled_by_firm` each have a `_no_site` variant, used when the shift has no site;
-  `request_update_no_note` is used when the office wrote no note; `credential_expiring_to_office`
+  `request_update_no_note` and `request_change_agreed_no_note` are used when the office wrote no
+  note; `credential_expiring_to_office`
   and `credential_expired_to_office` (no upload link) for a qualification she can't upload.
 - "a" or "an" before the role is part of the role's variable ("a door supervisor").
 - The sign-off is a variable, because a firm may set its own.
@@ -299,6 +301,7 @@ never a person's name), not one per firm (PLAN.md Parking lot, P2.4).
   the shift as it is when it goes, so they never hear of a change to a shift they haven't heard of)
 - Not chosen from an ask (`shift_not_booked`): subject "Not this time: {date}"
 - A request's answer (`request_update`): subject "Your request (ref {ref}) is {status}"
+- An agreed time change or swap (`request_change_agreed`): subject "The office said yes to your {type}"
 - A pay query's answer (`pay_query_update`): subject "Payroll has answered your pay query"
 - The office's reply on Enquiries: subject "A reply from {firm}"; body "{words} — {firm} Shift Team"
   (not built for a message to the shifts line: its reply goes by text; PLAN.md Parking lot, P2.4. An
@@ -535,6 +538,8 @@ development and tests (`EMAIL_TRANSPORT`, `PUSH_TRANSPORT`).
   shifts."; tapping opens Open shifts)
 - Request update: "Request {status}" / "{type} — tap to view." (built: `requestUpdatePush()`, with
   the office's answer; {type} as the list names it, "Time change"; tapping opens My requests)
+- Agreed time change or swap: "The office said yes" / "{Type}: your shift hasn't changed yet. Tap to
+  view." (built: `requestChangeAgreedPush()`; tapping opens My requests)
 - Pay query update: "Pay query sorted" / "Payroll has answered. Open your pay page to see it."
   (built: `payQueryUpdatePush()`, with payroll's answer; nothing about the pay itself, since a lock
   screen shows it; tapping opens the pay page, behind the pay code)

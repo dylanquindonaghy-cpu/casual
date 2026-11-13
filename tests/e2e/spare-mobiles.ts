@@ -17,6 +17,8 @@ export const SPARE_MOBILES = {
   stranger: [201, 240],
   // 28.3's two briefing casuals.
   briefing: [241, 260],
+  // office.enquiries' casuals whose messages the shifts line never sorted (Wave 1, w1-04).
+  unsorted: [261, 280],
 } as const satisfies Record<string, readonly [number, number]>;
 
 export type SpareBlock = keyof typeof SPARE_MOBILES;

@@ -21,8 +21,11 @@ import {
   type CancellationView,
 } from "@/lib/office/cancellations-copy";
 import { REVIEW_WORDS } from "@/lib/office/strikes-copy";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Cancellations" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("cancellations", { title: "Cancellations" });
+}
 
 const isView = (v: unknown): v is CancellationView =>
   typeof v === "string" && (CANCELLATION_VIEWS as readonly string[]).includes(v);

@@ -24,12 +24,15 @@ const needs: NeedsAttention = {
   clientRequests: { waiting: 0, urgent: 0, plannerToDo: 0 },
 };
 
+// Requests from the app waiting (Wave 1, w1-07): none in the frame unless a test sets some.
+const appRequests: { current: { ok: true; data: number } | null } = { current: null };
 const officeFrame = vi.fn(async () => ({
   session: {},
   frame: {
     payQueries: null,
     uploads: { ok: true, data: 3 },
     needPerson: { ok: true, data: 2 },
+    appRequests: appRequests.current,
     needs: { timeZone: "Europe/London", today: "2026-11-02", needs: { ok: true, data: needs } },
     shell: null,
   },
@@ -90,5 +93,19 @@ describe("Needs attention's page", () => {
     expect(officeFrame).toHaveBeenCalledTimes(1);
     expect(loadNeedsAttention).not.toHaveBeenCalled();
     expect(officeUrgentCount).toHaveBeenCalledTimes(1);
+  });
+
+  it("counts the frame's requests from the app waiting for an answer, in their own part (w1-07)", async () => {
+    appRequests.current = { ok: true, data: 2 };
+    try {
+      const html = renderToStaticMarkup(await NeedsAttentionPage());
+      // The 3 uploads, the 2 enquiries and the 2 requests from the app: 7 things.
+      expect(words(html)).toContain("7 things for you.");
+      expect(words(html)).toContain(
+        "Requests from the app 2 2 requests casuals made in the app are waiting for an answer. Open requests from the app",
+      );
+    } finally {
+      appRequests.current = null;
+    }
   });
 });

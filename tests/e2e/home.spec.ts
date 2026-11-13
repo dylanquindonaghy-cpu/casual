@@ -3,6 +3,8 @@ import { expect, test } from "./fixtures";
 test("home page renders on a phone", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "ShiftDesk" })).toBeVisible();
+  // Phase 37.6: the platform's own home keeps the root layout's title.
+  await expect(page).toHaveTitle("ShiftDesk");
 });
 
 test("a link that goes nowhere says so in plain words, with a way back", async ({ page }) => {

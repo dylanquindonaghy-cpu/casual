@@ -8,6 +8,9 @@ import { recordEvent } from "../events/record";
 import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { getTransport } from "../messaging";
 import {
+  requestChangeAgreedEmailSubject,
+  requestChangeAgreedMessage,
+  requestChangeAgreedPush,
   requestUpdateEmailSubject,
   requestUpdateMessage,
   requestUpdatePush,
@@ -20,14 +23,15 @@ import {
   type WorkerChannel,
   smsAllowedFor,
 } from "../notify/send";
-import { KIND_NAMES, statusWord } from "../portal/request-kinds";
+import { agreedNotApplied, KIND_NAMES, statusWord } from "../portal/request-kinds";
 import { getPushTransport } from "../push/transport";
 import { mayMessageNow, quietHours } from "../rules/quiet-hours";
 import { insideUrgentWindow, urgentWindowHours } from "../rules/urgent";
 import { signOffFor } from "../tenancy/sign-off";
 
 // Telling a worker the office answered their request (docs/messaging-templates.md
-// `request_update`; docs/api-and-jobs.md): one request-update job per answer, queued in the
+// `request_update`, or `request_change_agreed` for an approved time change or swap: saying yes
+// changes nothing yet, Wave 1 w1-05; docs/api-and-jobs.md): one request-update job per answer, queued in the
 // transaction that recorded it (src/lib/requests/resolve.ts). The payload is the request's id only.
 //
 // At most once, like the other notices: (1) a short transaction claims it (request.update_notice,
@@ -169,18 +173,24 @@ async function claim(tx: FirmTx, payload: RequestUpdatePayload, now: Date): Prom
   // "approved", "declined", or "answered" for a question (PLAN.md Messages 13).
   const status = statusWord(row.type, row.status).toLowerCase();
   const ref = payload.requestId.slice(0, 8).toUpperCase();
-  const body = requestUpdateMessage(voice, {
-    type: kind.toLowerCase(),
-    ref,
-    status,
-    note: row.note ? oneLineNote(row.note) || null : null,
-  });
+  const note = row.note ? oneLineNote(row.note) || null : null;
+  // An approved time change or swap goes as request_change_agreed (w1-05): the office's yes
+  // changes nothing yet, so it never reads "approved" as if it were done.
+  const agreed = agreedNotApplied(row.type, row.status);
+  const body = agreed
+    ? requestChangeAgreedMessage(voice, { type: kind.toLowerCase(), ref, note })
+    : requestUpdateMessage(voice, { type: kind.toLowerCase(), ref, status, note });
   await recordEvent(tx, {
     actorType: "system",
     action: "request.update_notice",
     entityType: "request",
     entityId: payload.requestId,
-    data: { workerId: row.workerId, status: "sending" },
+    // Which words the casual was sent: the log is the evidence of what they were told.
+    data: {
+      workerId: row.workerId,
+      status: "sending",
+      template: agreed ? "request_change_agreed" : "request_update",
+    },
   });
   return {
     status: "send",
@@ -190,9 +200,18 @@ async function claim(tx: FirmTx, payload: RequestUpdatePayload, now: Date): Prom
     smsAllowed: smsAllowedFor(row),
     body,
     from: row.line,
-    push: { ...requestUpdatePush({ type: kind, status }), url: "/requests" },
+    push: {
+      ...(agreed ? requestChangeAgreedPush(kind) : requestUpdatePush({ type: kind, status })),
+      url: "/requests",
+    },
     email: row.email
-      ? { to: row.email, subject: requestUpdateEmailSubject({ ref, status }), body }
+      ? {
+          to: row.email,
+          subject: agreed
+            ? requestChangeAgreedEmailSubject(kind.toLowerCase())
+            : requestUpdateEmailSubject({ ref, status }),
+          body,
+        }
       : null,
   };
 }

@@ -46,8 +46,11 @@ import {
 } from "./enquiry-detail";
 import { EnquiryItem } from "./enquiry-row";
 import { RequestQueueView } from "./request-queue-view";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Enquiries" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("enquiries", { title: "Enquiries" });
+}
 
 // Enquiries (docs/office-v2.md 3.6; docs/screens.md `/office/enquiries`; 12D.1): what casuals and
 // strangers sent the shifts line in the firm's message retention (90 days by default) and what came of it, the ones that need a

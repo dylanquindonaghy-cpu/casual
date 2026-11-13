@@ -1345,7 +1345,17 @@ describe("the offer panel lists who can take it as the offer page does", () => {
     ] as OfferPage["candidates"],
     notOffered: [
       { workerId: "w4", name: "Ben Fraser", why: "booked" },
-      { workerId: "w5", name: "Mo Rahman", why: "licence" },
+      {
+        workerId: "w5",
+        name: "Mo Rahman",
+        why: "licence",
+        licence: {
+          names: ["SIA door supervisor licence"],
+          state: "out_of_date",
+          date: "2026-10-07",
+          year: 2026,
+        },
+      },
       { workerId: "w6", name: "Zoe Adeyemi", why: "cap" },
     ],
     notOfferedMore: 2,
@@ -1378,7 +1388,7 @@ describe("the offer panel lists who can take it as the offer page does", () => {
     // Not offered, and why (off-2), in the same words in both.
     for (const html of [panel(page), offerPage(page)]) {
       expect(words(html)).toContain(
-        "Not offered, and why Ben Fraser Booked on it Mo Rahman No licence in date Zoe Adeyemi Over today's 3 offers And 2 more.",
+        "Not offered, and why Ben Fraser Booked on it Mo Rahman SIA door supervisor licence out of date (7 Oct) Zoe Adeyemi Over today's 3 offers And 2 more.",
       );
     }
     expect(words(panel(page))).toContain("This session is urgent: they get the urgent message.");

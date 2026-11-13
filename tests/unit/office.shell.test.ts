@@ -165,6 +165,26 @@ describe("the office menu (v2 groups; Phases 18 and 20)", () => {
       ).toBeUndefined();
     // None: no badge.
     expect(menuBadges("admin", { payQueries: 0, needPerson: 0, uploads: 0 })).toEqual({});
+    // Wave 1 (w1-07): Enquiries' badge also counts the requests from the app waiting for an
+    // answer, its words naming each kind; "1 needs a person" for one.
+    const none = { payQueries: 0, needPerson: 0, uploads: 0 };
+    expect(menuBadges("resourcer", { ...none, appRequests: 2 })["/office/enquiries"]).toEqual({
+      count: 2,
+      words: "2 requests to answer",
+      needs: true,
+    });
+    expect(
+      menuBadges("resourcer", { ...none, needPerson: 2, appRequests: 1 })["/office/enquiries"],
+    ).toEqual({ count: 3, words: "2 need a person, 1 request to answer", needs: true });
+    expect(menuBadges("admin", { ...none, needPerson: 1 })["/office/enquiries"]).toEqual({
+      count: 1,
+      words: "1 needs a person",
+      needs: true,
+    });
+    expect(menuBadges("admin", { ...none, appRequests: 0 })).toEqual({});
+    expect(
+      tipWords("Enquiries", menuBadges("admin", { ...none, appRequests: 2 })["/office/enquiries"]),
+    ).toBe("Enquiries, 2 requests to answer");
     // Drawn (Phase 22, round 2): in its dashboard card's colour, amber when it needs you (Needs
     // attention's, an enquiry that needs a person, uploads to check), blue when it's waiting with
     // someone else (pay queries with payroll, for anyone but payroll); its words say the same. One
@@ -1319,7 +1339,8 @@ describe("shared pieces add no words", () => {
     const worker = renderToStaticMarkup(
       createElement(LogoutButton, { kind: "worker", after: "/login?out=1", className: "w" }),
     );
-    expect(worker).toMatch(/^<button type="button" class="w">/);
+    // Disabled in the server's HTML until the page is ready (Phase 37.7: a rule in this phase).
+    expect(worker).toMatch(/^<button type="button" disabled="" class="w">/);
     expect(text(worker)).toBe("Log out");
     const office = renderToStaticMarkup(
       createElement(LogoutButton, {

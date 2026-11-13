@@ -10,6 +10,7 @@ import {
   clients,
   credentials,
   firms,
+  messages,
   offers,
   officeUserClients,
   officeUsers,
@@ -257,9 +258,16 @@ export async function addEventWithSession(
 // own spec, tests/e2e/casual.tour.spec.ts).
 export async function addSteward(
   slug: string,
-  who: { firstName: string; lastName: string; mobileE164: string; tourSeen?: boolean },
+  who: {
+    firstName: string;
+    lastName: string;
+    mobileE164: string;
+    tourSeen?: boolean;
+    // false: no Level 2 spectator safety qualification on file (Phase 37.3's "Not offered, and why").
+    qualified?: boolean;
+  },
 ): Promise<string> {
-  const { tourSeen, ...o } = who;
+  const { tourSeen, qualified, ...o } = who;
   const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
   try {
     const { rows } = await pool.query<{ db: string }>("select current_database() as db");
@@ -277,9 +285,11 @@ export async function addSteward(
         .onConflictDoNothing()
         .returning({ id: workers.id });
       if (added) {
-        await tx
-          .insert(credentials)
-          .values({ firmId, workerId: added.id, type: "STEWARD_L2", status: "valid" });
+        if (qualified !== false) {
+          await tx
+            .insert(credentials)
+            .values({ firmId, workerId: added.id, type: "STEWARD_L2", status: "valid" });
+        }
         return added.id;
       }
       const [found] = await tx
@@ -288,6 +298,28 @@ export async function addSteward(
         .where(eq(workers.mobileE164, o.mobileE164));
       if (!found) throw new Error("worker neither added nor found");
       return found.id;
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
+// Takes away a worker a spec added for itself (and their cards), so later specs never see them: a
+// steward with no qualification would sit first in other sessions' "Not offered, and why". Fails
+// loudly if anything else now points at them (their history isn't the spec's to delete).
+export async function removeWorker(slug: string, workerId: string): Promise<void> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    await createWithFirm(pool)(firmId, async (tx) => {
+      await tx.delete(credentials).where(eq(credentials.workerId, workerId));
+      const gone = await tx
+        .delete(workers)
+        .where(eq(workers.id, workerId))
+        .returning({ id: workers.id });
+      if (gone.length !== 1) throw new Error(`worker ${workerId} not removed`);
     });
   } finally {
     await pool.end();
@@ -667,6 +699,48 @@ export async function addSwapRequest(
         worker: `${booked.first} ${booked.last}`,
         firstName: booked.first,
       };
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
+// A WhatsApp to a seeded firm's shifts line that the shifts line never sorted (Wave 1, w1-04): stored
+// as the webhook stores one (handled_at null), `minutesAgo` minutes ago, with no job queued, so it
+// stays unsorted. From a number of the spec's own (the job answers older unanswered messages from
+// the same number first). Returns its id.
+export async function addUnsortedMessage(
+  slug: string,
+  from: string,
+  body: string,
+  minutesAgo: number,
+): Promise<string> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      const [firm] = await tx
+        .select({ line: firms.shiftsLineE164 })
+        .from(firms)
+        .where(eq(firms.id, firmId));
+      if (!firm?.line) throw new Error(`firm ${slug} has no shifts line`);
+      const [row] = await tx
+        .insert(messages)
+        .values({
+          firmId,
+          direction: "in",
+          channel: "whatsapp",
+          providerMessageId: `SM${createHash("sha256").update(`${from}:${body}:${Date.now()}`).digest("hex").slice(0, 32)}`,
+          fromE164: from,
+          toE164: firm.line,
+          body,
+          createdAt: new Date(Date.now() - minutesAgo * 60_000),
+        })
+        .returning({ id: messages.id });
+      if (!row) throw new Error("message insert returned nothing");
+      return row.id;
     });
   } finally {
     await pool.end();

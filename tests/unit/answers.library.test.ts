@@ -5,7 +5,7 @@ import { EXAMPLE_COVER, aboutPayTrouble, matchByExample, normalise } from "@/lib
 import { answerText, previewAnswer, renderAnswer, usesPayFillIn } from "@/lib/answers/render";
 import { ANSWER_PAY_HINT } from "@/lib/messaging/templates";
 import { DEMO_STARTERS_ON, STARTERS } from "@/lib/answers/starters";
-import { answerSwitches } from "@/lib/answers/switches";
+import { answerSwitches, answersCanGo, anyAnswerChannelOn } from "@/lib/answers/switches";
 import { ANSWER_TEXT_PARTS_AT } from "@/lib/answers/limits";
 import {
   ANSWER_ERRORS,
@@ -400,6 +400,22 @@ describe("the five starters", () => {
 });
 
 describe("the three switches", () => {
+  // Wave 1 (w1-06): the page's banner and its "doesn't go out yet" words. answersCanGo mirrors
+  // recheckAnswer's rule (src/lib/answers/library.ts): App on, or Texts/Emails on with
+  // auto_replies on. If that rule changes, this test and the helper change with it.
+  it("whether any is on, and whether an answer that's on can go out", () => {
+    const none = answerSwitches({});
+    expect(anyAnswerChannelOn(none)).toBe(false);
+    for (const c of ["app", "texts", "email"] as const)
+      expect(anyAnswerChannelOn({ ...none, [c]: true })).toBe(true);
+    expect(answersCanGo(none, true)).toBe(false);
+    expect(answersCanGo(none, false)).toBe(false);
+    expect(answersCanGo({ ...none, app: true }, false)).toBe(true);
+    expect(answersCanGo({ ...none, texts: true, email: true }, false)).toBe(false);
+    expect(answersCanGo({ ...none, texts: true }, true)).toBe(true);
+    expect(answersCanGo({ ...none, email: true }, true)).toBe(true);
+  });
+
   it("are off unless true", () => {
     expect(answerSwitches({})).toEqual({ app: false, texts: false, email: false });
     expect(answerSwitches({ answers: { app: true, texts: "true", email: 1 } })).toEqual({

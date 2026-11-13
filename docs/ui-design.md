@@ -1259,11 +1259,22 @@ ready (the shift page's "Edit this shift" fields, which lock while people are bo
 for that moment too). The login forms' fields aren't controlled and their forms work before the
 page is ready, so they stay on.
 
+A button whose work is only a click handler (`type="button"` with `onClick`) is disabled until the
+page is ready too (Phase 37.7): "Take shift", "I can do this", cancel and "Log out". Before then, a
+tap would do nothing: no request, no message, no form to fall back on. Buttons that only appear
+once the page is ready (in a sheet, after an answer, in the tour, or after an effect) are listed
+in the test with why.
+
 `tests/unit/forms.hydration.test.ts` holds this. It reads every `"use client"` file under
 `src/app` and fails, with the file, line and tag, on a controlled field with no `disabled`, a
 `disabled` that doesn't depend on `useHydrated()`, a file that never calls `useHydrated()`, or
-props spread onto a field (hidden, submit, button, reset and image inputs are skipped). It also
-renders seven forms on the server and checks that every field there is disabled.
+props spread onto a field (hidden, submit, button, reset and image inputs are skipped). For the
+casual app (everything but `office/`, `client/` and `start/`, parked) it also fails on an
+`onClick` button whose `disabled` doesn't wait for the page, beyond each file's listed count of
+buttons shown only after the page is ready. Like the field rule, it reads only files with the
+`"use client"` directive: a component file without it (`push-setting-view.tsx`, `error-body.tsx`)
+isn't read. It renders eight forms and four buttons on the server and checks that every field and
+button there is disabled.
 
 ## Staff pages
 

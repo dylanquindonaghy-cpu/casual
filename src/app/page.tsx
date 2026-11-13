@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireWorker } from "@/lib/auth/current-worker";
@@ -17,6 +18,7 @@ import { openShiftsFor } from "@/lib/portal/open-shifts";
 import { myPayDay } from "@/lib/portal/pay-day";
 import { myReachPrompts } from "@/lib/portal/reach-me";
 import { tabCounts } from "@/lib/portal/tab-counts";
+import { getCurrentBrand } from "@/lib/tenancy/current-brand";
 import { parseHost } from "@/lib/tenancy/host";
 import { localDateOf } from "@/lib/time/zoned";
 import { tourLaterKey } from "@/lib/tour/later-key";
@@ -53,6 +55,16 @@ const NO_PHOTO: StaffPhoto = { status: "missing", current: null, waiting: null }
 // what "Do this" stands for, Messages the office's replies she hasn't read (the tab bar's). Her
 // qualifications, record, latest updates and week come from Profile's, her shift record's and
 // Booked's own loaders (myHome). Her own rows only, inside her firm.
+// Her Home's tab: "Home · Acme Events shifts" (Phase 37.6, w1-09). The root layout's title template
+// only reaches pages below its own segment, and this page is in it, so the title is written whole
+// here, from the same brand the layout reads (cached for the request). The platform's own address
+// keeps "ShiftDesk" (the root layout's). No data read beyond the firm's name.
+export async function generateMetadata(): Promise<Metadata> {
+  const match = parseHost((await headers()).get("host"), appEnv().APP_BASE_DOMAIN);
+  const brand = match && match.kind !== "apex" ? await getCurrentBrand() : null;
+  return brand ? { title: { absolute: ["Home", `${brand.name} shifts`].join(" · ") } } : {};
+}
+
 export default async function Home({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const match = parseHost((await headers()).get("host"), appEnv().APP_BASE_DOMAIN);
   if (match && match.kind !== "apex") {

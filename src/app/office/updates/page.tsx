@@ -49,8 +49,11 @@ import { StatusChip } from "../../ui/status-chip";
 import { EventFilter } from "./event-filter";
 import { MarkSeen } from "./mark-seen";
 import { TellMePanel } from "./tell-me-panel";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Updates" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("today", { title: "Updates" });
+}
 
 // Updates (Phase 26.4; docs/screens.md "Updates"; the mock-up's Updates): what happened on the
 // person's contracts. Since Phase 36.2 (docs/screens.md "## Phase 36", 36.2; Dylan's approved

@@ -131,23 +131,30 @@ export function needsCount(n: NeedsAttention): number {
   );
 }
 
-// One count of what needs a person in the office (Phase 20): Needs attention's items and the
-// enquiries that need a person, as the menu's "Needs attention" shows it and the dashboard's
-// headline adds the urgent places to.
-export function attentionCount(n: NeedsAttention, needPerson: number): number {
-  return needsCount(n) + needPerson;
+// One count of what needs a person in the office (Phase 20): Needs attention's items, the
+// enquiries that need a person and the requests from the app waiting for an answer (Wave 1,
+// w1-07), as the menu's "Needs attention" shows it and the dashboard's headline adds the urgent
+// places to.
+export function attentionCount(n: NeedsAttention, needPerson: number, appRequests = 0): number {
+  return needsCount(n) + needPerson + appRequests;
 }
 
 // Needs attention's count from its parts: null when the items couldn't be read; "at least"
-// (`more`) when the enquiries that need a person couldn't be.
+// (`more`) when the enquiries that need a person, or the requests from the app waiting for an
+// answer, couldn't be.
 export function attentionOf(
   needs: Part<NeedsAttention>,
   needPerson: Part<number> | null,
+  appRequests: Part<number> | null = null,
 ): { count: number; more: boolean } | null {
   if (!needs.ok) return null;
-  const known = needPerson === null || needPerson.ok;
+  const known = (needPerson === null || needPerson.ok) && (appRequests === null || appRequests.ok);
   return {
-    count: attentionCount(needs.data, needPerson?.ok ? needPerson.data : 0),
+    count: attentionCount(
+      needs.data,
+      needPerson?.ok ? needPerson.data : 0,
+      appRequests?.ok ? appRequests.data : 0,
+    ),
     more: !known,
   };
 }

@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // The worker shares src/ but runs as its own process; keep server-only packages external.
   serverExternalPackages: ["pg", "pg-boss", "nodemailer"],
+  // Next stops announcing itself (no X-Powered-By; Phase 37.7). Caddy removes the header too
+  // (deploy/Caddyfile); this covers development, the browser tests and any server without Caddy.
+  poweredByHeader: false,
   // Next's own terminal logs in development print each server action with its arguments (a mobile
   // typed into a search, a login link's token) and each request's full address: never personal
   // data or secrets in a log, even a developer's. The app's own request log (src/proxy.ts, masked)

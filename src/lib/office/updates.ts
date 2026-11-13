@@ -10,6 +10,7 @@ import type { UrgentWhy } from "../client/urgency";
 import { sitesSql } from "./contract-scope";
 import { loadUpdates, type Update } from "./dashboard-map";
 import { enquirySource, enquiryWindow, needsPerson } from "./enquiries";
+import { senderWorker } from "./enquiry-sql";
 import { requestWaiting } from "./enquiry-sql";
 import { bookedJoin, placeFree } from "./events";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
@@ -402,8 +403,8 @@ async function loadEnquiryUpdates(
     select m.id::text as id, m.created_at, m.channel, m.from_e164, m.from_address,
            w.first_name, w.last_name
       from ${enquirySource(from)} m
-      left join workers w on w.firm_id = m.firm_id and w.id = m.worker_id
-     where ${needsPerson("m")} and m.created_at <= ${now}
+      left join workers w on w.firm_id = m.firm_id and w.id = ${senderWorker("m")}
+     where ${needsPerson("m", now)} and m.created_at <= ${now}
      order by m.created_at desc, m.id
      limit ${shown + 1}
   `);

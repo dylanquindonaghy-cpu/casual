@@ -16,6 +16,7 @@ async function officeLogin(page: Page, email: string) {
   const link = await sentTo(email, asked, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/);
   await page.goto(link);
   await expect(page).toHaveURL(`${acme}/office/l`);
+  await expect(page).toHaveTitle("Office login link · Acme Events shifts"); // Phase 37.6
   await page.getByRole("button", { name: "Log me in" }).click();
   // Payroll's home is the pay dashboard: /office sends them on (12A.3).
   await expect(page).toHaveURL(new RegExp(`^${acme.replace(/\./g, "\\.")}/office(/pay)?$`));

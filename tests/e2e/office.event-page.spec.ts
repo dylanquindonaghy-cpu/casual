@@ -57,6 +57,8 @@ test("the staffing layout, the open places, Offer N open places, the tabs and Ad
     await officeLogin(page, email);
     await page.goto(`${acme}/office/events/${eventId}`);
     await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
+    // Its tab names the event and the tab open (Phase 37.6, w1-09).
+    await expect(page).toHaveTitle(`${name} · Staffing · Acme Events shifts`);
     const crumbs = page.getByRole("navigation", { name: "Breadcrumb" });
     await expect(crumbs.getByRole("link", { name: "Events & sessions" })).toHaveAttribute(
       "href",
@@ -101,6 +103,7 @@ test("the staffing layout, the open places, Offer N open places, the tabs and Ad
     await page.getByRole("link", { name: "History" }).click();
     await expect(page).toHaveURL(`${acme}/office/events/${eventId}?tab=history`);
     await expect(page.getByRole("region", { name: "History" })).toContainText("urgent");
+    await expect(page).toHaveTitle(`${name} · History · Acme Events shifts`);
     await page.getByRole("link", { name: /^Overview \d+$/ }).click();
     await expect(page).toHaveURL(`${acme}/office/events/${eventId}?tab=overview`);
     await expect(
@@ -112,6 +115,41 @@ test("the staffing layout, the open places, Offer N open places, the tabs and Ad
     await expect(page).toHaveURL(`${acme}/office/shifts/event?event=${eventId}`);
     await expect(page.getByRole("heading", { name: "Add sessions", level: 1 })).toBeVisible();
     await expect(page.getByText(`Adding shifts to ${name}.`)).toBeVisible();
+  } finally {
+    await cancelOwnShift("acme", shiftId);
+  }
+});
+
+// Phase 37.6 (w1-09): payroll can't open an event's page, and its tab never names the event.
+test("payroll opening an event's page: Page not found, never the event's name", async ({
+  page,
+}, testInfo) => {
+  const run = `${Date.now().toString(36)}${testInfo.retry}`;
+  const name = `Payroll Hidden Event ${run}`;
+  const email = `event.payroll${testInfo.retry || ""}@example.com`;
+  await addOfficeUser("acme", { email, name: "Event Payroll", role: "payroll" });
+  const { eventId, shiftId } = await addEventWithSession("acme", {
+    name,
+    site: `Payroll Hidden Hall ${run}`,
+    role: "steward",
+    daysAhead: 3,
+  });
+  try {
+    const asked = new Date(Date.now() - 1000);
+    await page.goto(`${acme}/office/login`);
+    await page.getByLabel("Your work email").fill(email);
+    await page.getByRole("button", { name: "Send me a link" }).click();
+    await expect(page.getByText("Check your email.")).toBeVisible();
+    const link = await sentTo(email, asked, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/);
+    await page.goto(link);
+    await page.getByRole("button", { name: "Log me in" }).click();
+    await expect(page).toHaveURL(`${acme}/office/pay`);
+    for (const path of [`/office/events/${eventId}`, `/office/shifts/${shiftId}`]) {
+      expect((await page.goto(`${acme}${path}`))?.status(), path).toBe(404);
+      await expect(page.getByRole("heading", { name: "We can't find that page." })).toBeVisible();
+      await expect(page).toHaveTitle("Page not found · Acme Events shifts");
+      expect(await page.title()).not.toContain(name);
+    }
   } finally {
     await cancelOwnShift("acme", shiftId);
   }

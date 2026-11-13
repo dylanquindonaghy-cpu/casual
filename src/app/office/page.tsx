@@ -6,6 +6,7 @@ import { canAccess } from "@/lib/auth/roles";
 import { boardShow, officeDashboard } from "@/lib/office/dashboard-board";
 import { page } from "../ui/classes";
 import { DashboardContent } from "./dashboard-view";
+import { areaMetadata } from "@/app/office/area-metadata";
 
 // The office's first page: the dashboard for admins and resourcers (Phase 24, 24.3; docs/screens.md
 // `/office`). `?show=` is the track's filter (urgent, this-week, next-week; anything else is All)
@@ -16,7 +17,9 @@ import { DashboardContent } from "./dashboard-view";
 // menu, the top bar's counts, the account menu and the session keeper are the office shell's
 // (src/app/office/office-shell.tsx). `/office/today` redirects here.
 
-export const metadata: Metadata = { title: "Dashboard" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("dashboard", { title: "Dashboard" });
+}
 
 export default async function OfficeHome({
   searchParams,

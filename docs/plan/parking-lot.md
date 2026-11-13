@@ -65,6 +65,9 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
 - From Phase 24 (24.5, 2026-10-28): an office address that doesn't exist, opened while logged out
   (a mistyped `/office/…` link), shows the casual app's "We can't find that page." with "Go to my
   shifts". Give the office's own logged-out not-found page "Go to the office login" instead.
+  **Done in Phase 37.6 (Wave 1), in other words than asked:** every `/office` address that matches
+  no page gets the office's not-found (`src/app/office/[...missing]`), logged out too, with "Back
+  to the office", which leads to the office login.
 
 - From Phase 24 (24.4, 2026-10-27, the guardrails review): Enquiries loads the message beside the
   list on a phone too, where it's hidden (from 1024px only): one more read of a message per phone
@@ -1057,7 +1060,9 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   - **Dylan to confirm:** "Your request (review, ref …) is approved." can read as "you're booked",
     and an approved time change as "the times changed", though neither is done until the office
     acts. Reword `request_update` per kind (e.g. "approved: the office will update the shift"),
-    and something better than "approved/declined" for a question?
+    and something better than "approved/declined" for a question? (Wave 1, w1-05: the time change
+    and swap half is done, as `request_change_agreed`. The review half is still open, and so is
+    having approve apply the change itself.)
   - A 500-character note is about 9 text messages (the dash makes it Unicode). Lower the limit,
     or accept the cost.
   - The action log (next task) needs words for `request.approved` / `request.declined` and the
@@ -1490,7 +1495,9 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   change). Until then `/help` tells workers to ask the office for a copy.
 - UI follow-ups (Phase 11):
   - Tab titles for one shift (office and staff) and for My shifts: the shift page would load the
-    shift twice, and `/` shares its file with the platform's home page.
+    shift twice, and `/` shares its file with the platform's home page. **Done in Phase 37.6
+    (Wave 1):** each page reads its record once (React `cache()`), the office session page reads
+    one row, and `/` titles itself "Home" only on a firm's address.
   - The guides' "On this page" list could mark the section being read (needs JavaScript).
   - Shared class strings for the bordered answer rows (new request, pay query, notifications),
     the pay-code field, the answer boxes on the shift page and locked fields, in
@@ -2522,7 +2529,8 @@ Each task adds what it left out here as its wave is merged.
   anywhere (`next.config.ts`, `src/lib/http/proxy.ts`, `deploy/Caddyfile`), so any site can frame
   any page, as before Phase 31. Add an app-wide `Content-Security-Policy: frame-ancestors 'self'`.
   It must be `'self'`, not `DENY` (or `X-Frame-Options: DENY`): the demo's phone frame
-  (`/start/phone`) shows the casual app in a same-address iframe and would break.
+  (`/start/phone`) shows the casual app in a same-address iframe and would break. **Done in Phase
+  37.7 (Wave 1):** Caddy sends it (`deploy/Caddyfile`); live once Caddy is recreated on the server.
 - **The casual view on a demo server (guardrails review, left as it is):** any Acme office user
   logged in on a demo server, not only the staffing demo account, can use "Casual mobile view" to
   start a session as the demo casual Zoe Adeyemi. Fine while the demo holds made-up people only
@@ -2606,3 +2614,58 @@ Each task adds what it left out here as its wave is merged.
   Dylan: wait). "Not worked lately" counts casuals who have never worked, so the demo shows most
   casuals as lapsed. Split them into their own count and tab ("New: not worked yet"), as the
   casual's own page already does.
+
+## Phase 37 (Wave 1), deferred while building
+
+From builder B (37.4, 37.5; 2026-11-13):
+
+- **A time change made on the rota sheet tells the booked casual nothing** (37.5, w1-05).
+  `logTimeChange` (`src/lib/roster/sheets/sync.ts`) records `shift.moved` or `shift.curtailed`
+  but queues no firm-change notice, so `request_change_agreed` promises no later message.
+- **An approved review still reads "Your request (review, ref …) is approved."**, and the
+  casual's My requests chip still says "Approved" for a time change or swap (37.5, w1-05; the chip
+  is a screen change and needs a mock-up). Approve applying the change itself is still open too.
+- **The channel confirmation's words** (37.5, w1-06): "App messages: answered automatically now,
+  with the answers that are on." (`src/lib/office/answers-copy.ts`), and Settings' link line "sent
+  straight away by app, text or email", are also untrue when no answer is switched on.
+- **Unsorted emails to the staffing inbox have no time rule** (37.4, w1-04): while the inbox's
+  sort job is down, an email from a casual waits unsorted and is never counted in Need a person.
+- **The detail page's empty "Reply sent", "Sent" and "Considered" lines on an unsorted message**
+  (37.4, w1-04; the audit's x2-copy-02 one-line suggestion).
+
+From builder C (37.3, 37.6, 37.7; 2026-11-13):
+
+- **"Not offered, and why" (37.3, w1-03):** link each casual's name to `/office/casuals/[id]`, and
+  make "And {n} more." open the full list (the rest of audit a5-sessions-08). Wave 2's empty-list
+  summary (a5-sessions-03, "17 have no licence in date") should reuse `licenceOf`/`licenceWhy`.
+- **The rota sheet's lines in Needs attention** ("From your rota sheet") still say "a licence or
+  card missing" / "a licence or card out of date" (`src/lib/office/event-words.ts`): a different
+  data path (stored sync problems, no rule checks), so they don't name the card yet.
+- **The e2e seed has no steward without the Level 2 qualification:** the dashboard spec adds its
+  own ("Nina Aardvark", `addSteward(..., { qualified: false })`) to see "Needs Level 2 spectator
+  safety qualification (none on file)", and removes her again at the end (`removeWorker`).
+- **`global-error.tsx` (37.6, w1-08):** when the whole page fails on an office address it still
+  says "If it keeps happening, contact the office." It would need the address there, not proven to
+  work in Next's global error page. Its tab, and `src/app/error.tsx`'s, keep the bare
+  "{firm} shifts" (client components: no metadata; a React `<title>` would do it).
+- **`/client/*` addresses that match no page** still get the casual not-found with "Go to my
+  shifts" (Phase 36's client app).
+- **A refused page, the rest:** a record that doesn't exist on a titled detail page shows the
+  not-found page and its "Page not found" tab (its words, "This page doesn't exist, or your role
+  can't open it.", were built in 37.6). The slow refused 404
+  (x4-performance-robustness-08) and auto refresh on the not-found page (x4-09) are untouched.
+- **x2-copy-17:** an "{firm} office" tab template for the office, and the enquiry's own title
+  ("Message from an unknown number · Enquiries").
+- **Buttons before the page is ready (37.7, w1-10), client and /start:** the client portal's line
+  buttons (`src/app/client/(in)/requests/new/request-form.tsx`) and the /start chooser's view
+  buttons (`start/casual-view-button.tsx`, `start/client-view-button.tsx`) can be tapped before the
+  page is ready. Give them `useHydrated()` and bring `client/` and `start/` into
+  `tests/unit/forms.hydration.test.ts`'s button rule (the office's own buttons are parked already: "Other office client buttons").
+- **Headers (37.7, w1-11), the rest:** a fuller Content-Security-Policy (script-src with Next's
+  nonces); `X-Frame-Options: SAMEORIGIN` for old browsers; the tour posters as WebP or AVIF;
+  `frame-ancestors` inside the `/files` sandboxed policy; why Next leaves `/office/map-worker`
+  uncompressed (measured live, not explained: re-measure through Caddy after the deploy);
+  `deploy.sh` refreshing the server's Caddyfile and recreating Caddy itself (extends "The server's
+  own files never update themselves"); the rest of x6-features-08 (an outside pen test, Cyber
+  Essentials, the Dependabot pass). Live on the server is its own step after the tick
+  (`docs/runbooks.md` "A new Caddyfile").

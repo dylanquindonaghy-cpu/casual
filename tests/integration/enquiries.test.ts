@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createFakeAi, noAi, type AiClient } from "@/lib/ai/client";
+import { questionsWithNoAnswer } from "@/lib/answers/office";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { receiveSms, receiveWhatsApp } from "@/lib/inbound/receive";
 import { runInboundMessage } from "@/lib/inbound/reply";
@@ -11,6 +12,8 @@ import { ENQUIRY_REPLY_QUEUE, runEnquiryReply } from "@/lib/notices/enquiry-repl
 import { loadEnquiries, loadEnquiry, needPersonCount, officeEnquiry } from "@/lib/office/enquiries";
 import { closeEnquiry, replyToEnquiry } from "@/lib/office/enquiry-actions";
 import { WHATSAPP_WINDOW_MS } from "@/lib/office/enquiry-rules";
+import { loadUpdatesPage } from "@/lib/office/updates";
+import { DEFAULT_VIEW } from "@/lib/office/updates-view";
 import { canWithdrawRequest, myRequests, withdrawRequest } from "@/lib/portal/requests";
 import { captureTransport } from "../helpers/auth";
 import { bookingFirm } from "../helpers/booking-fixture";
@@ -139,6 +142,13 @@ async function enquiryFirm(o: { repliesOff?: true } = {}) {
         ])
       ).rows[0]?.at ?? 0,
     );
+  // The shifts line's job for a message stored with `answer: false` (Wave 1, w1-04).
+  const runJob = (messageId: string) =>
+    runInboundMessage(
+      { firmId: f.firmId, messageId, idempotencyKey: `inbound-message:${messageId}` },
+      withFirm,
+      deps(line_.transport),
+    );
   const load = (view: "all" | "person" | "pay", now = new Date()) =>
     withFirm(f.firmId, (tx) => loadEnquiries(tx, view, now));
   const detail = (messageId: string, now = new Date()) =>
@@ -155,6 +165,7 @@ async function enquiryFirm(o: { repliesOff?: true } = {}) {
     eventsOf,
     replyJob,
     createdAt,
+    runJob,
     load,
     detail,
   };
@@ -277,7 +288,7 @@ describe("the loader joins a message to its replies, its question and the log", 
 });
 
 describe("each outcome label comes from what was logged", () => {
-  it("keyword, AI, pay, a person, done in the app, not understood", async () => {
+  it("keyword, AI, pay, a person, done in the app, not answered yet", async () => {
     const t = await enquiryFirm();
     const keyword = await t.incoming("any shifts this weekend?");
     const ai = await t.incoming("cant make tmrw, car broke down", {
@@ -302,7 +313,8 @@ describe("each outcome label comes from what was logged", () => {
       "in_app",
       "pay",
       "person_waiting",
-      "not_understood",
+      // Wave 1 (w1-04): under 10 minutes old, "Not answered yet" (was "Not understood").
+      "not_yet",
     ]);
     const k = await t.detail(keyword);
     expect(k?.timeline.sorted).toEqual({ how: "keyword", intent: "shifts" });
@@ -591,6 +603,268 @@ describe("the office's reply", () => {
     expect((await other.load("all")).rows.map((r) => r.messageId)).not.toContain(asked);
     expect(await other.detail(asked)).toBeNull();
     expect(await t.eventsOf("enquiry.%")).toEqual([]);
+  });
+});
+
+// Wave 1 (w1-04): a message the shifts line never sorted (its job down, or never run) needs a
+// person 10 minutes after it came in; the office's reply or close passes it to a person first,
+// through the same mark as the job's last try, so the shifts line never answers it afterwards.
+describe("a message the shifts line never sorted", () => {
+  const MIN = 60_000;
+  const outbound = async (messageId: string) =>
+    (
+      await su.query<{ id: string; body: string }>(
+        "select id::text as id, body from messages where reply_to = $1 and direction = 'out'",
+        [messageId],
+      )
+    ).rows;
+  const row = async (messageId: string) =>
+    (
+      await su.query<{
+        handled_at: Date | null;
+        handled_as: string | null;
+        intent: string | null;
+        worker_id: string | null;
+      }>(
+        "select handled_at, handled_as, intent, worker_id::text as worker_id from messages where id = $1",
+        [messageId],
+      )
+    ).rows[0];
+  const received = async (firmId: string, messageId: string) =>
+    (
+      await su.query<{ data: Record<string, unknown> }>(
+        "select data from events where firm_id = $1 and entity_id = $2 and action = 'message.received'",
+        [firmId, messageId],
+      )
+    ).rows.map((r) => r.data);
+
+  it("needs a person 10 minutes after it came in, named as the casual whose number it came from", async () => {
+    const t = await enquiryFirm();
+    const id = await t.incoming("I need to cancel please", { answer: false });
+    // To the millisecond, as a JavaScript date holds it (Postgres keeps microseconds), so the
+    // boundary below is exact.
+    await su.query(
+      "update messages set created_at = date_trunc('milliseconds', created_at) where id = $1",
+      [id],
+    );
+    const c = (await t.createdAt(id)).getTime();
+    const early = new Date(c + 10 * MIN - 1000);
+    const late = new Date(c + 10 * MIN);
+    const count = (now: Date) => withFirm(t.f.firmId, (tx) => needPersonCount(tx, now));
+
+    // 9 minutes 59 seconds: not yet.
+    expect(await count(early)).toBe(0);
+    const before = await t.load("all", early);
+    expect(before.needPerson.count).toBe(0);
+    expect((await t.load("person", early)).rows).toEqual([]);
+    expect(before.rows.find((r) => r.messageId === id)).toMatchObject({
+      outcome: "not_yet",
+      who: { kind: "casual", workerId: t.zoe, name: "Zoe Booker" },
+    });
+    const d1 = await t.detail(id, early);
+    expect(d1).toMatchObject({
+      waiting: false,
+      who: { kind: "casual", workerId: t.zoe },
+      timeline: { sorted: { how: "not_yet" } },
+    });
+    expect(await replyToEnquiry(t.ctx(early), id, "Sorted.")).toEqual({ status: "not_waiting" });
+
+    // 10 minutes: waiting for a person, the oldest.
+    expect(await count(late)).toBe(1);
+    const after = await t.load("all", late);
+    expect(after.needPerson).toEqual({ count: 1, oldestAt: new Date(c) });
+    expect((await t.load("person", late)).rows.map((r) => r.messageId)).toEqual([id]);
+    expect(after.rows.find((r) => r.messageId === id)?.outcome).toBe("person_waiting");
+    const d2 = await t.detail(id, late);
+    expect(d2).toMatchObject({
+      waiting: true,
+      outcome: "person_waiting",
+      who: { kind: "casual", workerId: t.zoe },
+      timeline: { sorted: { how: "not_yet", late: true } },
+      plan: { ok: true },
+    });
+    // Nothing was written by reading it.
+    expect((await row(id))?.handled_at).toBeNull();
+  });
+
+  it("Updates lists it for a person from 10 minutes, named as the casual; another firm's never", async () => {
+    const t = await enquiryFirm();
+    const other = await enquiryFirm();
+    const id = await t.incoming("Can someone ring me about Saturday?", { answer: false });
+    const theirs = await other.incoming("hello", { answer: false, from: t.mobile });
+    await su.query(
+      "update messages set created_at = date_trunc('milliseconds', created_at) where id = any($1)",
+      [[id, theirs]],
+    );
+    const c = (await t.createdAt(id)).getTime();
+    const view = { ...DEFAULT_VIEW, period: "7" as const };
+    const enquiriesIn = async (firm: typeof t, now: Date) =>
+      (
+        await withFirm(firm.f.firmId, (tx) => loadUpdatesPage(tx, now, firm.resourcer, view))
+      ).everything.filter((u) => u.kind === "enquiry");
+
+    // 9 minutes 59 seconds: not yet.
+    expect(
+      (await enquiriesIn(t, new Date(c + 10 * MIN - 1000))).map((u) => u.messageId),
+    ).not.toContain(id);
+    // 10 minutes: for a person, named as Zoe (the casual whose number it came from).
+    const late = new Date(Math.max(c, (await other.createdAt(theirs)).getTime()) + 10 * MIN);
+    const mine = await enquiriesIn(t, late);
+    expect(mine.filter((u) => u.messageId === id)).toMatchObject([
+      { kind: "enquiry", who: "Zoe Booker", channel: "whatsapp" },
+    ]);
+    // Another firm's unsorted message, from the same number, never shows here; in its own firm it
+    // reads as an unknown number, never this firm's Zoe.
+    expect(mine.map((u) => u.messageId)).not.toContain(theirs);
+    const theirList = await enquiriesIn(other, late);
+    expect(theirList.filter((u) => u.messageId === theirs)).toMatchObject([
+      { who: "Unknown number" },
+    ]);
+    expect(theirList.map((u) => u.messageId)).not.toContain(id);
+  });
+
+  it("answering it marks it for a person, so the shifts line never answers it too", async () => {
+    const t = await enquiryFirm();
+    const id = await t.incoming("Is there parking at the venue?", { answer: false });
+    const now = new Date((await t.createdAt(id)).getTime() + 15 * MIN);
+    expect(await replyToEnquiry(t.ctx(now), id, "Yes, in car park B.")).toMatchObject({
+      status: "queued",
+    });
+    expect(await row(id)).toMatchObject({
+      handled_as: "office",
+      intent: "office",
+      worker_id: t.zoe,
+    });
+    expect((await row(id))?.handled_at).not.toBeNull();
+    expect(await received(t.f.firmId, id)).toEqual([
+      { channel: "whatsapp", handledAs: "office", intent: "office", late: true, workerId: t.zoe },
+    ]);
+    // The job, late: it finds it handled and sends nothing.
+    expect(await t.runJob(id)).toEqual({ status: "already" });
+    const out = await outbound(id);
+    expect(out).toHaveLength(1);
+    const d = await t.detail(id, now);
+    expect(d).toMatchObject({
+      outcome: "person_answered",
+      timeline: { sorted: { how: "person", why: "late" } },
+    });
+    expect(await withFirm(t.f.firmId, (tx) => needPersonCount(tx, now))).toBe(0);
+    // An unsorted message the office passed to a person is a question with no answer (as a last
+    // try's is): the answer library lists it.
+    const unanswered = await withFirm(t.f.firmId, (tx) => questionsWithNoAnswer(tx, { now }));
+    expect(unanswered.map((q) => q.id)).toContain(id);
+
+    // Its reply fails: back in Need a person.
+    const broken: MessagingTransport = {
+      name: "broken",
+      async send() {
+        throw new Error("network down");
+      },
+    };
+    const payload = await t.replyJob(out[0]?.id ?? "");
+    expect(await runEnquiryReply(payload, withFirm, { transport: broken })).toMatchObject({
+      status: "failed",
+    });
+    expect(await withFirm(t.f.firmId, (tx) => needPersonCount(tx, now))).toBe(1);
+  });
+
+  it("closing it marks it and logs it", async () => {
+    const t = await enquiryFirm();
+    const id = await t.incoming("hello?", { answer: false });
+    const now = new Date((await t.createdAt(id)).getTime() + 15 * MIN);
+    expect(await closeEnquiry(t.ctx(now), id, "spam")).toEqual({ status: "closed" });
+    expect(await received(t.f.firmId, id)).toMatchObject([{ late: true, handledAs: "office" }]);
+    expect(await t.eventsOf("enquiry.closed")).toMatchObject([{ data: { reason: "spam" } }]);
+    expect(await t.runJob(id)).toEqual({ status: "already" });
+    expect(await outbound(id)).toEqual([]);
+    expect(await withFirm(t.f.firmId, (tx) => needPersonCount(tx, now))).toBe(0);
+    expect((await t.detail(id, now))?.timeline.sorted).toEqual({ how: "person", why: "late" });
+  });
+
+  it("an unsorted STOP still turns texts off, with no confirmation", async () => {
+    const t = await enquiryFirm();
+    const id = await t.incoming("STOP", { sms: true, answer: false });
+    const now = new Date((await t.createdAt(id)).getTime() + 15 * MIN);
+    expect(await closeEnquiry(t.ctx(now), id, "other")).toEqual({ status: "closed" });
+    const { rows: w } = await su.query<{ off: Date | null }>(
+      "select sms_opted_out_at as off from workers where id = $1",
+      [t.zoe],
+    );
+    expect(w[0]?.off).not.toBeNull();
+    expect(await t.eventsOf("worker.sms_opted_out")).toHaveLength(1);
+    expect(await received(t.f.firmId, id)).toMatchObject([
+      { handledAs: "opt_out", optOut: "stop", changed: true, late: true },
+    ]);
+    expect(await outbound(id)).toEqual([]);
+    expect(await t.runJob(id)).toEqual({ status: "already" });
+
+    // Answering one instead: the STOP is applied first, so the reply can't go by text.
+    const u = await enquiryFirm();
+    const stop = await u.incoming("STOP", { sms: true, answer: false });
+    const later = new Date((await u.createdAt(stop)).getTime() + 15 * MIN);
+    expect(await replyToEnquiry(u.ctx(later), stop, "Sorry to see you go.")).toEqual({
+      status: "texts_off",
+    });
+    expect(await u.eventsOf("worker.sms_opted_out")).toHaveLength(1);
+    expect(await outbound(stop)).toEqual([]);
+  });
+
+  it("a reply that can't go still marks it for a person", async () => {
+    const t = await enquiryFirm();
+    const id = await t.incoming("can someone call me", { answer: false });
+    await su.query("update firms set shifts_line_e164 = null where id = $1", [t.f.firmId]);
+    const now = new Date((await t.createdAt(id)).getTime() + 15 * MIN);
+    expect(await replyToEnquiry(t.ctx(now), id, "Hi")).toEqual({ status: "no_line" });
+    expect(await row(id)).toMatchObject({ handled_as: "office", intent: "office" });
+    expect(await received(t.f.firmId, id)).toMatchObject([{ late: true }]);
+    expect(await t.eventsOf("enquiry.answered")).toEqual([]);
+    expect(await withFirm(t.f.firmId, (tx) => needPersonCount(tx, now))).toBe(1);
+    expect((await t.detail(id, now))?.timeline.sorted).toEqual({ how: "person", why: "late" });
+  });
+
+  it("an unsorted email isn't counted by the 10 minutes", async () => {
+    const t = await enquiryFirm();
+    const now = new Date();
+    const before = await withFirm(t.f.firmId, (tx) => needPersonCount(tx, now));
+    await su.query(
+      `insert into inbound_emails (firm_id, provider_message_id, worker_id, from_address,
+                                   to_address, subject, body, created_at)
+       values ($1, $2, $4, 'zoe@example.test', 'shifts@example.test', 'Hi', 'Any work?', $3)`,
+      [
+        t.f.firmId,
+        `<${randomBytes(8).toString("hex")}@example.test>`,
+        new Date(now.getTime() - HOUR),
+        t.zoe,
+      ],
+    );
+    expect(await withFirm(t.f.firmId, (tx) => needPersonCount(tx, now))).toBe(before);
+    expect((await t.load("all", now)).needPerson.count).toBe(before);
+  });
+
+  it("another firm's unsorted messages and casuals never show", async () => {
+    const t = await enquiryFirm();
+    const other = await enquiryFirm();
+    // From Zoe's number to the other firm's line: that firm doesn't know her number's owner here.
+    const theirs = await other.incoming("hello", { answer: false, from: t.mobile });
+    const now = new Date((await other.createdAt(theirs)).getTime() + 15 * MIN);
+    expect(await withFirm(t.f.firmId, (tx) => needPersonCount(tx, now))).toBe(0);
+    expect((await t.load("all", now)).rows.map((r) => r.messageId)).not.toContain(theirs);
+    // In its own firm it's counted, named by that firm's casual with the number (none: unknown),
+    // never this firm's Zoe.
+    expect(await withFirm(other.f.firmId, (tx) => needPersonCount(tx, now))).toBe(1);
+    const row_ = (await other.load("all", now)).rows.find((r) => r.messageId === theirs);
+    expect(row_).toBeDefined();
+    expect(row_?.who).toEqual({ kind: "unknown", from: t.mobile });
+
+    // The other firm's own casual with the same number (numbers are one per number in a firm,
+    // not across firms): its list names her, never this firm's Zoe.
+    await su.query("update workers set mobile_e164 = $2 where id = $1", [other.zoe, t.mobile]);
+    const named = (await other.load("all", now)).rows.find((r) => r.messageId === theirs);
+    expect(named?.who).toMatchObject({ kind: "casual", workerId: other.zoe });
+    expect(named?.who).not.toMatchObject({ workerId: t.zoe });
+    expect((await other.detail(theirs, now))?.who).toMatchObject({ workerId: other.zoe });
+    // And this firm still sees none of it.
+    expect((await t.load("all", now)).rows.map((r) => r.messageId)).not.toContain(theirs);
   });
 });
 

@@ -332,6 +332,7 @@ describe("telling the worker (the request-update job)", () => {
     const sent: OutboundMessage[] = [];
     // A transaction open as each push went (14.1: never).
     const pushedInTransaction: boolean[] = [];
+    const pushes: { title: string; body: string; url: string }[] = [];
     const state = { fail: false, refuseWhatsApp: false };
     const deps = (when: Date): RequestUpdateDeps => ({
       transport: {
@@ -346,8 +347,9 @@ describe("telling the worker (the request-update job)", () => {
       },
       push: {
         name: "capture",
-        async send() {
+        async send(_target, payload) {
           pushedInTransaction.push(activeFirmId() !== undefined);
+          pushes.push({ title: payload.title, body: payload.body, url: payload.url });
           return { status: "sent" };
         },
       },
@@ -362,7 +364,7 @@ describe("telling the worker (the request-update job)", () => {
     const slug = (
       await su.query<{ slug: string }>("select slug from firms where id = $1", [t.f.firmId])
     ).rows[0]?.slug;
-    return { sent, pushedInTransaction, state, run, slug };
+    return { sent, pushedInTransaction, pushes, state, run, slug };
   }
   const bodies = (sent: OutboundMessage[]) => sent.map((m) => ("body" in m ? m.body : ""));
   const ref = (id: string) => id.slice(0, 8).toUpperCase();
@@ -386,6 +388,8 @@ describe("telling the worker (the request-update job)", () => {
       ["request.update_notice", "sending"],
       ["request.update_sent", "sms"],
     ]);
+    // The log names the words sent (the guardrails review of Phase 37): a declined swap's.
+    expect(logged[0]?.data.template).toBe("request_update");
     // No phone with notifications on: no push.
     expect(logged[1]?.data.pushes).toBe(0);
     expect(n.pushedInTransaction).toEqual([]);
@@ -414,14 +418,77 @@ describe("telling the worker (the request-update job)", () => {
     expect(answered.map((r) => r.answer?.told)).toEqual(["sent"]);
   });
 
+  // Wave 1 (w1-05): an approved time change goes as request_change_agreed, its no-note wording.
+  // Saying yes changes nothing yet, so it never reads "is approved" as if it were done.
   it("no note: the no-note wording", async () => {
     const t = await requestFirm();
     const n = await notices(t);
     await answerRequest(t.ctx(), t.timeChange, "approved", "");
     await n.run((await jobsOf(t.f.firmId))[0] ?? {});
     expect(bodies(n.sent)).toEqual([
-      `Your request (time change, ref ${ref(t.timeChange)}) is approved. — Booking Test ${n.slug} Shift Team`,
+      `The office said yes to your time change. Your shift changes when they update it. Ref ${ref(t.timeChange)}. — Booking Test ${n.slug} Shift Team`,
     ]);
+    // The log names the words sent: the agreed wording, not "approved".
+    const logged = await eventsOf(t.f.firmId, "request.update_notice");
+    expect(logged.map((e) => e.data.template)).toEqual(["request_change_agreed"]);
+  });
+
+  it("an approved swap with a note: request_change_agreed by email, with its subject", async () => {
+    const t = await requestFirm();
+    await su.query(
+      "update workers set email = 'ben@example.test', notify_channel = 'email' where id = $1",
+      [t.ben],
+    );
+    const n = await notices(t);
+    await answerRequest(t.ctx(), t.swap, "approved", "See you at 13:00.");
+    const job = (await jobsOf(t.f.firmId)).find((j) => j.requestId === t.swap);
+    expect(await n.run(job ?? {})).toMatchObject({ output: { status: "sent", channel: "email" } });
+    expect(n.sent).toHaveLength(1);
+    const email = n.sent[0];
+    expect(email && "subject" in email ? email.subject : null).toBe(
+      "The office said yes to your swap",
+    );
+    expect(bodies(n.sent)).toEqual([
+      `The office said yes to your swap. Your shift changes when they update it. Ref ${ref(t.swap)}. The office says: See you at 13:00. — Booking Test ${n.slug} Shift Team`,
+    ]);
+  });
+
+  it("an approved swap: its push says the shift hasn't changed yet", async () => {
+    const t = await requestFirm();
+    await su.query(
+      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
+       values ($1, $2, 'https://push.example.test/ben', 'k', 'a')`,
+      [t.f.firmId, t.ben],
+    );
+    const n = await notices(t);
+    await answerRequest(t.ctx(), t.swap, "approved", "See you at 13:00.");
+    const job = (await jobsOf(t.f.firmId)).find((j) => j.requestId === t.swap);
+    expect(await n.run(job ?? {})).toMatchObject({ output: { status: "sent", channel: "push" } });
+    expect(n.pushes).toEqual([
+      {
+        title: "The office said yes",
+        body: "Swap: your shift hasn't changed yet. Tap to view.",
+        url: "/requests",
+      },
+    ]);
+  });
+
+  it("answering a time change leaves the shift's times as they were", async () => {
+    const t = await requestFirm();
+    const times = async () =>
+      (
+        await su.query<{ s: string; e: string }>(
+          `select s.starts_at::text as s, s.ends_at::text as e from requests q
+             join shifts s on s.id = q.shift_id where q.id = $1`,
+          [t.timeChange],
+        )
+      ).rows[0];
+    const before = await times();
+    expect(before?.s).toBeTruthy();
+    await answerRequest(t.ctx(), t.timeChange, "approved", "");
+    const n = await notices(t);
+    await n.run((await jobsOf(t.f.firmId))[0] ?? {});
+    expect(await times()).toEqual(before);
   });
 
   it('a question the office approved is told as answered ("approved" can read as "booked")', async () => {

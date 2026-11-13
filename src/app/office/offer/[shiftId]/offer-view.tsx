@@ -147,7 +147,7 @@ export function NotOfferedList({
             >
               <span className="font-semibold">{n.name}</span>
               <span className="text-sm text-ink-muted">
-                {notOfferedWhy(n.why, DAILY_OFFER_CAP)}
+                {notOfferedWhy(n.why, DAILY_OFFER_CAP, n.licence)}
               </span>
             </li>
           ))}

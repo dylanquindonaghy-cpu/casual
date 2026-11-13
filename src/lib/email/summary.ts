@@ -116,7 +116,8 @@ export async function slotCounts(tx: FirmTx, start: Date, end: Date): Promise<Su
     office: number;
   }>(sql`
     with slot as (
-      select e.id, e.firm_id, e.handled_at, e.handled_as, e.intent, 'email'::text as channel,
+      select e.id, e.firm_id, e.created_at, e.handled_at, e.handled_as, e.intent,
+             'email'::text as channel,
              (e.intent = 'pay' or exists (
                 select 1 from events r
                  where r.firm_id = e.firm_id and r.entity_id = e.id
@@ -136,9 +137,9 @@ export async function slotCounts(tx: FirmTx, start: Date, end: Date): Promise<Su
            count(*) filter (where s.handled_as is distinct from 'unknown' and not s.pay
                               and s.linked)::int as linked,
            count(*) filter (where s.handled_as is distinct from 'unknown' and not s.pay
-                              and not s.linked and ${needsPerson("s")})::int as waiting,
+                              and not s.linked and ${needsPerson("s", end)})::int as waiting,
            count(*) filter (where s.handled_at is not null and s.handled_as <> 'unknown'
-                              and not s.pay and not s.tried and not ${needsPerson("s")})::int
+                              and not s.pay and not s.tried and not ${needsPerson("s", end)})::int
              as office
       from slot s
   `);

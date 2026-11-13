@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { loginCard, loginTitle, page } from "@/app/ui/classes";
 import { Slip } from "@/app/ui/slip";
@@ -7,8 +8,10 @@ import { firmLoginWay } from "@/lib/portal/login-way";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 import { LoginForm } from "./login-form";
 
-// Log in (docs/screens.md, `/login`). No page title of its own: the tab keeps the firm's plain title
-// ("Acme Events shifts"). The same layout as the other three login pages (/l, /office/login,
+export const metadata: Metadata = { title: "Log in" };
+
+// Log in (docs/screens.md, `/login`). Its tab reads "Log in · Acme Events shifts" (Phase 37.6,
+// w1-09). The same layout as the other three login pages (/l, /office/login,
 // /office/l; docs/ui-design.md "Shared components"): the brand bar's 448px column, a card framed
 // from 640px up (on a phone the page is the card).
 export default async function LoginPage({

@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { btn, card, confirmStep, h2, headingGap, page, sectionGap } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
@@ -6,6 +8,7 @@ import { requireOfficeArea } from "@/lib/auth/current-office";
 import { workerDataSummary } from "@/lib/gdpr/worker-erase";
 import { dayWithYear } from "@/lib/office/action-log";
 import { eraseExplainer, OTHERS_WORDS, upcomingShifts } from "@/lib/office/data-copy";
+import { workerDataTabTitle } from "@/lib/office/tab-titles";
 import { localDateOf } from "@/lib/time/zoned";
 import { EraseForm } from "./erase-form";
 
@@ -13,14 +16,32 @@ import { EraseForm } from "./erase-form";
 // delete their personal details. Admins only (checked here and in every function it calls).
 // Layout: two sections, each a heading over one card. While the details can still be deleted,
 // that card has a red border and its button is solid red: it can't be undone.
+// The worker, read once per request for the page and its tab title ("{name} · Data requests",
+// Phase 37.6, w1-09), after the page's own access check (admins only: anyone else gets the
+// not-found page, never the name).
+const load = cache(async (id: string) => {
+  const { firm, officeUser } = await requireOfficeArea("data");
+  const worker = await workerDataSummary({ firm, officeUserId: officeUser.id }, id);
+  return { firm, worker };
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { worker } = await load((await params).id);
+  if (!worker) notFound();
+  return { title: workerDataTabTitle(worker.name) };
+}
+
 export default async function OfficeWorkerDataPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { firm, officeUser } = await requireOfficeArea("data");
   const { id } = await params;
-  const worker = await workerDataSummary({ firm, officeUserId: officeUser.id }, id);
+  const { firm, worker } = await load(id);
   if (!worker) notFound();
   const today = localDateOf(new Date(), firm.timezone);
   const canErase = !worker.erasedAt && worker.upcoming === 0;

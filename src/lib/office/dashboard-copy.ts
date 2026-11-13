@@ -38,7 +38,16 @@ export const NEEDS_HEADINGS = {
   enquiries: "Enquiries that need a person",
   // Phase 36.4: client requests waiting for the office, and accepted ones to do in the planner.
   "client-requests": "Client requests",
+  // w1-07: counted with Needs attention's items (the requests casuals made in the app, waiting).
+  "app-requests": "Requests from the app",
 } as const;
+
+// "2 requests casuals made in the app are waiting for an answer." (Wave 1, w1-07)
+export function appRequestsNeedText(n: number): string {
+  return n === 1
+    ? "1 request a casual made in the app is waiting for an answer."
+    : `${n} requests casuals made in the app are waiting for an answer.`;
+}
 
 // "2 waiting for you (1 urgent) · 1 to do in your planner" (Phase 36.4).
 export function clientRequestsNeedText(c: {

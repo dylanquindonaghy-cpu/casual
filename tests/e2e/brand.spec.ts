@@ -26,8 +26,10 @@ test("each firm's pages open with its own bar: name, mark and readable text", as
   await expect(mark).toHaveCSS("color", "rgb(23, 24, 0)");
   // "Offline" shows only in the copy kept for no signal.
   await expect(bar.getByText("Offline")).toBeHidden();
-  await expect(page).toHaveTitle("Acme Events shifts");
+  // Phase 37.6 (w1-09): every page names itself, the login pages too.
+  await expect(page).toHaveTitle("Log in · Acme Events shifts");
   await page.goto(`${acme}/office/login`);
+  await expect(page).toHaveTitle("Office login · Acme Events shifts");
   await expect(page.getByTestId("brand-name")).toHaveText("Acme Events");
   // Round 8 (Phase 26): the office is hi-vis inside; since Phase 32 the firm's mark over its login
   // is the same lime.

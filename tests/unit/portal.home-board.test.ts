@@ -458,7 +458,13 @@ const render = (o: Partial<Parameters<typeof HomeView>[0]> = {}) =>
   renderToStaticMarkup(
     createElement(HomeView, {
       firmName: "Acme Events",
-      pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
+      pay: {
+        payDay: "2026-11-13",
+        days: 7,
+        start: "2026-11-02",
+        end: "2026-11-08",
+        thisPeriodPaid: null,
+      },
       firstName: "Zoe",
       lastName: "Adeyemi",
       timeZone: TZ,
@@ -492,7 +498,7 @@ describe("Home with its board", () => {
       '<h1 class="text-title text-balance text-ink">Home</h1><small data-updated-slot="" data-online-only="" class="text-xs text-ink-faint tabular-nums">Updated 15:38</small>',
     );
     expect(html).toContain(
-      '<p data-date-line="" data-online-only="" class="text-base text-ink-muted">Friday 6 November · Pay day Fri 13 Nov</p>',
+      '<p data-date-line="" data-online-only="" class="text-base text-ink-muted">Friday 6 November · Next pay day Fri 13 Nov</p>',
     );
     const counts = html.match(/<ul role="list" aria-label="Your numbers"[\s\S]*?<\/ul>/)?.[0] ?? "";
     expect(text(counts)).toBe("Booked 1 Open to you 1 Urgent 1 Messages 2");

@@ -1,4 +1,6 @@
 import type { NeedsItem } from "../credentials/status";
+import { shiftDatesText } from "../pay/pay-week";
+import { dayLabel } from "../rules/reasons";
 import { localDateOf, wallTimeOf } from "../time/zoned";
 import { DISTANCE_NOT_KNOWN, notWorkedOutText, type TravelFacts } from "../travel/line-copy";
 import type { StaffPhoto } from "../uploads/photo";
@@ -38,6 +40,7 @@ const shiftsWord = (n: number) => (n === 1 ? "1 shift" : `${n} shifts`);
 export interface RowText {
   title: string;
   sub: string;
+  note?: string; // a third line, when there's one (the pay row's later pay day: 37.1)
 }
 
 // Their days and the best pay: "Thu 22 and Fri 23 Oct · up to £15.50/hour".
@@ -85,33 +88,25 @@ export function applyRowText(
   };
 }
 
-// Pay day, on the firm's pay calendar (P3; 25.2): "Pay day: Fri 30 Oct", for the shifts of the
-// week it pays ("For shifts Mon 19 to Sun 25 Oct"); on a fortnight's cycle, its dates ("For shifts
-// from Mon 26 Oct to Sun 8 Nov"). A week of two months names both ("Mon 26 Oct to Sun 1 Nov").
+// The next pay day (P3; 25.2; Phase 37.1: the office's rule, src/lib/portal/pay-day.ts): "Next pay
+// day: Fri 13 Nov", for the shifts of the period it pays ("For shifts Mon 2 to Sun 8 Nov"; a
+// fortnight's "For shifts Mon 26 Oct to Sun 8 Nov"), and, when this period is paid later, a note:
+// "This week's shifts are paid Fri 20 Nov." ("This cycle's" on a fortnight).
 export function payDayRowText(
   payDay: string,
-  period: { days: 7 | 14; start: string; end: string },
+  period: { days: 7 | 14; start: string; end: string; thisPeriodPaid?: string | null },
 ): RowText {
   const p = datePartsOfDay(payDay);
-  const day = (d: string) => {
-    const x = datePartsOfDay(d);
-    return `${x.dow} ${x.day} ${x.month}`;
-  };
+  const later = period.thisPeriodPaid ?? null;
   return {
-    title: `Pay day: ${p.dow} ${p.day} ${p.month}`,
-    sub:
-      period.days === 7
-        ? `For shifts ${weekText(period.start, period.end)}`
-        : `For shifts from ${day(period.start)} to ${day(period.end)}`,
+    title: `Next pay day: ${p.dow} ${p.day} ${p.month}`,
+    sub: `For shifts ${shiftDatesText(period.start, period.end)}`,
+    ...(later === null
+      ? {}
+      : {
+          note: `This ${period.days === 14 ? "cycle" : "week"}'s shifts are paid ${dayLabel(later)}.`,
+        }),
   };
-}
-
-// "Mon 2 to Sun 8 Nov"; "Mon 26 Oct to Sun 1 Nov" across two months.
-function weekText(start: string, end: string): string {
-  const a = datePartsOfDay(start);
-  const b = datePartsOfDay(end);
-  const first = a.month === b.month ? `${a.dow} ${a.day}` : `${a.dow} ${a.day} ${a.month}`;
-  return `${first} to ${b.dow} ${b.day} ${b.month}`;
 }
 
 // Home's two "can we reach you" rows in "Do this" (Phase 28.7; docs/screens.md "The casual app,

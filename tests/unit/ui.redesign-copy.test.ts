@@ -165,7 +165,7 @@ describe("Home's rows", () => {
     // Pay day: the pay week's Friday (D8), for the week she's in, by its dates (Phase 27.2).
     expect(
       payDayRowText("2026-10-30", { days: 7, start: "2026-10-26", end: "2026-11-01" }),
-    ).toEqual({ title: "Pay day: Fri 30 Oct", sub: "For shifts Mon 26 Oct to Sun 1 Nov" });
+    ).toEqual({ title: "Next pay day: Fri 30 Oct", sub: "For shifts Mon 26 Oct to Sun 1 Nov" });
     expect(offlineUrgentText(2, "14:49")).toBe(
       "2 were urgent at 14:49. We'll check again when you're online.",
     );

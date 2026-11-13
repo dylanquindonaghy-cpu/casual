@@ -127,6 +127,10 @@ services:
       DATABASE_ADMIN_URL: ${DATABASE_ADMIN_URL:?}
       DATABASE_URL: ${DATABASE_URL:?}
       DATABASE_JOBS_URL: ${DATABASE_JOBS_URL:?}
+      # Set: the seeded "Demo planner" gets its webhook (Phase 37.8). Without it every booking's
+      # delivery would fail as not configured. The demo worker's WEBHOOK_TRANSPORT is console, so
+      # the made-up address is never contacted.
+      INTEGRATIONS_SECRET: ${INTEGRATIONS_SECRET:-}
     volumes:
       - *db-socket
       - *outbox-write

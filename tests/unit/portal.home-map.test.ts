@@ -245,7 +245,7 @@ describe("nothing booked: the nearest shift she can take", () => {
     );
     expect(emptyOnMap(1)).toBe("1 shift you can take is on the map.");
     expect(emptyOnMap(4)).toBe("4 shifts you can take are on the map.");
-    expect(payDayText("2026-11-20")).toBe("Pay day Fri 20 Nov");
+    expect(payDayText("2026-11-20")).toBe("Next pay day Fri 20 Nov");
   });
 });
 

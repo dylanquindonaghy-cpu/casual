@@ -46,6 +46,11 @@ export interface DemoResetOptions {
   // The outbox the Demo phone reads (CONSOLE_OUTBOX_FILE): emptied.
   outboxFile?: string;
   today?: Date;
+  // The seeded "Demo planner" gets its webhook (Phase 37.8): only when INTEGRATIONS_SECRET is set
+  // on the demo-reset service (scripts/demo-reset.ts), so its deliveries can be signed; without it
+  // every new booking's delivery would fail as not configured, and Needs attention would show a
+  // failing webhook.
+  webhook?: boolean;
 }
 
 // Why it won't run here, or null. Checked before any connection is made.
@@ -83,6 +88,7 @@ export async function demoReset(o: DemoResetOptions): Promise<SeedSummary> {
     nodeEnv: o.nodeEnv,
     demoMode: "on",
     ...(o.today ? { today: o.today } : {}),
+    ...(o.webhook ? { webhook: true } : {}),
   });
   // The outbox first: the Demo phone starts empty even if working out the figures fails.
   if (o.outboxFile) await writeFile(o.outboxFile, "");

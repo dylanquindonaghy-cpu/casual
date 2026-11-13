@@ -2,6 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import { qualificationsFor } from "../credentials/qualifications";
 import { workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
+import { shiftDatesText } from "../pay/pay-week";
 import { myPayDay } from "../portal/pay-day";
 import { myShifts } from "../portal/my-shifts";
 import { roleAndEvent, shiftWhen } from "../portal/format";
@@ -28,14 +29,6 @@ export interface FactsContext {
 
 // "Friday 20 November"
 const longDay = (day: string) => datePartsOfDay(day).long;
-// "Mon 9 to Sun 15 Nov"; across two months "Mon 30 Nov to Sun 6 Dec".
-function cycleWords(start: string, end: string): string {
-  const a = datePartsOfDay(start);
-  const b = datePartsOfDay(end);
-  return a.month === b.month
-    ? `${a.dow} ${a.day} to ${b.dow} ${b.day} ${b.month}`
-    : `${a.dow} ${a.day} ${a.month} to ${b.dow} ${b.day} ${b.month}`;
-}
 // "1 December 2026"
 const dateWithYear = (day: string) =>
   `${datePartsOfDay(day).long.split(" ").slice(1).join(" ")} ${day.slice(0, 4)}`;
@@ -63,7 +56,7 @@ export async function factsFor(
   if (need.has("next_pay_day") || need.has("pay_cycle")) {
     const pay = await myPayDay(portal, workerId);
     if (need.has("next_pay_day")) facts.next_pay_day = longDay(pay.payDay);
-    if (need.has("pay_cycle")) facts.pay_cycle = cycleWords(pay.start, pay.end);
+    if (need.has("pay_cycle")) facts.pay_cycle = shiftDatesText(pay.start, pay.end);
   }
   if (need.has("next_shift") || need.has("next_shift_instructions")) {
     const [next] = await myShifts(portal, workerId, "upcoming");

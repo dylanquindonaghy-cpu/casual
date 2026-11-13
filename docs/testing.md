@@ -788,10 +788,33 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
 **Acme Events (security/events, native mode):** a fake shifts line (+44 7700 900000, Ofcom's drama
 range; Northline has none), 60 workers (5 with expired SIA, 3 "applied"),
 3 sites (stadium, racecourse, shopping centre) and the story's 4, a Saturday event with 40 shifts, one 6am
-cancellation that becomes urgent, two open requests, pay records for 8 weeks, yesterday's event
+cancellation that becomes urgent (its strike code the rules', with its strike on a Friday's run:
+Phase 37.2), two open requests, pay records for 8 weeks for 30 casuals with the work behind them, yesterday's event
 (5 bookings not marked yet), 10 pay queries (7 about one rate change), the mock-up's story
 (below: 8 more casuals, six events, cancellations and strikes, enquiries, sorted pay groups) and a
 match day to play with (below: Demo Stadium, 75 more casuals, a client login and its requests).
+
+**Demo data that agrees with itself (Phase 37.8).** Pay goes with work: 30 of Acme's 60 casuals
+(`HISTORY_WORKERS`, `src/lib/db/admin/seed-history.ts`) have their last 8 weeks' pay lines and the
+worked sessions behind them (6, 8 or 10 hours each, on weekdays, in their first role at the role's
+site, at the line's rate; the rate query's week at the new £13.50), each booking one the rules
+allowed when it was made (golden rule 6), each week drawn from the worker and the week alone so a
+re-run a week later agrees; two have a no-show; 3 late cancellers (`LATE_CANCELLERS`, workers 19, 20
+and 55) cancelled 3 sessions each with 30, 36 and 44 hours' notice (under 48, outside the 24-hour urgent window) in the last 60 days, each with its strike,
+the place filled again by the worker whose session it is; a login the day before each week worked.
+The other 30 (worker 0, a new starter, among them: "No shifts in the last 90 days.") have no pay
+and no work. Zoe Adeyemi's 11 worked sessions are her five pay weeks ("11 shifts worked · 0
+no-shows · 0 late cancellations"), so her Booked past and pay query picker list them. The pay
+queries name their work day's weekday and the 7 rate queries each read differently; one sorted
+group falls in "Recently sorted"'s 7 days. On a demo server only (`seed({ demoMode: "on" })`,
+`src/lib/db/admin/seed-demo-extras.ts`): the Pilot metrics page's baseline (5 Mondays back) and
+four weekly tallies (`src/lib/db/admin/seed-pilot.ts`), saved by Acme's admin (the e2e seed has
+none: `office.pilot.spec.ts` enters its own); a "Demo planner"
+API key (random, never stored), its event "Northgate Demo Fun Run" 9 days ahead with three sessions
+("· From your planner") and two bookings, and, when the demo-reset service has
+`INTEGRATIONS_SECRET`, its webhook (`https://planner.example/…k3F9`, working); each change logged as
+the office and the planner API log it. The local, e2e and walkthrough seeds have no planner and
+no pilot figures.
 
 **Northline Rail Labour (rail):** 30 workers with PTS/Sentinel/D&A dates, tomorrow night's
 possession with one short-notice firm cancellation. (Its mocked rota sheet is still to come: no

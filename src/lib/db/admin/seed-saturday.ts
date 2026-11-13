@@ -1,7 +1,11 @@
 import { requestPayloadSchemas } from "../../portal/request-kinds";
 import { noticeHours } from "../../roster/notice";
+import { strikeDecision, type StrikeCode } from "../../strikes/decide";
+import type { StrikeReviewReason } from "../schema/strikes";
+import { strikeSettings } from "../../strikes/settings";
 import { addDays, localDateOf, zonedToUtc } from "../../time/zoned";
-import { rng, seedId, type SeedFirm } from "./seed-data";
+import { seedId, type SeedFirm } from "./seed-data";
+import { HISTORY_HOURS, HISTORY_WORKERS, weekDraw } from "./seed-history";
 
 // Acme's Saturday event day for the demo (docs/testing.md, "Fixtures and the demo seed"): a pure
 // builder, loaded by seed.ts. Fake data only (golden rule 7).
@@ -9,11 +13,16 @@ import { rng, seedId, type SeedFirm } from "./seed-data";
 // - The next Saturday after the day the seed runs: 40 shifts across Acme's three sites, each
 //   with instructions; 32 booked by workers who hold the right licence, 8 open.
 // - The urgent dropout: the early door supervisor at the arena was booked, then the worker
-//   cancelled at 06:00 on the day the seed runs (or just now, before 06:00), giving notice; the
-//   shift is open again and marked urgent.
+//   cancelled at 06:00 on the day the seed runs (or just now, before 06:00); the shift is open
+//   again and marked urgent. Whether it's a strike is the rules' decision (strikeDecision, Phase
+//   37.2): enough notice on most days; on a Friday, under the firm's 48 hours, a strike, flagged
+//   for a review (she was unwell), with its strike row, its id scoped to the Saturday's day.
 // - Two open requests from booked workers: a time change and a swap.
-// - Pay records for every Acme worker for the last 8 complete weeks, as payroll's file would
-//   give them (hours, rate, gross, pay date).
+// - Pay records for the 30 casuals with a worked history (seed-history.ts HISTORY_WORKERS; Phase
+//   37.8) for the last 8 complete weeks, as payroll's file would give them (hours, rate, gross, pay
+//   date), each week drawn from the worker and the week alone, so a re-run on a later day draws
+//   the same; the worked sessions behind them are seed-history.ts's. Everyone else (worker 0, a
+//   new starter, among them) has no work and no pay.
 // Workers 0 to FREE_WORKERS - 1 (07700 900100 to 900104) are never booked: free for a demo login.
 // Ids are fixed and include the Saturday's date, so a re-run the same week adds nothing and a
 // re-run the next week adds that week's Saturday without moving anything already booked. The
@@ -49,6 +58,19 @@ export interface SaturdaySeed {
     cancelReason: string | null;
     noticeHours: number | null; // only for the cancellation
     bookedNoticeHours: number; // shift start minus when it was booked, for the log
+    strikeCode: StrikeCode | null; // the rules' decision, for the cancellation (37.2)
+  }[];
+  // The strike the rules gave the dropout, when they gave one (37.2): logged and stored as the app
+  // does (src/lib/roster/cancel.ts).
+  strikes: {
+    id: string;
+    bookingId: string;
+    workerId: string;
+    shiftId: string;
+    noticeHours: number;
+    issuedAt: Date;
+    expiresAt: Date;
+    reviewReasons: StrikeReviewReason[];
   }[];
   requests: {
     id: string;
@@ -174,12 +196,12 @@ const RATE_PENCE: Record<string, number> = {
   door_supervisor: 1450,
   security_officer: 1350,
 };
-const HOURS = ["8.00", "10.50", "16.00", "21.00", "24.00", "32.00", "37.50"];
 
 export function acmeSaturday(
   workers: SeedFirm["workers"],
   sites: SeedFirm["sites"],
   now: Date,
+  settings: Record<string, unknown>, // the firm's, for its strike rules
 ): SaturdaySeed {
   const today = localDateOf(now, TZ);
   const day = nextSaturday(today);
@@ -227,6 +249,7 @@ export function acmeSaturday(
           cancelReason: null,
           noticeHours: null,
           bookedNoticeHours: noticeHours(startsAt, confirmedAt),
+          strikeCode: null,
         });
       }
     }
@@ -238,17 +261,47 @@ export function acmeSaturday(
   const six = at(today, "06:00");
   const cancelledAt = six.getTime() <= now.getTime() ? six : now;
   const bookedAt = new Date(now.getTime() - 72 * HOUR);
+  const dropoutNotice = noticeHours(dropoutStart, cancelledAt);
+  const rules = strikeSettings(settings);
+  const decision = strikeDecision({
+    cancelledBy: "worker",
+    noticeHours: dropoutNotice,
+    thresholdHours: rules.noticeHours,
+    booking: { by: "worker", overridden: false },
+    changedAfterBooking: false,
+    reason: DROPOUT.reason,
+    ...(rules.enabled ? {} : { strikesOff: true as const }),
+  });
+  const dropoutBooking = id(`booking/${DROPOUT.key}/0`);
+  const dropoutWorker = worker(DROPOUT.worker).id;
   bookings.push({
-    id: id(`booking/${DROPOUT.key}/0`),
+    id: dropoutBooking,
     shiftId: dropoutShift,
-    workerId: worker(DROPOUT.worker).id,
+    workerId: dropoutWorker,
     status: "cancelled_worker",
     confirmedAt: bookedAt,
     cancelledAt,
     cancelReason: DROPOUT.reason,
-    noticeHours: noticeHours(dropoutStart, cancelledAt),
+    noticeHours: dropoutNotice,
     bookedNoticeHours: noticeHours(dropoutStart, bookedAt),
+    strikeCode: decision.code,
   });
+  const strikes: SaturdaySeed["strikes"] =
+    decision.result === "strike"
+      ? [
+          {
+            // Scoped to the Saturday's day, like every row here: a re-run a week later adds its own.
+            id: id(`strike/${DROPOUT.key}/0`),
+            bookingId: dropoutBooking,
+            workerId: dropoutWorker,
+            shiftId: dropoutShift,
+            noticeHours: dropoutNotice,
+            issuedAt: cancelledAt,
+            expiresAt: new Date(cancelledAt.getTime() + rules.liveDays * 24 * HOUR),
+            reviewReasons: decision.reviewReasons,
+          },
+        ]
+      : [];
 
   const firstShift = (key: string) => id(`shift/${key}/0`);
   const colleague = worker(21);
@@ -280,14 +333,16 @@ export function acmeSaturday(
   const thisMonday = addDays(today, -weekday(today));
   const pay: SaturdaySeed["pay"] = [];
   workers.forEach((w, i) => {
-    const r = rng(1000 + i);
+    if (!HISTORY_WORKERS.includes(i)) return;
     const rate = RATE_PENCE[w.roles[0] ?? "steward"] ?? RATE_PENCE.steward ?? 1300;
     for (let week = 1; week <= 8; week++) {
-      // Most weeks worked; the last complete week always, so everyone has something to see.
-      if (week > 1 && r() < 0.35) continue;
       const periodStart = addDays(thisMonday, -7 * week);
+      const r = weekDraw(i, periodStart);
+      // Most weeks worked; the last complete week always, so each of them has something to see.
+      const worked = r() >= 0.35;
+      if (week > 1 && !worked) continue;
       const periodEnd = addDays(periodStart, 6);
-      const hours = HOURS[Math.floor(r() * HOURS.length)] ?? "16.00";
+      const hours = HISTORY_HOURS[Math.floor(r() * HISTORY_HOURS.length)] ?? "16.00";
       pay.push({
         id: seedId(`acme/pay/${i}/${periodStart}`),
         workerId: w.id,
@@ -307,6 +362,7 @@ export function acmeSaturday(
     shiftsCreatedAt: new Date(now.getTime() - 7 * 24 * HOUR),
     shifts,
     bookings,
+    strikes,
     requests,
     pay,
   };

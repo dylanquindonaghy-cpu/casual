@@ -8,8 +8,10 @@ import { resolveFirmBySlug } from "@/lib/db/directory";
 import { withFirm, type FirmTx } from "@/lib/db/scoped";
 import { superuserPool, urls } from "../helpers/db";
 import { createTenant, type Tenant } from "../helpers/tenant-rows";
+import { STRIKE_WARNING_VERSION } from "@/lib/strikes/words";
 import { seedFirms, weekOffers } from "@/lib/db/admin/seed-data";
 import { acmeSaturday } from "@/lib/db/admin/seed-saturday";
+import { acmeHistory, HISTORY_WORKERS, LATE_CANCELLERS } from "@/lib/db/admin/seed-history";
 import { acmeMatchDay } from "@/lib/db/admin/seed-match";
 import { acmeStory } from "@/lib/db/admin/seed-story";
 import { DAILY_OFFER_CAP } from "@/lib/rules/offer-cap";
@@ -30,7 +32,16 @@ const MATCH = acmeMatchDay(
   seedFirms().find((f) => f.slug === "acme")!,
   new Date(),
 );
-const STORY_SHIFTS = [...STORY.sessions, ...MATCH.sessions].map((x) => x.id);
+// Acme's worked history behind its pay (Phase 37.8): past sessions, left out with the story's.
+const ACME_FIRM = seedFirms().find((f) => f.slug === "acme")!;
+const HISTORY = acmeHistory(
+  ACME_FIRM.workers,
+  ACME_FIRM.sites,
+  acmeSaturday(ACME_FIRM.workers, ACME_FIRM.sites, new Date(), ACME_FIRM.settings).pay,
+  new Date(),
+  ACME_FIRM.settings,
+);
+const STORY_SHIFTS = [...STORY.sessions, ...MATCH.sessions, ...HISTORY.sessions].map((x) => x.id);
 const STORY_PAY = [...STORY.payQueries.map((x) => x.id), MATCH.payQuery.id];
 const LONDON = "Europe/London";
 // Never offered a shift by the seed: the five kept free for demo logins and the four the
@@ -272,7 +283,7 @@ describe("Acme's Saturday event day", () => {
   // dated a week before it ran), Acme's quiet hours, and the Saturday's own bookings.
   const plannedFromStore = async () => {
     const acme = seedFirms().find((f) => f.slug === "acme")!;
-    const day = acmeSaturday(acme.workers, acme.sites, new Date());
+    const day = acmeSaturday(acme.workers, acme.sites, new Date(), acme.settings);
     const {
       rows: [stored],
     } = await su.query<{ settings: Record<string, unknown>; created_at: Date | null }>(
@@ -406,6 +417,40 @@ describe("Acme's Saturday event day", () => {
     expect(Number(rows[0]?.notice_hours)).toBeGreaterThan(0);
   });
 
+  // Phase 37.2: the log stores the code the rules give (Acme: 48 hours), and a strike row exists
+  // exactly when that code is "issued" (a Friday's run), flagged for a review (she was unwell).
+  it("logs the dropout's strike code as the rules give it, with its strike row exactly when issued", async () => {
+    const rows = await saturdayRows<{
+      id: string;
+      notice_hours: string;
+      code: string | null;
+      strikes: number;
+      review_needed: boolean | null;
+      cancel_via: string | null;
+      warning_version: string | null;
+      warning_at: boolean;
+    }>(
+      `select a.id::text, a.notice_hours::text, e.data ->> 'strike' as code,
+              a.cancel_via, a.strike_warning_version as warning_version,
+              a.strike_warning_shown_at = a.cancelled_at as warning_at,
+              (select count(*)::int from strikes k where k.assignment_id = a.id) as strikes,
+              (select bool_and(k.review_needed) from strikes k where k.assignment_id = a.id) as review_needed
+         from assignments a join shifts s on s.id = a.shift_id
+         join events e on e.firm_id = a.firm_id and e.entity_id = a.id and e.action = 'shift.cancelled'
+        where a.firm_id = $1 and a.status = 'cancelled_worker' and s.id <> all($2::uuid[])`,
+    );
+    expect(rows).toHaveLength(1);
+    const [r] = rows;
+    const issued = Number(r?.notice_hours) < 48;
+    expect(r?.code).toBe(issued ? "issued" : "enough_notice");
+    expect(r?.strikes).toBe(issued ? 1 : 0);
+    if (issued) expect(r?.review_needed).toBe(true);
+    // Cancelled in the app, past the cancel screen's warning, as the app records it: a strike's
+    // evidence never says no warning was shown.
+    expect(r).toMatchObject({ cancel_via: "app", warning_version: STRIKE_WARNING_VERSION });
+    expect(r?.warning_at).toBe(true);
+  });
+
   it("books only workers the rules allow, and never the five kept free for demo logins", async () => {
     const booked = await saturdayRows<{ shift_id: string; worker_id: string }>(
       `select a.shift_id::text, a.worker_id::text from assignments a join shifts s on s.id = a.shift_id
@@ -433,11 +478,19 @@ describe("Acme's Saturday event day", () => {
       }),
     );
     expect(again?.reasons).toEqual([]);
+    // Free for demo logins: nothing booked from now on (Phase 37.8: 1 to 4 have worked weeks in
+    // the past, behind their pay; worker 0 has nothing at all, a new starter).
     const free = [0, 1, 2, 3, 4].map((i) => seedId(`acme/worker/${i}`));
     const [held] = await acmeRows<{ n: number }>(
-      `select count(*)::int as n from assignments where firm_id = $1 and worker_id = any('{${free.join(",")}}'::uuid[])`,
+      `select count(*)::int as n from assignments a join shifts s on s.id = a.shift_id
+        where a.firm_id = $1 and s.ends_at > now()
+          and a.worker_id = any('{${free.join(",")}}'::uuid[])`,
     );
     expect(held).toEqual({ n: 0 });
+    const [newStarter] = await acmeRows<{ n: number }>(
+      `select count(*)::int as n from assignments where firm_id = $1 and worker_id = '${free[0]}'`,
+    );
+    expect(newStarter).toEqual({ n: 0 });
   });
 
   // Requests made in the app (no message): the office's questions from the shifts line (the story's
@@ -689,7 +742,7 @@ describe("Acme's Saturday event day", () => {
     const inQuiet = (t: Date) =>
       !mayMessageNow({ now: t, timeZone: LONDON, quiet, urgent: false }).ok;
     const plan = (now: Date) => {
-      const day = acmeSaturday(acme.workers, acme.sites, now);
+      const day = acmeSaturday(acme.workers, acme.sites, now, acme.settings);
       const bookings = day.bookings.filter((b) => b.status === "confirmed");
       const offers = weekOffers({
         now,
@@ -844,7 +897,7 @@ describe("Acme's Saturday event day", () => {
     class Rollback extends Error {}
     const now = new Date("2026-01-04T12:00:00Z"); // Sunday 4 Jan 2026, 12:00 GMT
     const firm = seedFirms(now).find((f) => f.slug === "acme")!;
-    const day = acmeSaturday(firm.workers, firm.sites, now);
+    const day = acmeSaturday(firm.workers, firm.sites, now, firm.settings);
     const cancelled = day.bookings.find((b) => b.workerId === seedId("acme/worker/5"));
     if (!cancelled) throw new Error("no booking for worker 5");
     const shiftIds = sql.join(
@@ -914,8 +967,10 @@ describe("Acme's Saturday event day", () => {
     expect(left).toEqual([]);
   });
 
-  it("gives every Acme worker pay lines for the last 8 complete weeks, as payroll would", async () => {
-    // The Saturday's 60 workers (the story's Zoe and Ben have their own, in its test: Phase 24).
+  // Phase 37.8: only the 30 casuals with a worked history are paid (it was every one of the 60,
+  // with no work behind the pay); worker 0 and the rest are new starters with none.
+  it("gives the 30 casuals with a worked history pay lines for the last 8 complete weeks, as payroll would", async () => {
+    // The story's Zoe and Ben have their own, in its test (Phase 24).
     const storyPay = [...STORY.pay, ...MATCH.pay].map((p) => p.id);
     const [pay] = (
       await su.query<{
@@ -940,10 +995,70 @@ describe("Acme's Saturday event day", () => {
         [ACME, storyPay],
       )
     ).rows;
-    expect(pay).toMatchObject({ workers_paid: 60, bad_gross: 0, bad_dates: 0 });
+    expect(pay).toMatchObject({ workers_paid: HISTORY_WORKERS.length, bad_gross: 0, bad_dates: 0 });
     expect(pay?.least).toBeGreaterThanOrEqual(1);
     expect(pay?.most).toBeLessThanOrEqual(8);
     expect(pay?.oldest_days).toBeLessThanOrEqual(8 * 7 + 6);
+  });
+
+  // Phase 37.8: the worked sessions behind the pay (seed-history.ts).
+  it("every paid week has the worked sessions behind it, at its rate", async () => {
+    const { rows } = await su.query<{ id: string; paid: string; worked: string | null }>(
+      `select p.id::text, p.hours::text as paid,
+              (select sum(extract(epoch from s.ends_at - s.starts_at) / 3600)::numeric(6,2)::text
+                 from assignments a join shifts s on s.id = a.shift_id
+                where a.worker_id = p.worker_id and a.status = 'completed'
+                  and (s.starts_at at time zone 'Europe/London')::date between p.period_start and p.period_end
+                  and s.id <> all($3::uuid[])) as worked
+         from pay_records p
+        where p.firm_id = $1 and p.id <> all($2::uuid[])`,
+      [
+        ACME,
+        [...STORY.pay, ...MATCH.pay].map((p) => p.id),
+        [...STORY.sessions, ...MATCH.sessions].map((x) => x.id),
+      ],
+    );
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows)
+      expect({ id: r.id, hours: r.worked }).toEqual({ id: r.id, hours: r.paid });
+  });
+
+  it("every history booking is one the rules allowed when it was made (golden rule 6)", async () => {
+    const { previewBooking } = await import("@/lib/roster/book");
+    const { withFirm: run } = await import("@/lib/db/scoped");
+    for (const b of HISTORY.bookings) {
+      const verdict = await run(ACME, (tx) =>
+        previewBooking(tx, { shiftId: b.shiftId, workerId: b.workerId, now: b.confirmedAt }),
+      );
+      expect({ booking: b.id, reasons: verdict?.reasons }).toEqual({ booking: b.id, reasons: [] });
+    }
+  }, 180_000); // one rules check per history booking (about 350)
+
+  it("the casuals' counts: regulars, three who cancel often, worker 0 new", async () => {
+    const { loadCasualRecords } = await import("@/lib/office/reliability");
+    const { withFirm: run } = await import("@/lib/db/scoped");
+    const records = await run(ACME, (tx) => loadCasualRecords(tx, new Date(), null));
+    const all = [...records.values()];
+    expect(all.filter((r) => r.standing.regular).length).toBeGreaterThanOrEqual(10);
+    expect(
+      all
+        .filter((r) => r.standing.cancelOften)
+        .map((r) => r.workerId)
+        .sort(),
+    ).toEqual(LATE_CANCELLERS.map((i) => seedId(`acme/worker/${i}`)).sort());
+    expect(records.get(seedId("acme/worker/0"))?.lastWorked ?? null).toBeNull();
+    expect(all.filter((r) => r.standing.notWorkedLately).length).toBeLessThanOrEqual(
+      all.length - 50,
+    );
+  });
+
+  it("the plain seed (no demo server) has no planner key and no webhook", async () => {
+    const [row] = await acmeRows<{ keys: number; webhook: string | null; api: number }>(
+      `select (select count(*)::int from api_keys where firm_id = $1) as keys,
+              (select settings #>> '{webhook,url}' from firms where id = $1) as webhook,
+              (select count(*)::int from shifts where firm_id = $1 and source = 'api') as api`,
+    );
+    expect(row).toEqual({ keys: 0, webhook: null, api: 0 });
   });
 
   it("logs the day as the app would: each booking, the cancellation with its notice, each request", async () => {
@@ -1094,6 +1209,18 @@ describe("the demo's past event, pay queries and Northline's night", () => {
           and q.id <> all($3::uuid[]) and $2::uuid[] is not null`,
     );
     expect(logged).toEqual({ n: 10 });
+    // Phase 37.8: the hours queries name their work day's own weekday; the 7 rate queries each
+    // read differently.
+    const details = await extrasOf<{ issue: string; details: string; day: string }>(
+      `select issue_type as issue, details, trim(to_char(work_date, 'FMDay')) as day
+         from pay_queries where firm_id = $1 and id <> all($3::uuid[]) and $2::uuid[] is not null`,
+    );
+    for (const d of details.filter((x) => x.issue === "missing_hours")) {
+      expect(d.details).toBe(`My hours for ${d.day} aren't on my payslip.`);
+    }
+    const rates = details.filter((x) => x.issue === "wrong_rate").map((x) => x.details);
+    expect(rates).toHaveLength(7);
+    expect(new Set(rates).size).toBe(7);
   });
 
   it("Northline's night: 3 track operatives booked tomorrow at 23:00; one cancelled by the office at short notice, logged with the reason and the notice", async () => {
@@ -1137,7 +1264,8 @@ describe("the demo's past event, pay queries and Northline's night", () => {
     expect(cancelled).toMatchObject({
       actor_type: "office",
       actor_id: seedId("northline/office/resourcer"),
-      data: { by: "firm", reason: "Weather or safety", noticeHours: notice },
+      // The rules' code for a firm's cancellation, as the app logs it (37.2).
+      data: { by: "firm", reason: "Weather or safety", noticeHours: notice, strike: "by_firm" },
     });
   });
 
@@ -1191,5 +1319,21 @@ describe("the seed run again a week later", () => {
       [[ACME, NORTHLINE]],
     );
     expect(wrong).toEqual([{ n: 0 }]);
+    // Phase 37.2: every cancellation logged "issued" still has its strike row, on both runs (a
+    // strike id that weren't scoped to its Saturday would leave the second week's without one).
+    const { rows: noRow } = await su.query<{ id: string }>(
+      `select e.entity_id::text as id from events e
+        where e.firm_id = $1 and e.action = 'shift.cancelled' and e.data ->> 'strike' = 'issued'
+          and not exists (select 1 from strikes k where k.firm_id = e.firm_id and k.assignment_id = e.entity_id)`,
+      [ACME],
+    );
+    expect(noRow).toEqual([]);
+    // And none says "issued" for a cancellation by the firm, or leaves a casual's without a code.
+    const { rows: unknown } = await su.query<{ n: number }>(
+      `select count(*)::int as n from events e
+        where e.firm_id = $1 and e.action = 'shift.cancelled' and e.data ->> 'strike' is null`,
+      [ACME],
+    );
+    expect(unknown).toEqual([{ n: 0 }]);
   });
 });

@@ -456,7 +456,13 @@ describe("Home's kept copy (no signal)", () => {
         firstName: "Zoe",
         lastName: "Adeyemi",
         firmName: "Acme Events",
-        pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
+        pay: {
+          payDay: "2026-11-13",
+          days: 7,
+          start: "2026-11-02",
+          end: "2026-11-08",
+          thisPeriodPaid: null,
+        },
         timeZone: "Europe/London",
         now: new Date("2026-11-02T09:00:00Z"),
         next: null,
@@ -479,7 +485,7 @@ describe("Home's kept copy (no signal)", () => {
       /<small data-updated-slot="" data-online-only="" [^>]*>Updated 09:00<\/small>/,
     );
     expect(html).toMatch(
-      /<p data-date-line="" data-online-only="" [^>]*>Monday 2 November · Pay day Fri 13 Nov<\/p>/,
+      /<p data-date-line="" data-online-only="" [^>]*>Monday 2 November · Next pay day Fri 13 Nov<\/p>/,
     );
     // Phase 32 (32.2): the map and its tabs are online only (the card shows alone offline).
     expect(html).toMatch(/<div role="group" aria-label="Show on the map" data-online-only=""/);

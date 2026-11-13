@@ -8,6 +8,8 @@ import { acmeSaturday } from "@/lib/db/admin/seed-saturday";
 import { acmeStory } from "@/lib/db/admin/seed-story";
 import { withFirm } from "@/lib/db/scoped";
 import { previewBooking } from "@/lib/roster/book";
+import { loadCasualRecords } from "@/lib/office/reliability";
+import { shiftsOf } from "@/lib/portal/pay-queries";
 import { openShiftsFor } from "@/lib/portal/open-shifts";
 import { confirmedStrikesEmail } from "@/lib/strikes/team-email";
 import { travelLineText } from "@/lib/travel/line-copy";
@@ -199,7 +201,12 @@ describe("the demo story", () => {
     const minutes = urgent.map((s) => nearest(s.travel));
     expect(minutes).toEqual([...minutes].sort((a, b) => a - b));
     const now = new Date();
-    const dropout = acmeSaturday(acmeFirm().workers, acmeFirm().sites, now).urgentShiftId;
+    const dropout = acmeSaturday(
+      acmeFirm().workers,
+      acmeFirm().sites,
+      now,
+      acmeFirm().settings,
+    ).urgentShiftId;
     const verdict = await withFirm(ACME, (tx) =>
       previewBooking(tx, { shiftId: dropout, workerId: who("zoe"), now }),
     );
@@ -296,6 +303,15 @@ describe("the demo story", () => {
       { by: "worker", strike: "issued" },
       { by: "worker", strike: "issued" },
     ]);
+    // Phase 37.2: each logged "issued" has its strike row (the log never says more than the rows).
+    const { rows: noRow } = await su.query<{ id: string }>(
+      `select e.entity_id::text as id from events e
+        where e.firm_id = $1 and e.action = 'shift.cancelled' and e.data ->> 'strike' = 'issued'
+          and e.entity_id = any($2::uuid[])
+          and not exists (select 1 from strikes k where k.firm_id = e.firm_id and k.assignment_id = e.entity_id)`,
+      [ACME, STORY.bookings.map((b) => b.id)],
+    );
+    expect(noRow).toEqual([]);
   });
 
   // Phase 35.4: and, in the app, Zoe's "what do I wear" answered from the answer library by its
@@ -391,6 +407,41 @@ describe("the demo story", () => {
       [today],
     );
     expect(open).toEqual([{ n: 10 }]);
+    // Phase 37.8: one sorted group in "Recently sorted"'s last 7 days (the past patrol's).
+    const { rows: recent } = await su.query<{ note: string; n: number }>(
+      `select min(resolution_note) as note, count(*)::int as n from pay_queries
+        where firm_id = $1 and status = 'resolved' and resolved_at >= now() - interval '7 days'
+        group by group_key`,
+      [ACME],
+    );
+    expect(recent).toEqual([{ note: "The new CSAS rate goes on the next pay run.", n: 2 }]);
+  });
+
+  // Phase 37.8: Zoe's 11 worked sessions are her five pay weeks: her record, Booked's past and the
+  // pay query picker all show them.
+  it("Zoe's record agrees with her pay: 11 worked, her weekly hours and rates as paid", async () => {
+    const zoe = who("zoe");
+    const records = await withFirm(ACME, (tx) => loadCasualRecords(tx, new Date(), [zoe]));
+    const r = records.get(zoe);
+    expect(r?.reliability.counts).toEqual({ worked: 11, noShows: 0, lateCancels: 0 });
+    expect(r?.reliability).toMatchObject({ kind: "figure", percent: 100 });
+    const { rows } = await su.query<{ week: string; rate: number; hours: string }>(
+      `select (date_trunc('week', s.starts_at at time zone 'Europe/London'))::date::text as week,
+              s.pay_rate_pence as rate,
+              sum(extract(epoch from s.ends_at - s.starts_at) / 3600)::numeric(6,2)::text as hours
+         from assignments a join shifts s on s.id = a.shift_id
+        where a.worker_id = $1 and a.status = 'completed'
+        group by 1, 2 order by 1, 2`,
+      [zoe],
+    );
+    const { rows: pay } = await su.query<{ week: string; rate: number; hours: string }>(
+      `select period_start::text as week, rate_pence as rate, hours::text as hours
+         from pay_records where worker_id = $1 order by 1, 2`,
+      [zoe],
+    );
+    expect(rows).toEqual(pay);
+    const picker = await withFirm(ACME, (tx) => shiftsOf(tx, zoe, new Date(), "Europe/London"));
+    expect(picker.filter((p) => p.day < new Date().toISOString().slice(0, 10)).length).toBe(11);
   });
 
   it("pay lines for Zoe and Ben as payroll's file gives them (Phase 24: the mock-up's Pay)", async () => {

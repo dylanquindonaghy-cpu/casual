@@ -10,7 +10,13 @@ import {
   officeCancellationRecord,
   officeCancellations,
 } from "@/lib/office/cancellations";
-import { cancellationsCsv, recordFields } from "@/lib/office/cancellations-copy";
+import {
+  cancellationsCsv,
+  recordFields,
+  strikeBadge,
+  strikeShort,
+  strikeText,
+} from "@/lib/office/cancellations-copy";
 import { cancelBookingByOffice, cancelShift } from "@/lib/office/quick-actions";
 import { cancelMyShift } from "@/lib/portal/cancel-shift";
 import { takeShift } from "@/lib/portal/take-shift";
@@ -203,6 +209,36 @@ describe("the list", () => {
       ["withdrawn", 1],
     ]);
     expect((await t.list("all", later(5))).overall.liveStrikes).toBe(2);
+  });
+});
+
+// Phase 37.2: a strike whose row the nightly purge deleted after the firm's keep time
+// (src/lib/gdpr/retention.ts) keeps its "issued" code in the log, and the screens say so.
+describe("a strike whose record was deleted", () => {
+  it("keeps code 'issued' with no strike row: the list, the record and the CSV say what is known", async () => {
+    const t = await recordsFirm();
+    const sam = await t.f.worker();
+    const shift = await t.f.shift({ startsAt: hoursFromNow(20) });
+    await t.take(sam, shift);
+    await t.cancel(sam, shift, later(1), "strike");
+    const { rows: booking } = await su.query<{ id: string }>(
+      "select id::text as id from assignments where shift_id = $1 and worker_id = $2",
+      [shift, sam],
+    );
+    const id = booking[0]?.id ?? "";
+    // As the purge does: the strike's row goes, the shift.cancelled entry stays.
+    await su.query("delete from strikes where assignment_id = $1", [id]);
+    const [row] = (await t.list("all", later(2))).rows;
+    expect(row).toMatchObject({ strikeCode: "issued", strike: null });
+    expect(strikeBadge(row!, TZ)).toEqual({
+      kind: "none",
+      text: "Strike issued · its record was deleted",
+    });
+    const record = await t.record(id, later(2));
+    expect(record).not.toBeNull();
+    expect(record?.row).toMatchObject({ strikeCode: "issued", strike: null });
+    expect(strikeText(record!.row, TZ)).toBe("Issued (its record was deleted)");
+    expect(strikeShort(record!.row)).toBe("yes");
   });
 });
 

@@ -3,10 +3,11 @@
 import { datePartsOfDay } from "./sign-copy";
 
 export const HOME_TITLE = "Home";
-// The date line under it: "Monday 9 November · Pay day Fri 20 Nov".
+// The date line under it: "Wednesday 11 November · Next pay day Fri 13 Nov" (the next pay day not
+// yet past, as the office's: src/lib/portal/pay-day.ts, Phase 37.1).
 export const payDayText = (payDay: string) => {
   const p = datePartsOfDay(payDay);
-  return `Pay day ${p.dow} ${p.day} ${p.month}`;
+  return `Next pay day ${p.dow} ${p.day} ${p.month}`;
 };
 // The title row's two ways on (from 1024px; the same pages as the tab bar's).
 export const TITLE_LINKS = [

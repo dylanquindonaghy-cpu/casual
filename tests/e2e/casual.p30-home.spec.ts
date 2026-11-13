@@ -149,10 +149,11 @@ test("Home as her dashboard: counts, qualifications, week, updates, record; phon
         await expect(hi).toBeVisible();
 
         // The date line under the headline: since Phase 32 (32.2, the approved mock-up) the day
-        // and pay day, "Friday 6 November · Pay day Fri 13 Nov" ("Updated 15:38" is beside "Home").
+        // and next pay day, "Friday 6 November · Next pay day Fri 13 Nov" ("Updated 15:38" is
+        // beside "Home"; 37.1).
         const dateLine = page.locator("[data-date-line]");
         await expect(dateLine).toHaveText(
-          new RegExp(`^${longDay(new Date())} · Pay day [A-Z][a-z]{2} \\d+ [A-Z][a-z]{2}$`),
+          new RegExp(`^${longDay(new Date())} · Next pay day [A-Z][a-z]{2} \\d+ [A-Z][a-z]{2}$`),
         );
         expect(
           (await box(dateLine)).y,

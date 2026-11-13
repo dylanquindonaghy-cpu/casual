@@ -24,16 +24,52 @@ const text = (html: string) =>
     .replace(/\s+/g, " ");
 
 describe("Home's pay row", () => {
+  // Phase 37.1: "Next pay day", and a fortnight in the same words as a week (no "from").
   it("a week gives its dates (Phase 27.2), the month once; a fortnight gives its dates", () => {
     expect(
       payDayRowText("2026-11-06", { days: 7, start: "2026-10-26", end: "2026-11-01" }),
-    ).toEqual({ title: "Pay day: Fri 6 Nov", sub: "For shifts Mon 26 Oct to Sun 1 Nov" });
+    ).toEqual({ title: "Next pay day: Fri 6 Nov", sub: "For shifts Mon 26 Oct to Sun 1 Nov" });
     expect(
       payDayRowText("2026-11-13", { days: 7, start: "2026-11-02", end: "2026-11-08" }),
-    ).toEqual({ title: "Pay day: Fri 13 Nov", sub: "For shifts Mon 2 to Sun 8 Nov" });
+    ).toEqual({ title: "Next pay day: Fri 13 Nov", sub: "For shifts Mon 2 to Sun 8 Nov" });
     expect(
       payDayRowText("2026-11-13", { days: 14, start: "2026-10-26", end: "2026-11-08" }),
-    ).toEqual({ title: "Pay day: Fri 13 Nov", sub: "For shifts from Mon 26 Oct to Sun 8 Nov" });
+    ).toEqual({ title: "Next pay day: Fri 13 Nov", sub: "For shifts Mon 26 Oct to Sun 8 Nov" });
+  });
+
+  it("this period paid later: a note with its day; none when it isn't (37.1)", () => {
+    expect(
+      payDayRowText("2026-11-13", {
+        days: 7,
+        start: "2026-11-02",
+        end: "2026-11-08",
+        thisPeriodPaid: "2026-11-20",
+      }),
+    ).toEqual({
+      title: "Next pay day: Fri 13 Nov",
+      sub: "For shifts Mon 2 to Sun 8 Nov",
+      note: "This week's shifts are paid Fri 20 Nov.",
+    });
+    expect(
+      payDayRowText("2026-10-30", {
+        days: 14,
+        start: "2026-10-12",
+        end: "2026-10-25",
+        thisPeriodPaid: "2026-11-13",
+      }),
+    ).toEqual({
+      title: "Next pay day: Fri 30 Oct",
+      sub: "For shifts Mon 12 to Sun 25 Oct",
+      note: "This cycle's shifts are paid Fri 13 Nov.",
+    });
+    expect(
+      payDayRowText("2026-11-20", {
+        days: 7,
+        start: "2026-11-09",
+        end: "2026-11-15",
+        thisPeriodPaid: null,
+      }),
+    ).not.toHaveProperty("note");
   });
 });
 

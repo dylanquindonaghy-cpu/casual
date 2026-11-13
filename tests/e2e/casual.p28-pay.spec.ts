@@ -77,7 +77,7 @@ test("Pay and the pay query: the pay day before the code, the code step back to 
       await context.close();
     }
   };
-  const payDay = (page: Page) => page.getByRole("heading", { level: 2, name: /^Pay day: / });
+  const payDay = (page: Page) => page.getByRole("heading", { level: 2, name: /^Next pay day: / });
 
   // Before the code: the pay day first, then the code card; no hours, rate or amount anywhere.
   for (const size of SIZES)
@@ -87,7 +87,7 @@ test("Pay and the pay query: the pay day before the code, the code step back to 
         await page.goto(`${acme}/pay`);
         await expect(payDay(page), where("the pay day")).toBeVisible();
         await expect(
-          page.getByRole("region", { name: /^Pay day: / }).getByText(/^For shifts /),
+          page.getByRole("region", { name: /^Next pay day: / }).getByText(/^For shifts /),
         ).toBeVisible();
         const send = page.getByRole("button", { name: "Send me a code" });
         await expect(send).toBeVisible();

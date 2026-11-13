@@ -1,20 +1,28 @@
 import { sql } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
 import { withFirm } from "../db/scoped";
-import { payCalendar, payPeriodNow } from "../pay/calendar";
+import { payCalendar, payPeriod } from "../pay/calendar";
+import { nextPayFor, recordWindow } from "../pay/next-pay";
+import { readRecordedPayDates } from "../pay/recorded-pay-dates";
+import { localDateOf } from "../time/zoned";
 import type { PortalContext } from "./my-shifts";
 
-// Home's pay day (P3; 25.2): the day this pay period's shifts are paid, on the firm's own pay
-// calendar (a week, or a fortnight's cycle: src/lib/pay/calendar.ts), or payroll's own date when it
-// has imported one for her for exactly this period (pay_records.pay_date, as the office's pay page
-// reads it). A record for other dates (a week inside the fortnight) isn't used: its day would be
-// shown against shifts it doesn't cover (golden rule 9).
+// The casual's next pay day (P3; 25.2; Phase 37.1): the office's own rule (src/lib/pay/next-pay.ts,
+// the pay dashboard's Next pay day since Phase 26.10 fix-1), so Home, Pay, the shifts line's "Pay
+// day" answer and the office all give the same day and the shifts it pays: the first pay day not
+// yet past, last period's while it's still to come, else this period's, on the firm's own pay
+// calendar (a week, or a fortnight's cycle: src/lib/pay/calendar.ts), or payroll's own date where it
+// has imported one. Every casual sees the firm's next pay day, whether or not she worked that
+// period (Dylan, 2026-11-13). Only her own pay records count, and only those covering a whole firm
+// period: a record for other dates (a week inside the fortnight) would put its day against shifts
+// it doesn't cover (golden rule 9).
 
 export interface MyPayDay {
   payDay: string; // yyyy-mm-dd
   days: 7 | 14; // the period's length
-  start: string; // the period's first day (a Monday), yyyy-mm-dd
+  start: string; // the first day (a Monday) of the period that day pays, yyyy-mm-dd
   end: string; // its last day (a Sunday)
+  thisPeriodPaid: string | null; // this period's own pay day, when it's later than `payDay`
 }
 
 type Ctx = PortalContext & { firm: { id: string } };
@@ -29,17 +37,19 @@ export async function myPayDay(ctx: Ctx, workerId: string): Promise<MyPayDay> {
     }>(sql`select settings, timezone from firms where id = app_current_firm_id()`);
     const zone = firmRows[0]?.timezone ?? "Europe/London";
     const calendar = payCalendar(firmRows[0]?.settings ?? {});
-    const period = payPeriodNow(now, zone, calendar);
-    const { rows } = await tx.execute<{ pay_date: string }>(sql`
-      select pay_date::text as pay_date from pay_records
-      where worker_id = ${workerId} and period_start = ${period.start}::date
-        and period_end = ${period.end}::date and pay_date is not null
-      order by pay_date limit 1`);
+    const today = localDateOf(now, zone);
+    const recorded = await readRecordedPayDates(tx, today, recordWindow(today, calendar), workerId);
+    const whole = recorded.filter((r) => {
+      const p = payPeriod(r.start, calendar);
+      return p.start === r.start && p.end === r.end;
+    });
+    const next = nextPayFor(today, calendar, whole);
     return {
-      payDay: rows[0]?.pay_date ?? period.payDay,
+      payDay: next.day,
       days: calendar.days,
-      start: period.start,
-      end: period.end,
+      start: next.periodStart,
+      end: next.periodEnd,
+      thisPeriodPaid: next.thisPeriodPaid,
     };
   });
 }

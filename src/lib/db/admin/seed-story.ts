@@ -22,7 +22,8 @@ export { STRIKES_TEAM } from "./seed-data";
 // - Past sessions for the cancellations (Kieran's two strikes, Priya's flagged for review, Mo's
 //   withdrawn, the office's cancellation of Tom) and two pay groups payroll has sorted.
 // - Pay for Zoe and Ben (Phase 24: the mock-up's Pay): Zoe's last five complete weeks, the newest
-//   with two rates (£324.00 in all), and Ben's last two, the newest with one line payroll gave no
+//   with two rates (£324.00 in all), with the 11 worked sessions behind them (Phase 37.8:
+//   ZOE_WEEKS), and Ben's last two, the newest with one line payroll gave no
 //   gross for (so no week total shows: only payroll's own grosses).
 // - Ids are fixed and undated: added once, so a re-run changes nothing (`npm run db:reset` moves
 //   the story to a new day).
@@ -33,6 +34,44 @@ const DAY = 24 * HOUR;
 export const STORY_LINE = "+447700900000"; // Acme's shifts line (seed-data.ts)
 
 const id = (name: string) => seedId(`acme/story/${name}`);
+
+// Zoe's worked sessions behind her pay (37.8): per pay week back (1 is the last complete week), each
+// session's kind and its day in the week (0 is Monday). They add up to her pay lines below: week 1
+// 16 hours stewarding and 8 door supervising; weeks 2, 3 and 5 16, 24 and 16 stewarding; week 4 8
+// door supervising. 11 sessions in all.
+export const ZOE_WEEKS: { week: number; sessions: ["steward" | "ds", number][] }[] = [
+  {
+    week: 1,
+    sessions: [
+      ["steward", 1],
+      ["steward", 3],
+      ["ds", 5],
+    ],
+  },
+  {
+    week: 2,
+    sessions: [
+      ["steward", 1],
+      ["steward", 3],
+    ],
+  },
+  {
+    week: 3,
+    sessions: [
+      ["steward", 1],
+      ["steward", 3],
+      ["steward", 5],
+    ],
+  },
+  { week: 4, sessions: [["ds", 3]] },
+  {
+    week: 5,
+    sessions: [
+      ["steward", 1],
+      ["steward", 3],
+    ],
+  },
+];
 
 export type StoryKey = "zoe" | "kieran" | "ben" | "priya" | "leah" | "jamal" | "mo" | "tom";
 
@@ -758,7 +797,8 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
   // aud-14 (Phase 26.7): 10 past weeks of made-up history, so the demo's charts and reliability
   // aren't empty: three sessions a week at the story's venues, 16 to 83 days ago (clear of the
   // story's own past sessions, nothing new to mark, and the walkthrough's lists stay as they are), worked by six of the story's casuals
-  // (never Zoe or Kieran, whom the walkthrough follows), mostly marked worked, the odd no-show.
+  // (never Zoe or Kieran, whom the walkthrough follows: Zoe's own worked weeks are ZOE_WEEKS,
+  // behind her pay), mostly marked worked, the odd no-show.
   const HISTORY = [
     {
       who: ["ben", "priya", "mo"] as StoryKey[],
@@ -811,6 +851,29 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
       );
     });
   }
+  // Zoe's worked weeks (Phase 37.8, w1-12): the sessions behind her five pay weeks (`pay` below),
+  // 8 hours each at 10:00, in the same Monday-to-Sunday weeks: stewarding at Riverside at her old
+  // rate (£12.50) and door supervision at the Arena (£15.50). Week 1 is the last complete week.
+  const weekdayToday = (new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7;
+  const S_STEWARD_OLD = { ...S.steward, payRatePence: 1250 };
+  ZOE_WEEKS.forEach(({ week, sessions: plan }) => {
+    plan.forEach(([kind, day], n) => {
+      sessions.push(
+        session(`zoe-week-${week}-${n}`, {
+          event: null,
+          site: kind === "ds" ? arena : riverside,
+          role: kind === "ds" ? "door_supervisor" : "steward",
+          start: on(-weekdayToday - 7 * week + day, "10:00"),
+          hours: 8,
+          headcount: 1,
+          booked: 1,
+          post: kind === "ds" ? "North entrance" : "Gate 2",
+          meet: kind === "ds" ? "Staff entrance, Gate C" : "Volunteer tent by the river gate",
+          pay: kind === "ds" ? S.ds : S_STEWARD_OLD,
+        }),
+      );
+    });
+  });
   const sessionOf = (key: string) => {
     const s = sessions.find((x) => x.id === id(`session/${key}`));
     if (!s) throw new Error(`no story session ${key}`);
@@ -905,6 +968,11 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
       });
     });
   }
+
+  // Zoe's worked weeks, marked worked (37.8).
+  ZOE_WEEKS.forEach(({ week, sessions: plan }) =>
+    plan.forEach((_, n) => book(`zoe-week-${week}-${n}`, "zoe", 1, { status: "completed" })),
+  );
 
   // Strikes: each casual's own cancellation inside the firm's notice, issued as it was cancelled,
   // counting for the firm's strikes.live_days.
@@ -1067,7 +1135,8 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
       issue,
       details,
       createdAt,
-      resolvedAt: new Date(createdAt.getTime() + 2 * DAY),
+      // Three days on (37.8): the past patrol's group falls in "Recently sorted"'s last 7 days.
+      resolvedAt: new Date(createdAt.getTime() + 3 * DAY),
       note,
     };
   };

@@ -150,4 +150,21 @@ describe("each casual's record, added up once", () => {
       lateCancels: 0,
     });
   });
+
+  // The rewrite fills the gaps itself (a left join to the record, then coalesce): a casual with no
+  // bookings still comes back, with nothing worked and no last worked, both for the whole list and
+  // for named casuals.
+  it("a casual with no bookings still comes back, with a zero record", async () => {
+    const { f, ids } = await crew();
+    const idle = await f.worker({ first: "Idle", roles: ["steward"] });
+    const zero = { worked: 0, noShows: 0, lateCancels: 0 };
+    const all = await withFirm(f.firmId, (tx) => loadCasualRecords(tx, NOW, null));
+    expect([...all.keys()].sort()).toEqual([...ids, idle].sort());
+    expect(all.get(idle)?.reliability.counts).toEqual(zero);
+    expect(all.get(idle)?.lastWorked).toBeNull();
+    const named = await withFirm(f.firmId, (tx) => loadCasualRecords(tx, NOW, [idle, ids[0]!]));
+    expect([...named.keys()].sort()).toEqual([idle, ids[0]!].sort());
+    expect(named.get(idle)?.reliability.counts).toEqual(zero);
+    expect(named.get(idle)?.lastWorked).toBeNull();
+  });
 });

@@ -243,7 +243,8 @@ test("Open shifts and the urgent board: grouped lists, 48px day tiles, tags, 28.
   }
 
   // Phase 37.7 (w1-10): "Take shift" waits for the page. Without the page's scripts (as on a slow
-  // signal, before they arrive) it's disabled, so a tap can't do nothing; with them it's on.
+  // signal, before they arrive) it's disabled, so a tap can't do nothing; with them it's on. It
+  // lives only on the shift's own page: the list's tiles open that page (docs/screens.md).
   expect(paidHref).toMatch(/^\/shifts\/[0-9a-f-]{36}$/);
   const plain = await browser.newContext({
     storageState: ola,

@@ -25,6 +25,7 @@ const { ErrorBody, loadPageAgain } = await import("@/app/error-body");
 const { default: GlobalError } = await import("@/app/global-error");
 const { default: OfficeError } = await import("@/app/office/error");
 const { OfficeErrorView } = await import("@/app/office/error-view");
+const { default: OfficeNotFound } = await import("@/app/office/not-found");
 
 type Props = {
   children?: ReactNode;
@@ -290,5 +291,23 @@ describe("the test-only pages (E2E_TEST_PAGES)", () => {
     for (const file of files) {
       expect(readFileSync(file, "utf8"), file).not.toContain("E2E_TEST_PAGES");
     }
+  });
+});
+
+describe("an office page that isn't there, or isn't for this role (src/app/office/not-found.tsx)", () => {
+  it("one line that is true for both, and the way back to the office (Phase 37 decision (4))", () => {
+    const tree = OfficeNotFound();
+    const words = elements(tree)
+      .flatMap((e) => [textOf(e), (e.props as { title?: unknown }).title])
+      .filter((w): w is string => typeof w === "string")
+      .join(" | ");
+    expect(words).toContain("We can't find that page.");
+    expect(words).toContain("This page doesn't exist, or your role can't open it.");
+    // The casual's not-found line is untrue for a page that exists but is refused.
+    expect(words).not.toContain("The link may be old or mistyped.");
+    expect(words).not.toContain("404");
+    const back = elements(tree).filter((e) => textOf(e) === "Back to the office");
+    expect(back).toHaveLength(1);
+    expect(back[0]?.props.href).toBe("/office");
   });
 });

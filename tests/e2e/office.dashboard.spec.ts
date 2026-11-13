@@ -9,6 +9,7 @@ import {
   cancelOwnShift,
   comingUpScene,
   endComingUpScene,
+  removeWorker,
   setDashboardCards,
   setFirmSetting,
   unusedMobile,
@@ -358,8 +359,9 @@ test("the offer panel lists who can take it as the offer page does; Send offer, 
   });
   // A steward with no Level 2 spectator safety qualification on file (Phase 37.3): "Not offered,
   // and why" names that card. The seed's stewards all hold one, so the spec adds her (first by
-  // surname, so she's inside the list's 20).
-  await addSteward("acme", {
+  // surname, so she's inside the list's 20). She's taken away again at the end, so no other spec
+  // sees her.
+  const ninaId = await addSteward("acme", {
     firstName: "Nina",
     lastName: "Aardvark",
     mobileE164: "+447700900642",
@@ -453,6 +455,7 @@ test("the offer panel lists who can take it as the offer page does; Send offer, 
   } finally {
     await setFirmSetting("acme", "quiet_hours", quietBefore);
     await cancelOwnShift("acme", shiftId);
+    await removeWorker("acme", ninaId);
   }
 });
 

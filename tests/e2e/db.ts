@@ -303,6 +303,28 @@ export async function addSteward(
   }
 }
 
+// Takes away a worker a spec added for itself (and their cards), so later specs never see them: a
+// steward with no qualification would sit first in other sessions' "Not offered, and why". Fails
+// loudly if anything else now points at them (their history isn't the spec's to delete).
+export async function removeWorker(slug: string, workerId: string): Promise<void> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    await createWithFirm(pool)(firmId, async (tx) => {
+      await tx.delete(credentials).where(eq(credentials.workerId, workerId));
+      const gone = await tx
+        .delete(workers)
+        .where(eq(workers.id, workerId))
+        .returning({ id: workers.id });
+      if (gone.length !== 1) throw new Error(`worker ${workerId} not removed`);
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
 // Cancels a spec's own shift once it's done with it, so later specs don't see an open place.
 export async function cancelOwnShift(slug: string, shiftId: string): Promise<void> {
   const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });

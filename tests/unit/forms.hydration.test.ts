@@ -354,6 +354,16 @@ describe("fields React controls wait for the page before taking input", () => {
   });
 });
 
+// A file's buttons that don't wait, held to its allowance exactly: one too many is a new button
+// that doesn't wait; one too few is a stale allowance that would let the next one in unseen.
+function allowanceProblems(problems: string[], allowed: number): string[] {
+  if (problems.length === allowed) return [];
+  return [
+    `${problems.length} button(s) don't wait for the page, but the allowance is ${allowed}`,
+    ...problems,
+  ];
+}
+
 describe("buttons that act on a tap wait for the page (Phase 37.7)", () => {
   const casual = clientFiles.filter(({ file }) => !OUT_OF_SCOPE.some((d) => file.startsWith(d)));
   const key = (file: string) => file.replace(/^src\/app\//, "");
@@ -383,8 +393,7 @@ describe("buttons that act on a tap wait for the page (Phase 37.7)", () => {
       const text = casual.find((f) => f.file === file)?.text ?? "";
       const problems = buttonProblems(file, text);
       const allowed = SHOWN_AFTER_READY[key(file)]?.count ?? 0;
-      if (allowed === 0) expect(problems).toEqual([]);
-      else expect(problems, problems.join("\n")).toHaveLength(allowed);
+      expect(allowanceProblems(problems, allowed)).toEqual([]);
     },
   );
 
@@ -433,8 +442,16 @@ describe("buttons that act on a tap wait for the page (Phase 37.7)", () => {
     const text = `"use client";\nexport function F() { return <button onClick={go}>Go</button>; }`;
     const problems = buttonProblems("f.tsx", text);
     expect(problems).toHaveLength(1);
-    expect(problems).not.toHaveLength(2); // an allowance of 2 would fail
-    expect(problems).not.toHaveLength(0); // and so would none
+    expect(allowanceProblems(problems, 1)).toEqual([]);
+    // An allowance of 2 (stale: a button was fixed) fails, and so does none (a new button).
+    expect(allowanceProblems(problems, 2)).toEqual([
+      "1 button(s) don't wait for the page, but the allowance is 2",
+      ...problems,
+    ]);
+    expect(allowanceProblems(problems, 0)).toEqual([
+      "1 button(s) don't wait for the page, but the allowance is 0",
+      ...problems,
+    ]);
   });
 });
 

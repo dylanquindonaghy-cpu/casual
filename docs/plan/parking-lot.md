@@ -2625,16 +2625,16 @@ From builder C (37.3, 37.6, 37.7; 2026-11-13):
   data path (stored sync problems, no rule checks), so they don't name the card yet.
 - **The e2e seed has no steward without the Level 2 qualification:** the dashboard spec adds its
   own ("Nina Aardvark", `addSteward(..., { qualified: false })`) to see "Needs Level 2 spectator
-  safety qualification (none on file)".
+  safety qualification (none on file)", and removes her again at the end (`removeWorker`).
 - **`global-error.tsx` (37.6, w1-08):** when the whole page fails on an office address it still
   says "If it keeps happening, contact the office." It would need the address there, not proven to
   work in Next's global error page. Its tab, and `src/app/error.tsx`'s, keep the bare
   "{firm} shifts" (client components: no metadata; a React `<title>` would do it).
 - **`/client/*` addresses that match no page** still get the casual not-found with "Go to my
   shifts" (Phase 36's client app).
-- **A refused page's body** still says "The link may be old or mistyped." (a1-shell-nav-07,
-  a9-pay-07 suggest other words); only its tab changed. A record that doesn't exist on a titled
-  detail page shows the not-found page and its "Page not found" tab. The slow refused 404
+- **A refused page, the rest:** a record that doesn't exist on a titled detail page shows the
+  not-found page and its "Page not found" tab (its words, "This page doesn't exist, or your role
+  can't open it.", were built in 37.6). The slow refused 404
   (x4-performance-robustness-08) and auto refresh on the not-found page (x4-09) are untouched.
 - **x2-copy-17:** an "{firm} office" tab template for the office, and the enquiry's own title
   ("Message from an unknown number · Enquiries").

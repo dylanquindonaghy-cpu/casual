@@ -8,14 +8,15 @@ import { PageHeader } from "../ui/page-header";
 // to the staff app. Plain words instead of "404". Since Phase 37.6 every /office address that
 // matches no page comes here too (src/app/office/[...missing]), and the tab reads "Page not found"
 // (a refused page's own title gives way to it: src/app/office/area-metadata.ts). It isn't live
-// data, so it says no "Updated" time.
+// data, so it says no "Updated" time. Its line is true both for an address that matches nothing and
+// for a page this role can't open (approved decision (4) of the Phase 37 mock-up).
 export const metadata: Metadata = { title: "Page not found" };
 
 export default function OfficeNotFound() {
   return (
     <main className={page.officeForm}>
       <PageHeader title="We can't find that page." stamp={false}>
-        <p>The link may be old or mistyped.</p>
+        <p>This page doesn&apos;t exist, or your role can&apos;t open it.</p>
       </PageHeader>
       <Link href="/office" className={btn.primary}>
         Back to the office

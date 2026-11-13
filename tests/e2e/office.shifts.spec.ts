@@ -165,7 +165,9 @@ test("payroll doesn't get the shift screens", async ({ page }) => {
   // The office's own not-found page (src/app/office/not-found.tsx): plain words, and the way back
   // leads to the office, not to the staff app.
   await expect(page.getByRole("heading", { name: "We can't find that page." })).toBeVisible();
-  await expect(page.getByText("The link may be old or mistyped.")).toBeVisible();
+  await expect(
+    page.getByText("This page doesn't exist, or your role can't open it."),
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: "Back to the office" })).toHaveAttribute(
     "href",
     "/office",

@@ -3182,9 +3182,10 @@ shows the way: each page still checks who can open it.
 - Every page opens with "{firm} office" above its title, then a line; status words carry a colour
   and a small icon, never the colour alone.
 - An office page that isn't for this role, or a shift, worker or offer that isn't there
-  (`src/app/office/not-found.tsx`), keeps the frame: "We can't find that page.", "The link may be
-  old or mistyped.", "Back to the office" (→ `/office`). Never "404". Any /office address that
-  matches no page (`src/app/office/[...missing]`) gets this page too (Phase 37.6). Its tab reads
+  (`src/app/office/not-found.tsx`), keeps the frame: "We can't find that page.", "This page doesn't
+  exist, or your role can't open it." (true for both; Phase 37.6), "Back to the office" (→
+  `/office`). Never "404". Any /office address that matches no page
+  (`src/app/office/[...missing]`) gets this page too (Phase 37.6). Its tab reads
   "Page not found · {firm} shifts", as does a page this role can't open, never that page's own
   name; no "Updated" time. Checked in the browser
   (`tests/e2e/office.shifts.spec.ts`, payroll opening `/office/shifts`): those words, the link to

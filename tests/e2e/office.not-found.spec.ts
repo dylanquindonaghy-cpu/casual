@@ -26,7 +26,9 @@ async function officeLogin(page: Page, email: string) {
 
 async function officeNotFound(page: Page) {
   await expect(page.getByRole("heading", { name: "We can't find that page." })).toBeVisible();
-  await expect(page.getByText("The link may be old or mistyped.")).toBeVisible();
+  await expect(
+    page.getByText("This page doesn't exist, or your role can't open it."),
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: "Back to the office" })).toHaveAttribute(
     "href",
     "/office",

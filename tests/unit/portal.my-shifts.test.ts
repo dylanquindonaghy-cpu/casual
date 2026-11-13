@@ -126,7 +126,13 @@ const homeBase: HomeViewProps = {
   lastName: "Udo",
   firmName: "Acme Events",
   // The Friday after the week of Mon 2 Nov (D8).
-  pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
+  pay: {
+    payDay: "2026-11-13",
+    days: 7,
+    start: "2026-11-02",
+    end: "2026-11-08",
+    thisPeriodPaid: null,
+  },
   timeZone: TZ,
   now: at("2026-11-02T09:00:00Z"),
   next: null,
@@ -164,7 +170,7 @@ describe("Home and Booked: the empty pages", () => {
     // Phase 32 (32.2; Dylan's approved mock-up): the office's title row, "Home" with "Updated
     // 09:00" on its baseline (online only), the day and pay day under it (online only too).
     expect(html).toMatch(
-      /<h1 class="text-title [^"]*">Home<\/h1><small data-updated-slot="" data-online-only="" class="[^"]*">Updated 09:00<\/small>.*<p data-date-line="" data-online-only="" class="[^"]*">Monday 2 November · Pay day Fri [0-9]+ [A-Z][a-z]{2}<\/p>/,
+      /<h1 class="text-title [^"]*">Home<\/h1><small data-updated-slot="" data-online-only="" class="[^"]*">Updated 09:00<\/small>.*<p data-date-line="" data-online-only="" class="[^"]*">Monday 2 November · Next pay day Fri [0-9]+ [A-Z][a-z]{2}<\/p>/,
     );
     expect(html).not.toContain("font-greet");
     expect(html).not.toContain("-top-13");
@@ -667,7 +673,7 @@ describe("Home: what she can take, and her next shift in full", () => {
         "Open shifts need signal 2 were urgent at 09:00 on Mon 2 Nov. We'll check again when you're online.",
       ],
       ["apply", "3 more you can take Sat 7 and Tue 10 Nov · up to £12.60/hour"],
-      ["pay", "Pay day: Fri 13 Nov For shifts Mon 2 to Sun 8 Nov"],
+      ["pay", "Next pay day: Fri 13 Nov For shifts Mon 2 to Sun 8 Nov"],
     ]);
     expect(section).toMatch(
       /<li data-online-only="" data-for-you="urgent"><a class="[^"]*" href="\/urgent"/,

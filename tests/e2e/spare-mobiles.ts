@@ -19,6 +19,11 @@ export const SPARE_MOBILES = {
   briefing: [241, 260],
   // office.enquiries' casuals whose messages the shifts line never sorted (Wave 1, w1-04).
   unsorted: [261, 280],
+  // office.enquiries' two numbers nobody here has, in pairs (n, n + 1): at phone width, and on a
+  // laptop. Kept here so no spec fixes a casual inside them (office.answers' Kit had 900935: the
+  // laptop test then texted "a number we don't know" from Kit's own number).
+  enquiryPhone: [980, 998],
+  enquiryLaptop: [920, 937],
 } as const satisfies Record<string, readonly [number, number]>;
 
 export type SpareBlock = keyof typeof SPARE_MOBILES;

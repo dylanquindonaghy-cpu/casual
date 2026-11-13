@@ -30,8 +30,10 @@ export const SERIES_ACTIONS = [
 // stopped for good): longer than every wait between attempts (5 + 30 + 120 minutes).
 export const EVIDENCE_STUCK_HOURS = 4;
 
-const keyOf = (p: { strikeId: string; series: number; attempt: number }) =>
+// An attempt's key (its log entries' `request`). Exported for the demo seed's evidence trail.
+export const strikeEvidenceKey = (p: { strikeId: string; series: number; attempt: number }) =>
   `strike-evidence:${p.strikeId}:${p.series.toString(36)}:${p.attempt}`;
+const keyOf = strikeEvidenceKey;
 
 export const strikeEvidencePayload = firmJobEnvelope
   .extend({

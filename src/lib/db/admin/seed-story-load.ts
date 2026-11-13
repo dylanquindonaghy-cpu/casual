@@ -8,7 +8,6 @@ import { TRAVEL_NOTICE_VERSION } from "../../portal/travel";
 import { automaticEventId } from "../../roster/shift-events";
 import { hoursToStart } from "../../rules/urgent";
 import { strikeSettings } from "../../strikes/settings";
-import { STRIKE_WARNING_VERSION } from "../../strikes/words";
 import { fakePoint } from "../../travel/geocoder";
 import {
   assignments,
@@ -29,6 +28,7 @@ import {
 import type { FirmTx, WithFirm } from "../scoped";
 import { seedId, type SeedFirm } from "./seed-data";
 import type { SeedLog } from "./seed-log";
+import { logEvidenceSent } from "./seed-strikes";
 import {
   STORY_CERTIFICATE_JPEG,
   STORY_LINE,
@@ -36,6 +36,7 @@ import {
   STRIKES_TEAM,
   type StorySeed,
 } from "./seed-story";
+import { seedStrikeWarning } from "./seed-warning";
 
 // Loading the demo's story (seed-story.ts; 12I.1) inside Acme's transaction, as the app role. The
 // people, their qualifications and travel areas are put back as seeded on every run (like the
@@ -56,6 +57,13 @@ const pointOf = (postcode: string) => {
   return { lat: String(point.lat), lng: String(point.lng) };
 };
 const sha256 = (data: Buffer) => createHash("sha256").update(data).digest("hex");
+
+// A story casual's own cancellation is logged "issued" only when the story gives it its strike
+// (Phase 37.2: the log never says more than the rows): one without would fail the seed here.
+function storyStrikeCode(story: StorySeed, bookingId: string): "issued" {
+  if (story.strikes.some((s) => s.bookingId === bookingId)) return "issued";
+  throw new Error(`the story's cancellation ${bookingId} has no strike`);
+}
 
 export async function loadStory(
   tx: FirmTx,
@@ -405,9 +413,8 @@ export async function loadStory(
               : null,
         cancelVia: b.cancelVia,
         bookedVia: "app" as const, // logged below as the worker's own booking (P2.2)
-        ...(b.status === "cancelled_worker"
-          ? { strikeWarningVersion: STRIKE_WARNING_VERSION, strikeWarningShownAt: b.cancelledAt }
-          : {}),
+        // The warning she saw: only on her own cancellation in the app, as the app (L8).
+        ...seedStrikeWarning(b),
         createdAt: b.confirmedAt,
       })),
     );
@@ -493,7 +500,8 @@ export async function loadStory(
           workerId: b.workerId,
           noticeHours: b.noticeHours,
           ...(byFirm && b.cancelReason ? { reason: b.cancelReason } : {}),
-          strike: byFirm ? "by_firm" : "issued",
+          // The story's own decision (37.2): every casual cancellation in it has its strike.
+          strike: byFirm ? "by_firm" : storyStrikeCode(story, b.id),
           place: "reopened",
           reopenedId: b.reopenedId,
         },
@@ -564,7 +572,7 @@ export async function loadStory(
       createdAt: s.issuedAt,
     });
     const data = { assignmentId: s.bookingId, shiftId: s.shiftId, workerId: s.workerId };
-    log.add(
+    const issued = log.add(
       {
         actorType: "system",
         action: "strike.issued",
@@ -575,16 +583,7 @@ export async function loadStory(
       s.issuedAt,
     );
     // Its evidence emailed to the strikes team (src/lib/strikes/evidence.ts), as the row says.
-    log.add(
-      {
-        actorType: "system",
-        action: "strike.evidence_sent",
-        entityType: "strike",
-        entityId: s.id,
-        data: { request: `strike-evidence:${s.id}`, attempt: 1 },
-      },
-      new Date(s.issuedAt.getTime() + 2 * 60_000),
-    );
+    logEvidenceSent(log, s.id, issued, s.issuedAt, new Date(s.issuedAt.getTime() + 2 * 60_000));
     if (s.withdrawn) {
       log.add(
         {

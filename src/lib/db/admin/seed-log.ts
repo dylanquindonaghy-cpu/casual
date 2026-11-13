@@ -20,6 +20,23 @@ const isRef = (value: unknown): value is SeedRef =>
   Object.keys(value).length === 1 &&
   typeof (value as { seedRef?: unknown }).seedRef === "number";
 
+// Text worked out from an earlier entry's id once it's written (a strike evidence attempt's
+// request key names its series, the strike.issued entry's id: src/lib/strikes/evidence-queue.ts).
+export interface SeedRefText {
+  readonly seedRef: number;
+  readonly text: (id: number) => string;
+}
+export const refText = (ref: SeedRef, text: (id: number) => string): SeedRefText => ({
+  seedRef: ref.seedRef,
+  text,
+});
+const isRefText = (value: unknown): value is SeedRefText =>
+  typeof value === "object" &&
+  value !== null &&
+  Object.keys(value).length === 2 &&
+  typeof (value as { seedRef?: unknown }).seedRef === "number" &&
+  typeof (value as { text?: unknown }).text === "function";
+
 export interface SeedLog {
   readonly now: Date; // the seed's now
   // An entry at `at` (default: the seed's now). Throws for a time after now.
@@ -48,14 +65,14 @@ export function seedLog(now: Date): SeedLog {
         const data = e.event.data
           ? Object.fromEntries(
               Object.entries(e.event.data).map(([key, value]) => {
-                if (!isRef(value)) return [key, value];
+                if (!isRef(value) && !isRefText(value)) return [key, value];
                 const id = ids.get(value.seedRef);
                 if (id === undefined) {
                   throw new Error(
                     `seed log: ${e.event.action} names an entry not written before it`,
                   );
                 }
-                return [key, id];
+                return [key, isRefText(value) ? value.text(id) : id];
               }),
             )
           : undefined;

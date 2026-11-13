@@ -15,7 +15,7 @@ import { loginLinkSentTo, sentTo } from "./outbox";
 // in, the words that went), and on a question for a person "Make this an answer", which opens Add
 // with it. A resourcer can't open the page (not found), has no menu item, and sees no "Make this an
 // answer". No sideways scroll at 390px or 1,280px, light and dark. The answer's name and example
-// are this run's own (a retry makes new ones). Made-up people only (07700 900935).
+// are this run's own (a retry makes new ones). Made-up people only (07700 900938).
 // Screenshots of the built screens are attached to the run's report and, with P35_SHOTS set, saved
 // in that folder too.
 
@@ -27,8 +27,8 @@ const NAME = `Torch and badge ${RUN}`;
 const EXAMPLE = `kit list ${RUN}`;
 const ADMIN = `answers.admin.${RUN}@example.com`;
 const RESOURCER = `answers.resourcer.${RUN}@example.com`;
-const KIT = { firstName: "Kit", lastName: "Answerson", mobileE164: "+447700900935" };
-const KIT_TYPED = "07700 900935";
+const KIT = { firstName: "Kit", lastName: "Answerson", mobileE164: "+447700900938" };
+const KIT_TYPED = "07700 900938";
 const FOOD = `Is there food at the festival? (${RUN})`;
 const LAPTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844 };

@@ -2,7 +2,6 @@ import { inArray, sql } from "drizzle-orm";
 import { groupFactsFor, payGroupKey } from "../../pay/grouping";
 import { hoursToStart } from "../../rules/urgent";
 import { strikeSettings } from "../../strikes/settings";
-import { STRIKE_WARNING_VERSION } from "../../strikes/words";
 import { fakePoint } from "../../travel/geocoder";
 import {
   assignments,
@@ -22,8 +21,10 @@ import {
 import type { FirmTx } from "../scoped";
 import type { SeedFirm } from "./seed-data";
 import type { SeedLog } from "./seed-log";
+import { logEvidenceSent } from "./seed-strikes";
 import { STRIKES_TEAM } from "./seed-data";
 import type { MatchSeed } from "./seed-match";
+import { seedStrikeWarning } from "./seed-warning";
 
 // Loading the match day (seed-match.ts; Phase 36.5) inside Acme's transaction, as the app role,
 // the way the story is loaded (seed-story-load.ts): the stadium, its contract, the squad and their
@@ -225,9 +226,8 @@ export async function loadMatchDay(
               : null,
         cancelVia: b.cancelVia,
         bookedVia: "app" as const,
-        ...(b.status === "cancelled_worker"
-          ? { strikeWarningVersion: STRIKE_WARNING_VERSION, strikeWarningShownAt: b.cancelledAt }
-          : {}),
+        // The warning she saw: only on her own cancellation in the app, as the app (L8).
+        ...seedStrikeWarning(b),
         createdAt: b.confirmedAt,
       })),
     );
@@ -355,7 +355,7 @@ export async function loadMatchDay(
       evidenceEmailSentAt: evidenceAt,
       createdAt: s.issuedAt,
     });
-    log.add(
+    const issued = log.add(
       {
         actorType: "system",
         action: "strike.issued",
@@ -371,16 +371,7 @@ export async function loadMatchDay(
       },
       s.issuedAt,
     );
-    log.add(
-      {
-        actorType: "system",
-        action: "strike.evidence_sent",
-        entityType: "strike",
-        entityId: s.id,
-        data: { request: `strike-evidence:${s.id}`, attempt: 1 },
-      },
-      evidenceAt,
-    );
+    logEvidenceSent(log, s.id, issued, s.issuedAt, evidenceAt);
   }
 
   // The previous match's pay line as payroll's file gives it, and the pay query still open.

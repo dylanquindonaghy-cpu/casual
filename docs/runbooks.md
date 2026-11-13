@@ -240,6 +240,20 @@ event is over).
 
 ## A demo server
 
+The demo's planner (Phase 37.8): the reset seeds a "Demo planner" API key and an event from it.
+Its webhook is seeded only when `INTEGRATIONS_SECRET` is set in the `.env` beside
+`docker-compose.demo.yml` (the compose file then gives the demo-reset service the flag
+`DEMO_PLANNER_WEBHOOK=on`, never the secret itself): without it, every
+new booking's delivery would fail as not configured. Keep the demo worker's `WEBHOOK_TRANSPORT`
+at `console`: with `https`, the made-up address's deliveries would fail and Needs attention would
+show a failing webhook.
+
+A local dev database seeded before Phase 37.8 needs `npm run db:reset` (local only), not just
+`npm run db:seed`: the pay lines keep their ids while their hours are drawn differently, and the
+seed never changes a row it finds, so the old pay would sit beside the new worked sessions
+(`docs/testing.md` "Demo data that agrees with itself"). A demo server needs nothing: its reset
+loads the demo afresh every night.
+
 The made-up demo (Acme Events and Northline Rail Labour, from the seed) on a small server of your
 own, so you, or someone you show it to, can click through the real app online (Phase 16; ADR-025).
 Nothing real happens on it:

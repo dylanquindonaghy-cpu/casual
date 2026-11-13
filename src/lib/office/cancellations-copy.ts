@@ -95,7 +95,7 @@ export interface CancellationRow {
   officeName: string | null; // the office user who cancelled it, if one did
   reason: string; // as stored: shown on the page only
   noticeHours: number;
-  strikeCode: StrikeCode | null; // from the shift.cancelled entry (none before strikes)
+  strikeCode: StrikeCode | null; // from the shift.cancelled entry (null: nothing recorded)
   strike: {
     status: "live" | "withdrawn";
     expiresAt: Date;
@@ -243,8 +243,12 @@ export function strikeBadge(
     };
   }
   if (r.by !== "casual") return { kind: "none", text: `No strike · ${firmWhy(r.by)}` };
-  if (!r.strikeCode || r.strikeCode === "issued") {
-    return { kind: "none", text: "No strike: cancelled before strikes were turned on" };
+  // Phase 37.2: say what is known, never guess why. No code in the log: nothing was recorded.
+  // "issued" with no strike row: the row was deleted after the firm's keep time (the nightly
+  // purge, src/lib/gdpr/retention.ts), and the log entry stays.
+  if (!r.strikeCode) return { kind: "none", text: "No strike recorded" };
+  if (r.strikeCode === "issued") {
+    return { kind: "none", text: "Strike issued · its record was deleted" };
   }
   const why = r.strikeCode === "by_firm" ? firmWhy(r.by) : NO_STRIKE_WHY[r.strikeCode];
   return { kind: "none", text: `No strike · ${why}` };
@@ -339,7 +343,10 @@ export function strikeText(r: Pick<CancellationRow, "strike" | "strikeCode">, tz
       ? "Issued, then withdrawn"
       : `Issued (counts until ${dayLabel(localDateOf(r.strike.expiresAt, tz))})`;
   }
-  return r.strikeCode ? STRIKE_WORDS[r.strikeCode] : "Not recorded (before strikes)";
+  // Phase 37.2: no code is "Not recorded"; "issued" whose strike row was deleted after the firm's
+  // keep time says so.
+  if (!r.strikeCode) return "Not recorded";
+  return r.strikeCode === "issued" ? "Issued (its record was deleted)" : STRIKE_WORDS[r.strikeCode];
 }
 
 // The decisions that give no strike and are no exemption either (strikeDecision()'s "none").
@@ -348,6 +355,9 @@ const NO_STRIKE: ReadonlySet<StrikeCode> = new Set(["by_firm", "strikes_off", "e
 // The CSV's short form: yes / exempt: reason / no.
 export function strikeShort(r: Pick<CancellationRow, "strike" | "strikeCode">): string {
   if (r.strike) return r.strike.status === "withdrawn" ? "withdrawn" : "yes";
+  // Issued, its row deleted after the firm's keep time: still a strike (as the planner API says,
+  // src/lib/integrations/records.ts).
+  if (r.strikeCode === "issued") return "yes";
   if (r.strikeCode && !NO_STRIKE.has(r.strikeCode)) {
     return `exempt: ${STRIKE_WORDS[r.strikeCode].replace(/^Exempt: /, "")}`;
   }

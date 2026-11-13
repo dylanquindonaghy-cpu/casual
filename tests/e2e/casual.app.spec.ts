@@ -156,10 +156,10 @@ test("Home shows Holly's photo row, the urgent row and her next shift in full", 
     "href",
     "/shifts/open",
   );
-  // Pay day: the pay week's Friday (D8), to Pay.
+  // The next pay day (37.1: the office's), to Pay.
   const pay = page.getByRole("region", { name: "Pay" }).locator('[data-for-you="pay"]');
   await expect(pay.getByRole("link")).toHaveAttribute("href", "/pay");
-  await expect(pay).toContainText("Pay day");
+  await expect(pay).toContainText("Next pay day");
   await expect(pay).toContainText(/Fri \d{1,2} [A-Z][a-z]{2}/);
   await expect(pay).toContainText(
     /For shifts Mon \d{1,2}( [A-Z][a-z]{2})? to Sun \d{1,2} [A-Z][a-z]{2}/,

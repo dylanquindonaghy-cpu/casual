@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { seedFirms } from "@/lib/db/admin/seed-data";
 import { acmeSaturday, FREE_WORKERS, nextSaturday } from "@/lib/db/admin/seed-saturday";
+import { HISTORY_HOURS, HISTORY_WORKERS } from "@/lib/db/admin/seed-history";
 
 // Acme's Saturday event day for the demo seed (src/lib/db/admin/seed-saturday.ts): the pure
 // builder. The loader and the database side are in tests/integration/seed.test.ts.
@@ -8,7 +9,7 @@ import { acmeSaturday, FREE_WORKERS, nextSaturday } from "@/lib/db/admin/seed-sa
 const acmeAt = (now: Date) => {
   const acme = seedFirms(now).find((f) => f.slug === "acme");
   if (!acme) throw new Error("no Acme");
-  return { acme, day: acmeSaturday(acme.workers, acme.sites, now) };
+  return { acme, day: acmeSaturday(acme.workers, acme.sites, now, acme.settings) };
 };
 const london = (d: Date) =>
   d.toLocaleString("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit" });
@@ -51,6 +52,58 @@ describe("acmeSaturday", () => {
     expect(dropout?.cancelledAt).toEqual(now);
   });
 
+  // Phase 37.2: the dropout's strike code is the rules' (strikeDecision), decided here, with its
+  // strike row whenever the code is "issued"; the strike's id is scoped to the Saturday's day.
+  it("the dropout's strike code is the rules': enough notice midweek, none stored", () => {
+    // Wednesday 30 Sep 2026, 04:00 London: cancelled now, 75 hours before Sat 08:00.
+    const { day } = acmeAt(new Date("2026-09-30T03:00:00Z"));
+    const dropout = day.bookings.find((b) => b.status === "cancelled_worker");
+    expect(dropout?.strikeCode).toBe("enough_notice");
+    expect(day.strikes).toEqual([]);
+    // The others carry no code.
+    expect(day.bookings.filter((b) => b.strikeCode !== null)).toHaveLength(1);
+  });
+
+  it("on a Friday it's a strike, flagged for a review (she was unwell), its id the Saturday's", () => {
+    // Friday 2 Oct 2026, 07:00 London: cancelled at 06:00, 26 hours before Sat 08:00, under 48.
+    const { day } = acmeAt(new Date("2026-10-02T06:00:00Z"));
+    const dropout = day.bookings.find((b) => b.status === "cancelled_worker");
+    expect(dropout?.strikeCode).toBe("issued");
+    expect(dropout?.noticeHours).toBe(26);
+    expect(day.strikes).toHaveLength(1);
+    const [strike] = day.strikes;
+    expect(strike).toMatchObject({
+      bookingId: dropout?.id,
+      workerId: dropout?.workerId,
+      shiftId: dropout?.shiftId,
+      noticeHours: 26,
+      issuedAt: dropout?.cancelledAt,
+      reviewReasons: ["unwell"],
+    });
+    // 90 days live (Acme's default).
+    expect(strike?.expiresAt.getTime()).toBe(
+      (dropout?.cancelledAt?.getTime() ?? 0) + 90 * 24 * 3_600_000,
+    );
+    // A Friday a week later: its own Saturday, its own strike id.
+    const later = acmeAt(new Date("2026-10-09T06:00:00Z")).day;
+    expect(later.strikes).toHaveLength(1);
+    expect(later.strikes[0]?.id).not.toBe(strike?.id);
+  });
+
+  it("strikes switched off: the code says so, and no strike", () => {
+    const now = new Date("2026-10-02T06:00:00Z");
+    const acme = seedFirms(now).find((f) => f.slug === "acme");
+    if (!acme) throw new Error("no Acme");
+    const day = acmeSaturday(acme.workers, acme.sites, now, {
+      ...acme.settings,
+      strikes: { enabled: false },
+    });
+    expect(day.bookings.find((b) => b.status === "cancelled_worker")?.strikeCode).toBe(
+      "strikes_off",
+    );
+    expect(day.strikes).toEqual([]);
+  });
+
   it("keeps the same ids all week, and a new Saturday gets new ones", () => {
     const tuesday = acmeAt(new Date("2026-09-29T09:00:00Z")).day;
     const thursday = acmeAt(new Date("2026-10-01T16:00:00Z")).day;
@@ -73,11 +126,25 @@ describe("acmeSaturday", () => {
     expect(winter.shifts[0]?.startsAt.toISOString()).toBe("2026-10-31T12:00:00.000Z");
   });
 
-  it("gives every worker 1 to 8 weekly pay lines from the last 8 complete weeks", () => {
+  // Phase 37.8: only the casuals with a worked history are paid (seed-history.ts), each week drawn
+  // from the worker and the week alone, in hours that split into whole sessions.
+  it("gives the history workers 1 to 8 weekly pay lines from the last 8 complete weeks, everyone else none", () => {
     const { acme, day } = acmeAt(new Date("2026-09-29T09:00:00Z")); // a Tuesday
     const byWorker = new Map<string, number>();
     for (const p of day.pay) byWorker.set(p.workerId, (byWorker.get(p.workerId) ?? 0) + 1);
-    expect(byWorker.size).toBe(acme.workers.length);
+    expect([...byWorker.keys()].sort()).toEqual(
+      HISTORY_WORKERS.map((i) => acme.workers[i]?.id).sort(),
+    );
+    expect(byWorker.has(acme.workers[0]?.id ?? "")).toBe(false);
+    for (const p of day.pay) expect(HISTORY_HOURS).toContain(p.hours);
+    // A week drawn the same whatever day the seed runs: a run a week later keeps each line.
+    const later = acmeAt(new Date("2026-10-06T09:00:00Z")).day.pay;
+    // (the last complete week is always paid, so only the weeks before it are compared)
+    for (const p of day.pay.filter(
+      (x) => x.periodStart >= "2026-08-10" && x.periodStart < "2026-09-21",
+    )) {
+      expect(later.find((x) => x.id === p.id)).toEqual(p);
+    }
     for (const n of byWorker.values()) expect(n).toBeGreaterThanOrEqual(1);
     for (const n of byWorker.values()) expect(n).toBeLessThanOrEqual(8);
     const starts = [...new Set(day.pay.map((p) => p.periodStart))].sort();

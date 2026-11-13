@@ -333,7 +333,13 @@ const openList = (o: Partial<Parameters<typeof OpenShiftsView>[0]["list"]> = {})
 const homeScreen = (o: Partial<Parameters<typeof HomeView>[0]>) =>
   createElement(HomeView, {
     firmName: "Acme Events",
-    pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
+    pay: {
+      payDay: "2026-11-13",
+      days: 7,
+      start: "2026-11-02",
+      end: "2026-11-08",
+      thisPeriodPaid: null,
+    },
     firstName: "Sam",
     lastName: "Udo",
     timeZone: TZ,
@@ -382,7 +388,39 @@ const SCREENS: [string, ReactElement][] = [
   ["Home, nothing booked or open", homeScreen({})],
   [
     "Home, a fortnight's pay cycle",
-    homeScreen({ pay: { payDay: "2026-11-13", days: 14, start: "2026-10-26", end: "2026-11-08" } }),
+    homeScreen({
+      pay: {
+        payDay: "2026-11-13",
+        days: 14,
+        start: "2026-10-26",
+        end: "2026-11-08",
+        thisPeriodPaid: null,
+      },
+    }),
+  ],
+  [
+    "Home, this week paid later (37.1)",
+    homeScreen({
+      pay: {
+        payDay: "2026-11-13",
+        days: 7,
+        start: "2026-11-02",
+        end: "2026-11-08",
+        thisPeriodPaid: "2026-11-20",
+      },
+    }),
+  ],
+  [
+    "Home, this cycle paid later (37.1)",
+    homeScreen({
+      pay: {
+        payDay: "2026-10-30",
+        days: 14,
+        start: "2026-10-12",
+        end: "2026-10-25",
+        thisPeriodPaid: "2026-11-13",
+      },
+    }),
   ],
   ["Home, one urgent shift and others to apply for", homeScreen({ open: urgentOpen(4) })],
   ["Home, no home area", homeScreen({ open: openList({ area: null }) })],

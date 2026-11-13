@@ -24,8 +24,8 @@ import { PayAnswersSeen } from "./pay-answers-seen";
 
 // The pay day, first on Pay, before the code (Phase 28.10; docs/screens.md "### 28.10"): the same
 // day and words as Home's pay row (src/lib/portal/pay-day.ts, home-copy.ts payDayRowText): the
-// firm's pay calendar, or payroll's own date for exactly this period. A day and dates only: no
-// hours, rate or amount, which stay behind the code (golden rule 9).
+// next pay day not yet past, as the office's (Phase 37.1), and when this period is paid later, that
+// day. A day and dates only: no hours, rate or amount, which stay behind the code (golden rule 9).
 export function PayDayCard({ pay }: { pay: MyPayDay }) {
   const text = payDayRowText(pay.payDay, pay);
   const day = datePartsOfDay(pay.payDay);
@@ -41,6 +41,7 @@ export function PayDayCard({ pay }: { pay: MyPayDay }) {
           {text.title}
         </h2>
         <p className={muted}>{text.sub}</p>
+        {text.note && <p className={muted}>{text.note}</p>}
       </div>
     </section>
   );

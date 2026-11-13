@@ -205,7 +205,7 @@ test("the unseen pages: login and the link, Pay with the code, an upload, the ca
     });
     await each(session, async (page, where, label) => {
       await page.goto(`${acme}/pay`);
-      await expect(page.getByRole("heading", { level: 2, name: /^Pay day: / })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 2, name: /^Next pay day: / })).toBeVisible();
       await expect(page.getByText("The last 8 weeks, from Acme Events' payroll.")).toBeVisible();
       await check(page, where("/pay after the code"), "Pay");
       await shoot(page, testInfo, `28.16 pay after the code ${label}`);

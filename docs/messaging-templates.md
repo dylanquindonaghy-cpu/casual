@@ -463,8 +463,8 @@ code after its words on every channel (and in the office's preview), "If your pa
 reply's `PAY_QUERY_HINT` in `src/lib/messaging/pay-hint.ts`; golden rule 9: the way to payroll is
 always said).
 
-For example, Zoe's "when will I get paid?" with Pay day on: "Your next pay day is Friday 20
-November, for shifts Mon 9 to Sun 15 Nov. Your hours and rates: https://acme.…/pay If your pay looks
+For example, Zoe's "when will I get paid?" with Pay day on, on Wednesday 11 November: "Your next
+pay day is Friday 13 November, for shifts Mon 2 to Sun 8 Nov. Your hours and rates: https://acme.…/pay If your pay looks
 wrong, tap 'Raise a pay query' on your pay page, so payroll sees it. Automatic reply. Send OFFICE to
 reach a person. — Acme Events Shift Team". A message about pay going wrong ("my pay is wrong", "I
 haven't been paid", "it's late", "it hasn't gone in", "where's my money") never gets a library

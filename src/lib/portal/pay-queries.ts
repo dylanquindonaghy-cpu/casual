@@ -54,7 +54,8 @@ export interface PayQueryShift {
   day: string; // the shift's day, firm time
 }
 
-async function shiftsOf(tx: FirmTx, workerId: string, now: Date, timeZone: string) {
+// Exported for the demo seed's test (Phase 37.8: Zoe's worked shifts in the picker).
+export async function shiftsOf(tx: FirmTx, workerId: string, now: Date, timeZone: string) {
   const rows = await tx
     .select({
       shiftId: shifts.id,

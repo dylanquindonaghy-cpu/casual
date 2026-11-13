@@ -1079,7 +1079,9 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   - Show each worker's no-show count (last 90 days) on their office record and in "Assign
     someone"; the pilot metrics task counts no-shows per week.
   - The demo seed has no past shifts: add last week's event with bookings to mark (also for the
-    notice report and metrics demos).
+    notice report and metrics demos). **Done in Phase 37.8 (Wave 1):** 30 casuals' worked weeks
+    behind their pay, late cancellations with strikes, and the pilot's figures
+    (`src/lib/db/admin/seed-history.ts`, `seed-pilot.ts`).
   - Pilot metrics: count no-shows from the bookings' current status, not from `shift.no_show`
     events (a correction logs both).
   - A worker marked as not attended mid-shift still sees it as "On now" with no sign of the mark;
@@ -2669,3 +2671,35 @@ From builder C (37.3, 37.6, 37.7; 2026-11-13):
   own files never update themselves"); the rest of x6-features-08 (an outside pen test, Cyber
   Essentials, the Dependabot pass). Live on the server is its own step after the tick
   (`docs/runbooks.md` "A new Caddyfile").
+
+From builder A (37.1, 37.2, 37.8; 2026-11-13):
+
+- **The rest of the pay words (37.1, w1-01):** the unlocked Pay page's week headings and per-week
+  "Pay day: …" chips (`src/lib/portal/pay-format.ts`), "Recently sorted"'s "the week of {Mon 2
+  Nov}" and the dashboard head and top bar's "Week 46 (paid Fri 20 Nov)" (O3) keep their own
+  forms; they could use `shiftDatesText` too.
+- **The office's Next pay day reads every casual's records (37.1):** both sides read only
+  whole-period records (one read, `readRecordedPayDates`), but the office's tile is the firm's: it
+  shows payroll's imported date for a period, and a casual sees it only when her own record carries
+  it. She sees another day whenever payroll's date isn't hers: her own record dated differently,
+  or no record of hers for that period (she didn't work it), when she sees the pay calendar's. The
+  second is common, since payroll imports records only for casuals who worked (documented in
+  `docs/screens.md` "One pay day everywhere (37.1)"; pinned in
+  `tests/integration/pay-day.agrees.test.ts`). Waiting for Dylan (`docs/plan/decisions-waiting.md`,
+  Pay and payroll 11): should a casual with no record of her own take the firm's imported date? If
+  the tile ever needs to say so: "Fri 13 Nov (some casuals Thu 12 Nov)".
+- **A strike whose record was deleted, on the other screens (37.2, w1-02):** for a strike whose row
+  the nightly purge deleted after the firm's keep time, the record's evidence field
+  (`evidenceText`, `src/lib/office/cancellations-copy.ts`) says "No strike: nothing to send", and
+  the event page (`event-page-copy.ts`), the dashboard map (`dashboard-map-copy.ts`) and the
+  casual's own record (`src/lib/portal/my-record.ts`) say no strike, because they read only the
+  strikes row. The planner API reports a null code as "none" (`src/lib/integrations/records.ts`).
+  All concern cancellations older than `strikes.keep_months` (12 by default).
+- **The rest of the demo's data (37.8, w1-12):** Pilot metrics' explainer line and phone cards
+  (a3); the made-up licence numbers that look real (x2-copy-13); Kieran's "Last worked Never"
+  beside "New: 2 shifts so far" (x2-copy-13); Ben and the aud-14 six worked weeks with pay for
+  only some of them; and, needing Dylan's yes, the "New: not worked yet" split (decided to wait:
+  above), without which the match day's squad keeps "Not worked lately" at about 86 of 143.
+- **The demo planner's event-created entry (37.8):** the planner API logs no entry for a new
+  event itself (only each session's `shift.created`), so the seed logs none either.
+

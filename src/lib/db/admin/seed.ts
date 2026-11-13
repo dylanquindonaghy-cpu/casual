@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, lt, notInArray, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { Client, Pool } from "pg";
 import { addStarterAnswers, DEMO_STARTERS_ON } from "../../answers/starters";
 import { applyCredentialPack } from "../../credentials/apply-pack";
@@ -16,11 +16,15 @@ import {
   requests,
   shifts,
   sites,
+  strikes,
   workers,
 } from "../schema";
 import { seedLog, type SeedLog } from "./seed-log";
-import { seedFirms, weekOffers, type SeedFirm } from "./seed-data";
+import { logEvidenceSent } from "./seed-strikes";
+import { seedFirms, STRIKES_TEAM, weekOffers, type SeedFirm } from "./seed-data";
 import { acmeSaturday, type SaturdaySeed } from "./seed-saturday";
+import { acmeHistory, keptHistoryBookings, type HistorySeed } from "./seed-history";
+import { loadDemoPlanner, loadPilotFigures, setDemoWebhook } from "./seed-demo-extras";
 import {
   acmePastEvent,
   acmePayQueries,
@@ -33,6 +37,8 @@ import { groupFactsFor, payGroupKey } from "../../pay/grouping";
 import { lockOfferCounts } from "../../offers/candidates";
 import { noticeHours } from "../../roster/notice";
 import { quietHours } from "../../rules/quiet-hours";
+import { strikeDecision } from "../../strikes/decide";
+import { strikeSettings } from "../../strikes/settings";
 import { hoursToStart, insideUrgentWindow, urgentWindowHours } from "../../rules/urgent";
 import { fakePoint } from "../../travel/geocoder";
 import { acmeMatchDay, type MatchSeed } from "./seed-match";
@@ -40,6 +46,7 @@ import { loadMatchDay } from "./seed-match-load";
 import { acmeStory } from "./seed-story";
 import { answerStoryMessages, loadStory } from "./seed-story-load";
 import { isLocalHost } from "./urls";
+import { seedStrikeWarning } from "./seed-warning";
 
 // Loads the demo firms (docs/testing.md). Firms are created through the owner connection (the
 // app role can't create firms); everything else goes through withFirm as the app role, like the
@@ -73,6 +80,9 @@ export async function seed(opts: {
   // checked it's a demo server and recreated the database.
   demoMode?: "on";
   today?: Date;
+  // With demoMode "on" only (Phase 37.8): the "Demo planner" gets its webhook, set after the log
+  // is written so no seeded booking queues a delivery.
+  webhook?: boolean;
 }): Promise<SeedSummary> {
   // Checked before any connection is made (golden rule 7: fake data, never near real data). In
   // production only on a demo server, whose database holds the made-up demo alone (ADR-025).
@@ -92,7 +102,8 @@ export async function seed(opts: {
     const summary: SeedSummary = { firms: [] };
     for (const firm of firms) {
       await provisionFirm(owner, firm);
-      const saturday = firm.slug === "acme" ? acmeSaturday(firm.workers, firm.sites, now) : null;
+      const saturday =
+        firm.slug === "acme" ? acmeSaturday(firm.workers, firm.sites, now, firm.settings) : null;
       // The mock-up's story (seed-story.ts, 12I.1): Acme only.
       const story = firm.slug === "acme" ? acmeStory(firm, now) : null;
       // The match day to play with (seed-match.ts, Phase 36.5): Acme only.
@@ -110,8 +121,23 @@ export async function seed(opts: {
           const past = acmePastEvent(firm.workers, firm.sites, now);
           await loadExtraShifts(tx, firm, past, log);
           await loadPayQueries(tx, acmePayQueries(firm.workers, past, now), log);
+          // The worked sessions behind the Saturday seed's pay lines (Phase 37.8).
+          if (saturday) {
+            const history = acmeHistory(firm.workers, firm.sites, saturday.pay, now, firm.settings);
+            await loadHistory(tx, firm, history, now, log);
+          }
         }
         if (story) await loadStory(tx, firm, story, now, log);
+        // The pilot's own figures, a baseline and four weekly tallies (Phase 37.8): on the demo
+        // server only, so the e2e and walkthrough seeds keep a firm with none entered
+        // (tests/e2e/office.pilot.spec.ts enters its own).
+        if (firm.slug === "acme" && opts.demoMode === "on")
+          await loadPilotFigures(tx, firm, now, log);
+        // The demo server's planner (Phase 37.8): after the story (its Northgate site).
+        const planner =
+          firm.slug === "acme" && opts.demoMode === "on"
+            ? await loadDemoPlanner(tx, firm, now, log, { webhook: opts.webhook === true })
+            : null;
         if (match) {
           const freshMatch = await loadMatchDay(tx, firm, match, now, log);
           await loadMatchOffers(tx, firm, { match, fresh: freshMatch, log });
@@ -122,6 +148,9 @@ export async function seed(opts: {
           await loadExtraShifts(tx, firm, northlineNight(firm.workers, firm.sites, now), log);
         }
         await log.write(tx);
+        // The planner's webhook once the log is in, so none of the seeded bookings queues a
+        // delivery (src/lib/events/record.ts).
+        if (planner) await setDemoWebhook(tx, planner);
       });
       // Its messages answered by the shifts line's own job, once the story is in.
       if (story) {
@@ -335,7 +364,15 @@ export async function loadSaturday(
         noticeHours: b.noticeHours === null ? null : b.noticeHours.toFixed(2),
         // Who asked (P3.4): the casual, for their own.
         cancelAskedBy: b.status === "cancelled_worker" ? ("casual" as const) : null,
+        // In the app, past the cancel screen's strike warning, as the app records it (37.2).
+        cancelVia: b.status === "cancelled_worker" ? ("app" as const) : null,
         bookedVia: "app" as const, // logged below as the worker's own booking (P2.2)
+        // The warning she saw, as the app records it: her own cancellation in the app (L8).
+        ...seedStrikeWarning({
+          status: b.status,
+          cancelVia: b.status === "cancelled_worker" ? "app" : null,
+          cancelledAt: b.cancelledAt,
+        }),
       })),
     )
     .onConflictDoNothing()
@@ -373,6 +410,8 @@ export async function loadSaturday(
             shiftId: b.shiftId,
             workerId: b.workerId,
             noticeHours: b.noticeHours,
+            // The rules' decision, as the app logs it (src/lib/roster/cancel.ts; Phase 37.2).
+            strike: b.strikeCode,
           },
         },
         b.cancelledAt ?? now,
@@ -429,6 +468,51 @@ export async function loadSaturday(
       entityId: r.id,
       data: { type: r.type, shiftId: r.shiftId },
     });
+  }
+  // The dropout's strike when the rules gave one (37.2), only for a booking added just now: stored
+  // and logged as the app does (src/lib/roster/cancel.ts), flagged for a review when her reason is
+  // one a person should look at, its evidence sent to the strikes team.
+  const strikeRules = strikeSettings(firm.settings);
+  for (const s of day.strikes.filter((x) => newlyAdded.has(x.bookingId))) {
+    const evidenceAt = new Date(Math.min(s.issuedAt.getTime() + 2 * 60_000, now.getTime()));
+    await tx
+      .insert(strikes)
+      .values({
+        id: s.id,
+        firmId,
+        workerId: s.workerId,
+        assignmentId: s.bookingId,
+        shiftId: s.shiftId,
+        noticeHours: s.noticeHours.toFixed(2),
+        thresholdHours: strikeRules.noticeHours,
+        issuedAt: s.issuedAt,
+        expiresAt: s.expiresAt,
+        status: "live",
+        reviewNeeded: s.reviewReasons.length > 0,
+        reviewReasons: s.reviewReasons,
+        evidenceEmailStatus: "sent",
+        evidenceEmailTo: STRIKES_TEAM,
+        evidenceEmailSentAt: evidenceAt,
+        createdAt: s.issuedAt,
+      })
+      .onConflictDoNothing();
+    const issued = log.add(
+      {
+        actorType: "system",
+        action: "strike.issued",
+        entityType: "strike",
+        entityId: s.id,
+        data: {
+          assignmentId: s.bookingId,
+          shiftId: s.shiftId,
+          workerId: s.workerId,
+          noticeHours: s.noticeHours,
+          thresholdHours: strikeRules.noticeHours,
+        },
+      },
+      s.issuedAt,
+    );
+    logEvidenceSent(log, s.id, issued, s.issuedAt, evidenceAt);
   }
   await loadPay(tx, firmId, day);
   return fresh;
@@ -717,11 +801,259 @@ async function loadExtraShifts(
             workerId: b.workerId,
             noticeHours: b.noticeHours,
             ...(b.cancelReason ? { reason: b.cancelReason } : {}),
+            strike: strikeDecision({ cancelledBy: "firm" }).code, // "by_firm", as the app logs it
           },
         },
         b.cancelledAt ?? log.now,
       );
     }
+  }
+}
+
+// Acme's worked history (seed-history.ts; Phase 37.8): its sessions added once (fixed ids, dated by
+// pay week), and their bookings only on sessions added just now, leaving out one that would overlap
+// a booking the worker already holds (as loadExtraShifts does). Each logged as the app logs it:
+// booked by the casual, marked worked (or not attending) by the office an hour after the end, a
+// late cancellation with the rules' strike code and the place reopened, its strike issued with its
+// evidence sent, and the casual's logins.
+async function loadHistory(
+  tx: FirmTx,
+  firm: SeedFirm,
+  history: HistorySeed,
+  now: Date,
+  log: SeedLog,
+): Promise<void> {
+  const firmId = firm.id;
+  const resourcer = firm.officeUsers.find((u) => u.role === "resourcer");
+  if (!resourcer) throw new Error(`${firm.slug} has no resourcer to mark the history`);
+  // Sessions already there (an earlier run's) are left exactly as they are, with no new booking.
+  const existing = new Set(
+    (
+      await tx
+        .select({ id: shifts.id })
+        .from(shifts)
+        .where(
+          inArray(
+            shifts.id,
+            history.sessions.map((s) => s.id),
+          ),
+        )
+    ).map((r) => r.id),
+  );
+  const candidates = history.bookings.filter((b) => !existing.has(b.shiftId));
+  // A booking the worker already holds over the same time (an earlier run's): left out. Checked
+  // for the window each booking was live, a cancelled one's too (from its booking to its
+  // cancellation): another booking of hers over the same hours, live at any moment of that window,
+  // would have made the rules refuse it (golden rule 6).
+  const clashes = new Set<string>();
+  for (const b of candidates) {
+    const s = history.sessions.find((x) => x.id === b.shiftId);
+    if (!s) continue;
+    const [held] = await tx
+      .select({ id: assignments.id })
+      .from(assignments)
+      .innerJoin(
+        shifts,
+        and(eq(shifts.firmId, assignments.firmId), eq(shifts.id, assignments.shiftId)),
+      )
+      .where(
+        and(
+          eq(assignments.workerId, b.workerId),
+          lt(shifts.startsAt, s.endsAt),
+          gt(shifts.endsAt, s.startsAt),
+          // Live after this one was booked: not cancelled, or cancelled after.
+          or(
+            notInArray(assignments.status, [...CANCELLED_ASSIGNMENT_STATUSES]),
+            gt(assignments.cancelledAt, b.confirmedAt),
+          ),
+          // And booked before this one was cancelled (always, for one never cancelled).
+          b.cancelledAt === null
+            ? undefined
+            : or(isNull(assignments.confirmedAt), lt(assignments.confirmedAt, b.cancelledAt)),
+        ),
+      )
+      .limit(1);
+    if (held) clashes.add(b.id);
+  }
+  const kept = keptHistoryBookings(candidates, clashes);
+  // Only a session whose worked booking goes in is added ("filled"): one left out as an overlap is
+  // never a filled session with nobody on it.
+  const worked = new Set(kept.filter((b) => b.status !== "cancelled_worker").map((b) => b.shiftId));
+  const toAdd = history.sessions.filter((s) => worked.has(s.id));
+  const added =
+    toAdd.length === 0
+      ? []
+      : await tx
+          .insert(shifts)
+          .values(
+            (await withEvents(tx, toAdd)).map((s) => ({
+              ...s,
+              firmId,
+              headcount: 1,
+              status: "filled" as const,
+              source: "native" as const,
+              isUrgent: false,
+            })),
+          )
+          .onConflictDoNothing()
+          .returning({ id: shifts.id });
+  const fresh = new Set(added.map((s) => s.id));
+  for (const s of history.sessions.filter((x) => fresh.has(x.id))) {
+    log.add(
+      {
+        actorType: "system",
+        action: "shift.created",
+        entityType: "shift",
+        entityId: s.id,
+        data: { source: "seed" },
+      },
+      s.createdAt,
+    );
+  }
+  const bookings = kept.filter((b) => fresh.has(b.shiftId));
+  if (bookings.length === 0) return;
+  const sessionOf = (id: string) => history.sessions.find((x) => x.id === id);
+  await tx.insert(assignments).values(
+    bookings.map((b) => ({
+      id: b.id,
+      firmId,
+      shiftId: b.shiftId,
+      slot: 1,
+      workerId: b.workerId,
+      status: b.status,
+      confirmedAt: b.confirmedAt,
+      cancelledAt: b.cancelledAt,
+      cancelReason: b.cancelReason,
+      noticeHours: b.noticeHours === null ? null : b.noticeHours.toFixed(2),
+      cancelAskedBy: b.status === "cancelled_worker" ? ("casual" as const) : null,
+      cancelVia: b.status === "cancelled_worker" ? ("app" as const) : null,
+      bookedVia: "app" as const,
+      // The warning she saw, as the app records it: her own cancellation in the app (L8).
+      ...seedStrikeWarning({
+        status: b.status,
+        cancelVia: b.status === "cancelled_worker" ? "app" : null,
+        cancelledAt: b.cancelledAt,
+      }),
+      createdAt: b.confirmedAt,
+    })),
+  );
+  for (const b of bookings) {
+    const session = sessionOf(b.shiftId);
+    log.add(
+      {
+        actorType: "worker",
+        actorId: b.workerId,
+        action: "shift.assigned",
+        entityType: "assignment",
+        entityId: b.id,
+        data: {
+          by: "worker",
+          shiftId: b.shiftId,
+          workerId: b.workerId,
+          slot: 1,
+          noticeHours: b.bookedNoticeHours,
+        },
+      },
+      b.confirmedAt,
+    );
+    if (b.status === "completed" || b.status === "no_show") {
+      // Marked by the office an hour after the session (src/lib/roster/attendance.ts).
+      log.add(
+        {
+          actorType: "office",
+          actorId: resourcer.id,
+          action: b.status === "completed" ? "shift.completed" : "shift.no_show",
+          entityType: "assignment",
+          entityId: b.id,
+          data: { by: "firm", shiftId: b.shiftId, workerId: b.workerId, from: "confirmed" },
+        },
+        new Date(Math.min((session?.endsAt ?? now).getTime() + 3_600_000, now.getTime())),
+      );
+    }
+    if (b.status === "cancelled_worker") {
+      log.add(
+        {
+          actorType: "worker",
+          actorId: b.workerId,
+          action: "shift.cancelled",
+          entityType: "assignment",
+          entityId: b.id,
+          data: {
+            by: "worker",
+            askedBy: "casual",
+            shiftId: b.shiftId,
+            workerId: b.workerId,
+            noticeHours: b.noticeHours,
+            strike: b.strikeCode,
+            place: "reopened",
+            reopenedId: b.reopenedId,
+          },
+        },
+        b.cancelledAt ?? now,
+      );
+    }
+  }
+  // The late cancellations' strikes, as the app issues them, their evidence sent.
+  const strikeRules = strikeSettings(firm.settings);
+  const booked = new Set(bookings.map((b) => b.id));
+  for (const k of history.strikes.filter((x) => booked.has(x.bookingId))) {
+    const evidenceAt = new Date(Math.min(k.issuedAt.getTime() + 2 * 60_000, now.getTime()));
+    await tx
+      .insert(strikes)
+      .values({
+        id: k.id,
+        firmId,
+        workerId: k.workerId,
+        assignmentId: k.bookingId,
+        shiftId: k.shiftId,
+        noticeHours: k.noticeHours.toFixed(2),
+        thresholdHours: strikeRules.noticeHours,
+        issuedAt: k.issuedAt,
+        expiresAt: k.expiresAt,
+        status: "live",
+        reviewNeeded: k.reviewReasons.length > 0,
+        reviewReasons: k.reviewReasons,
+        evidenceEmailStatus: "sent",
+        evidenceEmailTo: STRIKES_TEAM,
+        evidenceEmailSentAt: evidenceAt,
+        createdAt: k.issuedAt,
+      })
+      .onConflictDoNothing();
+    const issued = log.add(
+      {
+        actorType: "system",
+        action: "strike.issued",
+        entityType: "strike",
+        entityId: k.id,
+        data: {
+          assignmentId: k.bookingId,
+          shiftId: k.shiftId,
+          workerId: k.workerId,
+          noticeHours: k.noticeHours,
+          thresholdHours: strikeRules.noticeHours,
+        },
+      },
+      k.issuedAt,
+    );
+    logEvidenceSent(log, k.id, issued, k.issuedAt, evidenceAt);
+  }
+  // Their logins, for the weeks whose first worked session went in just now, with its booking
+  // (the app's shape: src/lib/auth/link-login.ts).
+  const workedIn = new Set(
+    bookings.filter((b) => b.status !== "cancelled_worker").map((b) => b.shiftId),
+  );
+  for (const l of history.logins.filter((x) => workedIn.has(x.sessionId))) {
+    log.add(
+      {
+        actorType: "worker",
+        actorId: l.workerId,
+        action: "auth.login",
+        entityType: "session",
+        entityId: l.id,
+        data: { kind: "worker" },
+      },
+      l.at,
+    );
   }
 }
 

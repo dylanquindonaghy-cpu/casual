@@ -139,7 +139,7 @@ function dropoutShiftId(): string {
   const now = new Date();
   const firm = seedFirms(now).find((f) => f.slug === "acme");
   if (!firm) throw new Error("no Acme in the seed");
-  return acmeSaturday(firm.workers, firm.sites, now).urgentShiftId;
+  return acmeSaturday(firm.workers, firm.sites, now, firm.settings).urgentShiftId;
 }
 
 test.beforeAll(async () => {
@@ -323,6 +323,10 @@ test("Part 2: as a worker", async ({ browser }) => {
       .click();
     await expect(page.getByRole("region", { name: "Staff photo", exact: true })).toContainText(
       "Due soon",
+    );
+    // Phase 37.8: her worked weeks are the ones she's paid for.
+    await expect(page.getByRole("region", { name: "Your reliability" })).toContainText(
+      "11 shifts worked · 0 no-shows · 0 late cancellations",
     );
     const where = page.getByRole("region", { name: "Your travel area" });
     // (Folded since 28.11: a tap opens it.)

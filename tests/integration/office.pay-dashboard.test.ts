@@ -53,12 +53,14 @@ async function payFirm(settings: Record<string, unknown> = {}) {
         o.resolved?.note ?? null,
       ],
     );
-  const payLine = (payDate: string, start: string) =>
+  // A whole pay week from `start` (a Monday): only whole-period records date the next pay day
+  // (Phase 37.1). `days` sets another length (a part week, which doesn't count).
+  const payLine = (payDate: string, start: string, days = 7) =>
     su.query(
       `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence,
                                 gross_pence, pay_date)
-       values ($1, $2, $3, $3, 8, 1250, 10000, $4)`,
-      [f.firmId, ann, start, payDate],
+       values ($1, $2, $3, $3::date + ($5::int - 1), 8, 1250, 10000, $4)`,
+      [f.firmId, ann, start, payDate, days],
     );
   return { f, ann, payroll, query, payLine };
 }
@@ -92,6 +94,7 @@ describe("the pay dashboard's data", () => {
       day: "2026-11-06",
       from: "pay records",
       periodStart: "2026-10-26",
+      periodEnd: "2026-11-01",
       thisPeriodPaid: "2026-11-13",
     });
     expect(d.groups.map((g) => g.queries.length)).toEqual([1, 1]);
@@ -160,6 +163,7 @@ describe("the pay dashboard's data", () => {
       day: "2026-11-13",
       from: "pay calendar",
       periodStart: "2026-10-26",
+      periodEnd: "2026-11-08",
       thisPeriodPaid: null,
     });
     expect(d.recentlySorted.map((r) => [r.firstDay, r.periodStart])).toEqual([
@@ -181,11 +185,26 @@ describe("the pay dashboard's data", () => {
       day: "2026-11-06",
       from: "pay calendar",
       periodStart: "2026-10-26",
+      periodEnd: "2026-11-01",
       thisPeriodPaid: "2026-11-13",
     });
     expect(d.sortedThisWeek).toBe(0);
     expect(d.groups).toEqual([]);
     expect(d.recentlySorted).toEqual([]);
+  });
+
+  it("a record for part of a pay week doesn't date it (Phase 37.1: the casual's rule too)", async () => {
+    const t = await payFirm();
+    // Mon 26 to Wed 28 Oct, paid Wed 4 Nov: not a whole week, so last week stays the calendar's.
+    await t.payLine("2026-11-04", "2026-10-26", 3);
+    const d = await withFirm(t.f.firmId, (tx) => loadPayDashboard(tx, NOW));
+    expect(d.nextPay).toEqual({
+      day: "2026-11-06",
+      from: "pay calendar",
+      periodStart: "2026-10-26",
+      periodEnd: "2026-11-01",
+      thisPeriodPaid: "2026-11-13",
+    });
   });
 
   it("only this firm's queries; payroll and admins get it, resourcers don't", async () => {

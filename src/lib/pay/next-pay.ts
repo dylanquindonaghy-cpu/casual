@@ -5,7 +5,9 @@ import { payPeriod, type PayCalendar, type PayPeriod } from "./calendar";
 // the first pay day not yet past, and which shifts it pays. Last period's when it's still ahead,
 // else this period's: each the pay records' date when they date that period, else the firm's pay
 // calendar's. An earlier date in the pay records (an older period paid late, say) comes first. Pure:
-// the caller reads the pay records (`recordedPayDates`) and passes the firm-local date.
+// the caller reads the pay records (`readRecordedPayDates`, src/lib/pay/recorded-pay-dates.ts) and
+// passes the firm-local date. The office's pay dashboard and the casual's own pay day (Phase 37.1,
+// src/lib/portal/pay-day.ts) both use this one rule.
 
 export interface RecordedPayDate {
   start: string; // a pay record's period_start (yyyy-mm-dd)
@@ -16,6 +18,7 @@ export interface NextPay {
   day: string; // yyyy-mm-dd
   from: "pay records" | "pay calendar";
   periodStart: string; // the first day of the firm's pay period it pays
+  periodEnd: string; // its last day (Phase 37.1: "For shifts Mon 2 to Sun 8 Nov")
   thisPeriodPaid: string | null; // this period's own pay day, when that's later than `day`
 }
 
@@ -79,6 +82,7 @@ export function nextPayFor(
   };
   return {
     ...next,
+    periodEnd: payPeriod(next.periodStart, calendar).end,
     thisPeriodPaid:
       next.periodStart !== current.start && thisPeriod !== null && thisPeriod.day > next.day
         ? thisPeriod.day

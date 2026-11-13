@@ -34,33 +34,37 @@ const dayMonth = (day: string) => shortDate(day, Number(day.slice(0, 4)));
 export const payPeriodPaid = (name: string, payDay: string): string =>
   `${name} (paid ${dayLabel(payDay)})`;
 
-// "Cycle 22 (paid Fri 13 Nov) · 26 Oct – 8 Nov" (Phase 25.2): a period of the firm's own pay
-// calendar, for the pay dashboard's header.
-export function payPeriodLabel(p: {
-  name: string;
-  start: string;
-  end: string;
-  payDay: string;
-}): string {
-  return `${payPeriodPaid(p.name, p.payDay)} · ${dayMonth(p.start)} – ${dayMonth(p.end)}`;
+// "Mon 2 to Sun 8 Nov"; "Mon 26 Oct to Sun 1 Nov" across two months; "Mon 28 Dec to Sun 3 Jan"
+// across New Year (never a year). The one way the casual app, the office and the answer library
+// write a pay period's shifts (Phase 37.1).
+export function shiftDatesText(start: string, end: string): string {
+  const a = dayLabel(start);
+  const b = dayLabel(end);
+  const first = start.slice(0, 7) === end.slice(0, 7) ? a.replace(/ [A-Z][a-z]{2}$/, "") : a;
+  return `${first} to ${b}`;
 }
 
-// The pay dashboard's "Next pay day" lines (Phase 26.10, fix-1): "For shifts in the week of 26 Oct."
-// ("in the cycle from …" on a cycle), "This week's shifts are paid Fri 13 Nov." when that's a later
-// day, and "From your pay records." when the date came from them.
+// "Cycle 22 · Mon 26 Oct to Sun 8 Nov" (Phase 25.2; Phase 37.1 dropped "(paid …)", which read as a
+// second pay day beside the Next pay day tile): a period of the firm's own pay calendar, for the
+// pay dashboard's header.
+export function payPeriodLabel(p: { name: string; start: string; end: string }): string {
+  return `${p.name} · ${shiftDatesText(p.start, p.end)}`;
+}
+
+// The pay dashboard's "Next pay day" lines (Phase 26.10, fix-1; Phase 37.1): "For shifts Mon 2 to
+// Sun 8 Nov." (the same words for a cycle), "This week's shifts are paid Fri 20 Nov." ("This
+// cycle's" on a cycle) when that's a later day, and "From your pay records." when the date came
+// from them.
 export function nextPayLines(
   next: {
     from: "pay records" | "pay calendar";
     periodStart: string;
+    periodEnd: string;
     thisPeriodPaid: string | null;
   },
   label: "week" | "cycle",
 ): string[] {
-  const lines = [
-    label === "cycle"
-      ? `For shifts in the cycle from ${dayMonth(next.periodStart)}.`
-      : `For shifts in the week of ${dayMonth(next.periodStart)}.`,
-  ];
+  const lines = [`For shifts ${shiftDatesText(next.periodStart, next.periodEnd)}.`];
   if (next.thisPeriodPaid !== null) {
     lines.push(`This ${label}'s shifts are paid ${dayLabel(next.thisPeriodPaid)}.`);
   }

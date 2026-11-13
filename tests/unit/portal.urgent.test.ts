@@ -147,7 +147,13 @@ describe("Home", () => {
       renderToStaticMarkup(
         createElement(HomeView, {
           firmName: "Acme Events",
-          pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
+          pay: {
+            payDay: "2026-11-13",
+            days: 7,
+            start: "2026-11-02",
+            end: "2026-11-08",
+            thisPeriodPaid: null,
+          },
           firstName: "Sam",
           lastName: "Udo",
           timeZone: TZ,
@@ -169,7 +175,13 @@ describe("Home", () => {
     const html = renderToStaticMarkup(
       createElement(HomeView, {
         firmName: "Acme Events",
-        pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
+        pay: {
+          payDay: "2026-11-13",
+          days: 7,
+          start: "2026-11-02",
+          end: "2026-11-08",
+          thisPeriodPaid: null,
+        },
         firstName: "Sam",
         lastName: "Udo",
         timeZone: TZ,

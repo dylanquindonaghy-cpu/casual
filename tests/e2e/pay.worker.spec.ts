@@ -10,7 +10,9 @@ function expectedPay() {
   const acme = seedFirms(now).find((f) => f.slug === "acme");
   if (!acme) throw new Error("no Acme in the seed");
   const worker = acme.workers[2];
-  return acmeSaturday(acme.workers, acme.sites, now).pay.filter((p) => p.workerId === worker?.id);
+  return acmeSaturday(acme.workers, acme.sites, now, acme.settings).pay.filter(
+    (p) => p.workerId === worker?.id,
+  );
 }
 
 // The pay pages' step-up in a real browser: a 6‑digit code by text (console mode; by WhatsApp
@@ -33,7 +35,7 @@ test("pay needs a code: a wrong one counts down, the right one opens the page", 
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pay" }).click();
   await expect(page).toHaveURL(`${acme}/pay`);
   // The pay day first, before the code (Phase 28.10): a day, never a figure.
-  await expect(page.getByRole("heading", { level: 2, name: /^Pay day: / })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: /^Next pay day: / })).toBeVisible();
   await expect(
     page.getByText("To keep your pay private, we'll text you a 6‑digit code."),
   ).toBeVisible();

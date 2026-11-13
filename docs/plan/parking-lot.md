@@ -2678,10 +2678,12 @@ From builder A (37.1, 37.2, 37.8; 2026-11-13):
   "Pay day: …" chips (`src/lib/portal/pay-format.ts`), "Recently sorted"'s "the week of {Mon 2
   Nov}" and the dashboard head and top bar's "Week 46 (paid Fri 20 Nov)" (O3) keep their own
   forms; they could use `shiftDatesText` too.
-- **The office and the casual read different pay records (37.1):** the office's Next pay day reads
-  the whole firm's records (a colleague's, or one for part of a period, can move it); the casual's
-  reads only her own whole-period ones. They agree whenever the records do (one calendar, one
-  payroll date per period), which is every firm today.
+- **The office's Next pay day reads every casual's records (37.1):** both sides read only
+  whole-period records (one read, `readRecordedPayDates`), but the office's tile is the firm's, so
+  where payroll dates one period to two different days a colleague's date shows there and not on
+  her Home (documented in `docs/screens.md` "One pay day everywhere (37.1)"; pinned in
+  `tests/integration/pay-day.agrees.test.ts`). They agree with one payroll date per period, which
+  is every firm today. If it ever matters: show "Fri 13 Nov (some casuals Thu 12 Nov)" there.
 - **A strike whose record was deleted, on the other screens (37.2, w1-02):** for a strike whose row
   the nightly purge deleted after the firm's keep time, the record's evidence field
   (`evidenceText`, `src/lib/office/cancellations-copy.ts`) says "No strike: nothing to send", and

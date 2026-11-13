@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
 import { withFirm } from "../db/scoped";
-import { payCalendar, payPeriod } from "../pay/calendar";
-import { nextPayFor, recordWindow } from "../pay/next-pay";
+import { payCalendar } from "../pay/calendar";
+import { nextPayFor } from "../pay/next-pay";
 import { readRecordedPayDates } from "../pay/recorded-pay-dates";
 import { localDateOf } from "../time/zoned";
 import type { PortalContext } from "./my-shifts";
@@ -14,8 +14,11 @@ import type { PortalContext } from "./my-shifts";
 // calendar (a week, or a fortnight's cycle: src/lib/pay/calendar.ts), or payroll's own date where it
 // has imported one. Every casual sees the firm's next pay day, whether or not she worked that
 // period (Dylan, 2026-11-13). Only her own pay records count, and only those covering a whole firm
-// period: a record for other dates (a week inside the fortnight) would put its day against shifts
-// it doesn't cover (golden rule 9).
+// period (the office's read keeps the same ones: `readRecordedPayDates`): a record for other dates
+// (a week inside the fortnight) would put its day against shifts it doesn't cover (golden rule 9).
+// The one place the office can differ: its tile reads every casual's records, so a colleague's
+// record dating a period to another day moves the office's day and not hers (a colleague's records
+// never move her day: 37.1). With one payroll date per period, as every firm has, they agree.
 
 export interface MyPayDay {
   payDay: string; // yyyy-mm-dd
@@ -38,12 +41,8 @@ export async function myPayDay(ctx: Ctx, workerId: string): Promise<MyPayDay> {
     const zone = firmRows[0]?.timezone ?? "Europe/London";
     const calendar = payCalendar(firmRows[0]?.settings ?? {});
     const today = localDateOf(now, zone);
-    const recorded = await readRecordedPayDates(tx, today, recordWindow(today, calendar), workerId);
-    const whole = recorded.filter((r) => {
-      const p = payPeriod(r.start, calendar);
-      return p.start === r.start && p.end === r.end;
-    });
-    const next = nextPayFor(today, calendar, whole);
+    const recorded = await readRecordedPayDates(tx, today, calendar, workerId);
+    const next = nextPayFor(today, calendar, recorded);
     return {
       payDay: next.day,
       days: calendar.days,

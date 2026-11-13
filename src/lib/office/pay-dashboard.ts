@@ -7,7 +7,7 @@ import type { FirmTx } from "../db/scoped";
 import { loadDigestStatus, type DigestStatus } from "../pay/digest";
 import { digestSchedule, nextDigestAt, type DigestSchedule } from "../pay/digest-schedule";
 import { payCalendar, payPeriod, payPeriodName, payPeriodNow } from "../pay/calendar";
-import { nextPayFor, recordWindow, type NextPay } from "../pay/next-pay";
+import { nextPayFor, type NextPay } from "../pay/next-pay";
 import { readRecordedPayDates } from "../pay/recorded-pay-dates";
 import type { PayIssue } from "../portal/pay-query-kinds";
 import { localDateOf, zonedToUtc } from "../time/zoned";
@@ -76,8 +76,9 @@ export async function loadPayDashboard(tx: FirmTx, now: Date = new Date()): Prom
   const c = counts[0];
 
   // The pay records' pay dates the next pay day needs (src/lib/pay/next-pay.ts): last period's and
-  // this one's, and any from today on, for the whole firm (the casual's own reads hers: 37.1).
-  const recorded = await readRecordedPayDates(tx, today, recordWindow(today, calendar));
+  // this one's, and any from today on, for the whole firm (the casual's own reads hers: 37.1); only
+  // records covering a whole pay period, as hers.
+  const recorded = await readRecordedPayDates(tx, today, calendar);
 
   const { rows: sortings } = await tx.execute<{
     by_name: string | null;

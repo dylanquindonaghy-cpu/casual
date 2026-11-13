@@ -2716,7 +2716,11 @@ tables. Fixed in the query (`weekHoursQuery()`, `src/lib/roster/allocation-input
   first analyze (intermittent e2e slowness, or slow first minutes for a newly seeded firm). Audit
   the dashboard's queries under the same forced plan the new test uses (`enable_hashjoin`,
   `enable_mergejoin` and `enable_material` off), or timed straight after a seed. Don't hide it by
-  analyzing the e2e database after its seed.
+  analyzing the e2e database after its seed. Done since for each casual's record
+  (`casualRecordsQuery()`, `src/lib/office/reliability.ts`; `tests/integration/
+  reliability.records-plan.test.ts`): 4.5-7.9 s on a fresh seed, 1.7 ms once analysed. It made
+  casual.app.spec.ts's "Need updating" click time out, and it also feeds Coming up, the
+  dashboard's card and a casual's page. The rest of the dashboard's queries are still to audit.
 - **The auto refresh against an in-place navigation: checked, not guarded.** The first guess was
   that `useAutoRefresh`'s `router.refresh()` dropped the pin's `router.replace`. Throwaway browser
   tests on a fake clock (`page.clock`, server answers held to force each order) passed in all four

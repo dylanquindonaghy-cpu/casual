@@ -21,6 +21,7 @@ import {
 import type { FirmTx } from "../scoped";
 import type { SeedFirm } from "./seed-data";
 import type { SeedLog } from "./seed-log";
+import { logEvidenceSent } from "./seed-strikes";
 import { STRIKES_TEAM } from "./seed-data";
 import type { MatchSeed } from "./seed-match";
 import { seedStrikeWarning } from "./seed-warning";
@@ -354,7 +355,7 @@ export async function loadMatchDay(
       evidenceEmailSentAt: evidenceAt,
       createdAt: s.issuedAt,
     });
-    log.add(
+    const issued = log.add(
       {
         actorType: "system",
         action: "strike.issued",
@@ -370,16 +371,7 @@ export async function loadMatchDay(
       },
       s.issuedAt,
     );
-    log.add(
-      {
-        actorType: "system",
-        action: "strike.evidence_sent",
-        entityType: "strike",
-        entityId: s.id,
-        data: { request: `strike-evidence:${s.id}`, attempt: 1 },
-      },
-      evidenceAt,
-    );
+    logEvidenceSent(log, s.id, issued, s.issuedAt, evidenceAt);
   }
 
   // The previous match's pay line as payroll's file gives it, and the pay query still open.

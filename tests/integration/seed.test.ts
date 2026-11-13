@@ -1073,7 +1073,8 @@ describe("Acme's Saturday event day", () => {
 
   // L3: a seeded strike's evidence trail is the job's (src/lib/strikes/evidence.ts): the claim,
   // then the outcome, each with the attempt's key naming the strike, its series (the strike.issued
-  // entry) and attempt 1, the key the job's payload schema accepts.
+  // entry) and attempt 1, the key the job's payload schema accepts. Every Acme strike: the
+  // history's, the Saturday's, the match day's and the story's (each seeded with its evidence sent).
   it("each seeded strike's evidence was claimed, then sent, under the app's request key", async () => {
     const { strikeEvidencePayload } = await import("@/lib/strikes/evidence-queue");
     const { rows } = await su.query<{
@@ -1090,13 +1091,19 @@ describe("Acme's Saturday event day", () => {
               array_agg(v.data ->> 'request' order by v.id) as requests,
               array_agg(v.data ->> 'attempt' order by v.id) as attempts
          from strikes k
-         join events v on v.firm_id = k.firm_id and v.entity_id = k.id
+         left join events v on v.firm_id = k.firm_id and v.entity_id = k.id
                       and v.action in ('strike.evidence_sending', 'strike.evidence_sent')
-        where k.firm_id = $1 and k.id = any($2::uuid[])
+        where k.firm_id = $1
         group by k.id`,
-      [ACME, [...HISTORY.strikes, ...SATURDAY_STRIKES].map((k) => k.id)],
+      [ACME],
     );
-    expect(rows).toHaveLength(HISTORY.strikes.length + SATURDAY_STRIKES.length);
+    const seeded = [
+      ...HISTORY.strikes,
+      ...SATURDAY_STRIKES,
+      ...MATCH.strikes,
+      ...STORY.strikes,
+    ].map((k) => k.id);
+    expect(rows.map((r) => r.strike)).toEqual(expect.arrayContaining(seeded));
     for (const r of rows) {
       const key = `strike-evidence:${r.strike}:${Number(r.series).toString(36)}:1`;
       expect(r).toEqual({

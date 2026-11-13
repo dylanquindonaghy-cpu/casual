@@ -28,7 +28,8 @@ import { rng, seedId, type SeedFirm } from "./seed-data";
 //   60 days, each with the strike the rules give (strikeDecision) and its row; each place was filled
 //   again by the history worker whose session (and pay) it is.
 // - A login (auth.login) the day before each week worked, at 08:00, as the app logs one. Its
-//   session id has no sessions row: a login's row is deleted 30 days after it ends (docs/testing.md).
+//   session id has no sessions row, recent weeks' included (a real firm keeps an ended login's row
+//   30 days); nothing reads these entries against sessions, only the log (docs/testing.md).
 // - Re-runs: ids and draws are per (worker, pay week), so a run a week later keeps every week it
 //   already wrote, and adds the new last week with its pay. The no-shows' weeks are fixed weeks of
 //   the calendar, so they keep their ids too. Which weekdays a week's sessions fall on follows the
@@ -144,6 +145,25 @@ export interface HistoryBooking {
   noticeHours: number | null;
   strikeCode: StrikeCode | null;
   reopenedId: string | null; // the place it reopened: the filler's booking below
+}
+
+// The history bookings that go in, given those that clash with a booking already there (loadHistory,
+// seed.ts). A cancellation and the booking that refilled its place (its reopenedId) go in together
+// or not at all, whichever of them clashed: a replacement without its cancellation would be a
+// session worked in a "reopened" place with no cancellation or strike behind it, and a
+// cancellation without its replacement a filled session with nobody on it.
+export function keptHistoryBookings(
+  candidates: readonly HistoryBooking[],
+  clashes: ReadonlySet<string>,
+): HistoryBooking[] {
+  const dropped = new Set(clashes);
+  for (const b of candidates) {
+    if (b.reopenedId !== null && (clashes.has(b.id) || clashes.has(b.reopenedId))) {
+      dropped.add(b.id);
+      dropped.add(b.reopenedId);
+    }
+  }
+  return candidates.filter((b) => !dropped.has(b.id));
 }
 
 export interface HistoryStrike {

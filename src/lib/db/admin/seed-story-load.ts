@@ -28,6 +28,7 @@ import {
 import type { FirmTx, WithFirm } from "../scoped";
 import { seedId, type SeedFirm } from "./seed-data";
 import type { SeedLog } from "./seed-log";
+import { logEvidenceSent } from "./seed-strikes";
 import {
   STORY_CERTIFICATE_JPEG,
   STORY_LINE,
@@ -571,7 +572,7 @@ export async function loadStory(
       createdAt: s.issuedAt,
     });
     const data = { assignmentId: s.bookingId, shiftId: s.shiftId, workerId: s.workerId };
-    log.add(
+    const issued = log.add(
       {
         actorType: "system",
         action: "strike.issued",
@@ -582,16 +583,7 @@ export async function loadStory(
       s.issuedAt,
     );
     // Its evidence emailed to the strikes team (src/lib/strikes/evidence.ts), as the row says.
-    log.add(
-      {
-        actorType: "system",
-        action: "strike.evidence_sent",
-        entityType: "strike",
-        entityId: s.id,
-        data: { request: `strike-evidence:${s.id}`, attempt: 1 },
-      },
-      new Date(s.issuedAt.getTime() + 2 * 60_000),
-    );
+    logEvidenceSent(log, s.id, issued, s.issuedAt, new Date(s.issuedAt.getTime() + 2 * 60_000));
     if (s.withdrawn) {
       log.add(
         {

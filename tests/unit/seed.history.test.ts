@@ -3,6 +3,7 @@ import { seedFirms } from "@/lib/db/admin/seed-data";
 import { acmePastEvent } from "@/lib/db/admin/seed-extras";
 import {
   acmeHistory,
+  keptHistoryBookings,
   HISTORY_WORKERS,
   LATE_CANCELLERS,
   NEW_STEWARD_RATE,
@@ -177,5 +178,44 @@ describe("acmeHistory", () => {
       );
     expect(outcome(b)).toEqual(outcome(a));
     expect(outcome(c)).toEqual(outcome(a));
+  });
+});
+
+// A re-run over rows already there (loadHistory, seed.ts): a booking that clashes with one the
+// casual already holds is left out, and a cancellation and the booking that refilled its place go
+// together, whichever of them clashed (never a "reopened" place with no cancellation behind it).
+describe("keptHistoryBookings", () => {
+  const { history } = build(new Date("2026-11-10T10:00:00Z"));
+  const cancelled = history.bookings.find(
+    (b) => b.status === "cancelled_worker" && b.reopenedId !== null,
+  );
+  if (!cancelled?.reopenedId) throw new Error("no cancelled booking with a replacement");
+  const pair = [cancelled.id, cancelled.reopenedId];
+  const ids = (clashes: string[]) =>
+    keptHistoryBookings(history.bookings, new Set(clashes)).map((b) => b.id);
+
+  it("keeps every booking when nothing clashes", () => {
+    expect(ids([])).toEqual(history.bookings.map((b) => b.id));
+  });
+
+  it("drops a cancellation's replacement when the cancellation clashed", () => {
+    const kept = ids([cancelled.id]);
+    expect(kept).toHaveLength(history.bookings.length - 2);
+    for (const id of pair) expect(kept).not.toContain(id);
+  });
+
+  it("drops the cancellation when its replacement clashed", () => {
+    const kept = ids([cancelled.reopenedId!]);
+    expect(kept).toHaveLength(history.bookings.length - 2);
+    for (const id of pair) expect(kept).not.toContain(id);
+  });
+
+  it("drops only the clashing booking when it is no cancellation's replacement", () => {
+    const replacements = new Set(history.bookings.map((b) => b.reopenedId));
+    const lone = history.bookings.find((b) => b.reopenedId === null && !replacements.has(b.id));
+    if (!lone) throw new Error("no lone booking");
+    expect(ids([lone.id])).toEqual(
+      history.bookings.filter((b) => b.id !== lone.id).map((b) => b.id),
+    );
   });
 });

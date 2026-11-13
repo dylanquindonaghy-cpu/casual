@@ -19,10 +19,11 @@ import {
   strikes,
   workers,
 } from "../schema";
-import { refText, seedLog, type SeedLog, type SeedRef } from "./seed-log";
+import { seedLog, type SeedLog } from "./seed-log";
+import { logEvidenceSent } from "./seed-strikes";
 import { seedFirms, STRIKES_TEAM, weekOffers, type SeedFirm } from "./seed-data";
 import { acmeSaturday, type SaturdaySeed } from "./seed-saturday";
-import { acmeHistory, type HistorySeed } from "./seed-history";
+import { acmeHistory, keptHistoryBookings, type HistorySeed } from "./seed-history";
 import { loadDemoPlanner, loadPilotFigures, setDemoWebhook } from "./seed-demo-extras";
 import {
   acmePastEvent,
@@ -38,7 +39,6 @@ import { noticeHours } from "../../roster/notice";
 import { quietHours } from "../../rules/quiet-hours";
 import { strikeDecision } from "../../strikes/decide";
 import { strikeSettings } from "../../strikes/settings";
-import { strikeEvidenceKey } from "../../strikes/evidence-queue";
 import { hoursToStart, insideUrgentWindow, urgentWindowHours } from "../../rules/urgent";
 import { fakePoint } from "../../travel/geocoder";
 import { acmeMatchDay, type MatchSeed } from "./seed-match";
@@ -875,9 +875,7 @@ async function loadHistory(
       .limit(1);
     if (held) clashes.add(b.id);
   }
-  const kept = candidates.filter(
-    (b) => !clashes.has(b.id) && !(b.reopenedId !== null && clashes.has(b.reopenedId)),
-  );
+  const kept = keptHistoryBookings(candidates, clashes);
   // Only a session whose worked booking goes in is added ("filled"): one left out as an overlap is
   // never a filled session with nobody on it.
   const worked = new Set(kept.filter((b) => b.status !== "cancelled_worker").map((b) => b.shiftId));
@@ -1109,34 +1107,5 @@ async function loadPayQueries(tx: FirmTx, queries: PayQuerySeed[], log: SeedLog)
       entityId: created.id,
       data: { issueType: q.issue, shiftId: q.shiftId, workDate: q.workDate, groupKey },
     });
-  }
-}
-
-// A strike's evidence email, as the job logs its first attempt (src/lib/strikes/evidence.ts): the
-// claim (strike.evidence_sending), then the outcome (strike.evidence_sent), each with the attempt's
-// request key, which names its series, the strike.issued entry (evidence-queue.ts).
-function logEvidenceSent(
-  log: SeedLog,
-  strikeId: string,
-  issued: SeedRef,
-  issuedAt: Date,
-  sentAt: Date,
-): void {
-  const request = refText(issued, (series) => strikeEvidenceKey({ strikeId, series, attempt: 1 }));
-  const sendingAt = new Date(Math.min(issuedAt.getTime() + 60_000, sentAt.getTime()));
-  for (const [action, at] of [
-    ["strike.evidence_sending", sendingAt],
-    ["strike.evidence_sent", sentAt],
-  ] as const) {
-    log.add(
-      {
-        actorType: "system",
-        action,
-        entityType: "strike",
-        entityId: strikeId,
-        data: { request, attempt: 1 },
-      },
-      at,
-    );
   }
 }

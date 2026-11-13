@@ -816,11 +816,13 @@ demo-reset service then gets the flag `DEMO_PLANNER_WEBHOOK=on`, never the secre
 (`https://planner.example/…k3F9`, working); each change logged as the office and the planner API
 log it. The local, e2e and walkthrough seeds have no planner and no pilot figures.
 
-- **The history's logins have no `sessions` row.** Each seeded `auth.login` entry names a session
-  id (`acme/history/{worker}/{week}/login`) that isn't in `sessions`: a login's row is deleted 30
-  days after it ends (the keep times on `/office/data`), so a real firm's log names sessions long
-  gone too, and a seeded row would be a live login nobody made. What reads them (Pilot metrics'
-  worker logins, the action log) reads the log only.
+- **The history's logins have no `sessions` row, recent ones included.** Each seeded `auth.login`
+  entry names a session id (`acme/history/{worker}/{week}/login`) that isn't in `sessions`. In a
+  real firm only the older ones would be gone (a login's row is deleted 30 days after it ends: the
+  keep times on `/office/data`); the last few weeks' would still be there, ended. The seed adds
+  none, because a seeded row would be a login nobody made, and nothing needs one: what reads
+  these entries (Pilot metrics' worker logins, the daily metrics, the action log's words) reads
+  the log only, never `sessions` by the entry's id.
 - **A dev database from before Phase 37.8 needs `npm run db:reset`.** The pay lines keep their
   ids (`acme/pay/{worker}/{week}`) while their hours are now drawn per worker and week
   (`weekDraw`), and the seed adds by id and never changes a row: re-seeding an older database keeps

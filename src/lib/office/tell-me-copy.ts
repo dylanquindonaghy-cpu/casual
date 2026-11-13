@@ -8,7 +8,15 @@
 // - open_push: a notification for places still open 6 hours before the start (decision 5).
 // - uploads: photos and certificates to check counted as new in Updates (the bell and the dots).
 // - summary: an email at 08:00 (the firm's time) with what needs action and what happened.
-export const TELL_ME_KINDS = ["popup", "cancel_push", "open_push", "uploads", "summary"] as const;
+// - client_requests (Phase 36.4): a notification for an urgent client request on their contracts.
+export const TELL_ME_KINDS = [
+  "popup",
+  "cancel_push",
+  "open_push",
+  "uploads",
+  "summary",
+  "client_requests",
+] as const;
 export type TellMeKind = (typeof TELL_ME_KINDS)[number];
 
 // As the mock-up shows them: all on but uploads (they're on Needs attention and Updates anyway).
@@ -17,6 +25,7 @@ export const DEFAULT_TELL_ME: readonly TellMeKind[] = [
   "cancel_push",
   "open_push",
   "summary",
+  "client_requests",
 ];
 
 const isKind = (k: string): k is TellMeKind => (TELL_ME_KINDS as readonly string[]).includes(k);
@@ -62,6 +71,10 @@ export const TELL_ME_ROWS: Record<TellMeKind, { title: string; line: string }> =
   },
   uploads: { title: "Uploads to check", line: "Counted as new in Updates" },
   summary: { title: "A summary at 08:00", line: "By email" },
+  client_requests: {
+    title: "Client requests",
+    line: "A notification on my phone or computer when one is urgent",
+  },
 };
 
 export type TellMeResult =

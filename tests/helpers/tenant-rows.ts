@@ -12,6 +12,8 @@ export const EXPECTED_TABLES = [
   "assignments",
   "auth_throttle",
   "casual_notes",
+  "client_contacts",
+  "client_requests",
   "clients",
   "connector_events",
   "credential_rules",
@@ -391,6 +393,23 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, 'Parking', E'where do i park\nis there parking', 'Park at the back.', true, $2)`,
     [firmId, noteAuthorId],
   );
+  // A client login on the firm's contract (Phase 36.3), added by the planner key's maker (the
+  // isolation tests delete rows.office_users, and its link to its maker has no ON DELETE action;
+  // deleting rows.clients takes it with it, as removing a contract does).
+  const clientContactId = await one(
+    su,
+    `insert into client_contacts (firm_id, contract_id, name, email, created_by)
+     values ($1, $2, 'Test Client', $3, $4)`,
+    [firmId, clientId, `client${next()}@example.com`, noteAuthorId],
+  );
+  // Its request about something else (Phase 36.4): no session or event (those links are tested in
+  // FK_CASES), so the isolation tests can delete it and its contract.
+  const clientRequestId = await one(
+    su,
+    `insert into client_requests (firm_id, contract_id, client_contact_id, kind, payload)
+     values ($1, $2, $3, 'other', '{"text": "Can we talk about next month?"}'::jsonb)`,
+    [firmId, clientId, clientContactId],
+  );
   // A WhatsApp from the rota worker (no ON DELETE action on its worker link either); the reply
   // link is tested in FK_CASES.
   const messageId = await one(
@@ -469,6 +488,8 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       email_replies: emailReplyId,
       webhook_status: webhookStatusId,
       answers: answerId,
+      client_contacts: clientContactId,
+      client_requests: clientRequestId,
     },
   };
 }
@@ -508,6 +529,18 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
   office_user_clients: (firmId, p) => ({
     text: "insert into office_user_clients (firm_id, office_user_id, client_id) values ($1, $2, $3)",
     values: [firmId, p.keyMakerId, p.rows.clients],
+  }),
+  // A client login on the firm's contract (Phase 36.3), and a request from the firm's own one
+  // (36.4).
+  client_contacts: (firmId, p) => ({
+    text: `insert into client_contacts (firm_id, contract_id, name, email, created_by)
+           values ($1, $2, 'Probe Client', $3, $4)`,
+    values: [firmId, p.rows.clients, `probe-client${next()}@example.com`, p.officeUserId],
+  }),
+  client_requests: (firmId, p) => ({
+    text: `insert into client_requests (firm_id, contract_id, client_contact_id, kind, payload)
+           values ($1, $2, $3, 'other', '{"text": "Probe"}'::jsonb)`,
+    values: [firmId, p.rows.clients, p.rows.client_contacts],
   }),
   office_push_subscriptions: (firmId, p) => ({
     text: "insert into office_push_subscriptions (firm_id, office_user_id, endpoint, p256dh, auth) values ($1, $2, $3, 'k', 'a')",
@@ -705,6 +738,77 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
 // Every composite foreign key between firm tables. `own` supplies the row's other parents;
 // `other` supplies the parent under test. Negative case: firm A's row, firm B's parent.
 export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenant) => Statement> = {
+  // Client logins and requests (Phase 36): the contract, the admin who added one, the client
+  // contact a request, link or session belongs to, the session or event a request is about, and the
+  // office users who answered it or marked it done in the planner.
+  client_contacts_contract_fk: (firmId, own, other) => ({
+    text: `insert into client_contacts (firm_id, contract_id, name, email, created_by)
+           values ($1, $2, 'Probe Client', $3, $4)`,
+    values: [firmId, other.rows.clients, `fk-client${next()}@example.com`, own.officeUserId],
+  }),
+  client_contacts_created_by_fk: (firmId, own, other) => ({
+    text: `insert into client_contacts (firm_id, contract_id, name, email, created_by)
+           values ($1, $2, 'Probe Client', $3, $4)`,
+    values: [firmId, own.rows.clients, `fk-client${next()}@example.com`, other.officeUserId],
+  }),
+  client_requests_contract_fk: (firmId, own, other) => ({
+    text: `insert into client_requests (firm_id, contract_id, client_contact_id, kind, payload)
+           values ($1, $2, $3, 'other', '{"text": "Probe"}'::jsonb)`,
+    values: [firmId, other.rows.clients, own.rows.client_contacts],
+  }),
+  // The contact, on the request's own contract ((firm_id, contract_id, client_contact_id), 0077):
+  // firm B's contact on firm B's contract, under firm A with firm A's contract.
+  client_requests_contact_fk: (firmId, own, other) => ({
+    text: `insert into client_requests (firm_id, contract_id, client_contact_id, kind, payload)
+           values ($1, $2, $3, 'other', '{"text": "Probe"}'::jsonb)`,
+    values: [firmId, own.rows.clients, other.rows.client_contacts],
+  }),
+  client_requests_shift_fk: (firmId, own, other) => ({
+    text: `insert into client_requests (firm_id, contract_id, client_contact_id, kind, shift_id,
+                                        payload)
+           values ($1, $2, $3, 'more_places', $4, '{"places": 1}'::jsonb)`,
+    values: [firmId, own.rows.clients, own.rows.client_contacts, other.rows.shifts],
+  }),
+  client_requests_event_fk: (firmId, own, other) => ({
+    text: `insert into client_requests (firm_id, contract_id, client_contact_id, kind, event_id,
+                                        payload)
+           values ($1, $2, $3, 'other', $4, '{"text": "Probe"}'::jsonb)`,
+    values: [firmId, own.rows.clients, own.rows.client_contacts, other.rows.shift_events],
+  }),
+  client_requests_answered_by_fk: (firmId, own, other) => ({
+    text: `insert into client_requests (firm_id, contract_id, client_contact_id, kind, payload,
+                                        status, office_answer, answered_by, answered_at)
+           values ($1, $2, $3, 'other', '{"text": "Probe"}'::jsonb, 'declined', 'Not this time.',
+                   $4, now())`,
+    values: [firmId, own.rows.clients, own.rows.client_contacts, other.officeUserId],
+  }),
+  client_requests_planner_done_by_fk: (firmId, own, other) => ({
+    text: `insert into client_requests (firm_id, contract_id, client_contact_id, kind, shift_id,
+                                        payload, status, answered_by, answered_at,
+                                        planner_done_at, planner_done_by)
+           values ($1, $2, $3, 'more_places', $4, '{"places": 1}'::jsonb, 'done_in_planner', $5,
+                   now(), now(), $6)`,
+    values: [
+      firmId,
+      own.rows.clients,
+      own.rows.client_contacts,
+      own.rows.shifts,
+      own.officeUserId,
+      other.officeUserId,
+    ],
+  }),
+  magic_links_client_contact_fk: (firmId, _own, other) => ({
+    text: `insert into magic_links (firm_id, kind, client_contact_id, token_hash, request_id,
+                                    expires_at)
+           values ($1, 'client', $2, $3, $4, $5)`,
+    values: [firmId, other.rows.client_contacts, hash(), randomUUID(), later()],
+  }),
+  sessions_client_contact_fk: (firmId, _own, other) => ({
+    text: `insert into sessions (firm_id, kind, client_contact_id, token_hash, expires_at,
+                                 rotated_at)
+           values ($1, 'client', $2, $3, $4, now())`,
+    values: [firmId, other.rows.client_contacts, hash(), later()],
+  }),
   api_keys_created_by_fk: (firmId, _own, other) => ({
     text: `insert into api_keys (firm_id, label, token_hash, hint, created_by)
            values ($1, 'Probe planner', $2, 'ab_-', $3)`,

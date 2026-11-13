@@ -13,6 +13,9 @@ import {
   loginLinkMessage,
   offerPush,
   officeLoginLinkEmail,
+  clientLoginLinkEmail,
+  clientRequestAnswerEmail,
+  officeClientRequestPush,
   officeReplyMessage,
   payDigestEmail,
   payQueryUpdateMessage,
@@ -107,6 +110,7 @@ function quotes(sectionText: string, lead: string): string[] {
 
 // The doc writes the sign-off as "{firm} Shift Team".
 const docVoice = { name: "{firm}", signOff: "{firm} Shift Team" };
+const plainBraces = (text: string | undefined) => (text ?? "").replace(/[{}]/g, "");
 // Words only, for emails (their line breaks and blank lines aren't in the doc's one-line copy).
 const words = (text: string) => text.match(/[\p{L}\p{N}'{}()]+/gu) ?? [];
 
@@ -635,6 +639,50 @@ describe("the code says what the doc says", () => {
     const email = officeLoginLinkEmail(docVoice, "{link}");
     expect(email.subject).toBe(subject);
     expect(words(email.body)).toEqual(words(docBody("office_login_link")));
+  });
+
+  // Phase 36: the client's login link and the office's answers, and the office's push.
+  it("client_login_link, client_request_answer (email) and office_client_request_push", () => {
+    const client = section("Client logins and requests (Phase 36)");
+    const [subject, ...body] = quotes(client, "Client login link");
+    const login = clientLoginLinkEmail(docVoice, "{link}");
+    expect(login.subject).toBe(subject);
+    expect(words(login.body)).toEqual(words(body.slice(0, 4).join(" ")));
+    const q = quotes(client, "Answer");
+    const [accepted, declined, asked, openA, openD, openQ, request] = q;
+    const why = q[8];
+    const question = q[9];
+    const see = q[11];
+    const reply = q[12];
+    const signOff = q[13];
+    const answer = (a: "accepted" | "declined" | "asked", w: string | null) =>
+      clientRequestAnswerEmail(docVoice, {
+        answer: a,
+        title: "{request}",
+        words: w,
+        link: "{link}",
+      });
+    expect(answer("accepted", null)).toEqual({
+      subject: accepted,
+      body: [openA, request, see, signOff].join("\n\n"),
+    });
+    expect(answer("declined", "{reason}")).toEqual({
+      subject: declined,
+      body: [openD, request, why, see, signOff].join("\n\n"),
+    });
+    expect(answer("asked", "{question}")).toEqual({
+      subject: asked,
+      body: [openQ, request, question, reply, signOff].join("\n\n"),
+    });
+    expect(answer("accepted", "{note}").body).toContain(q[10] ?? "missing");
+    // After the switch's name ("Client requests"): the title and the body.
+    const [, title, pushBody] = quotes(client, "Urgent client request");
+    expect(
+      officeClientRequestPush({
+        contract: "Demo Stadium Ltd",
+        title: "+4 places · SIA steward · North Gate · Sat 14 Nov 12:30",
+      }),
+    ).toEqual({ title: plainBraces(title), body: plainBraces(pushBody) });
   });
 
   it("shift_escalation (email): the subject, and the body's words", () => {
@@ -1373,6 +1421,10 @@ describe("every template function is checked here", () => {
         "loginLinkSms",
         "offerPush",
         "officeLoginLinkEmail",
+        // Phase 36: the client's emails and the office's push about their requests, checked above.
+        "clientLoginLinkEmail",
+        "clientRequestAnswerEmail",
+        "officeClientRequestPush",
         "officeReplyMessage",
         "officeReplyPush",
         "payDigestEmail",

@@ -392,6 +392,13 @@ describe("the action log's types and words", () => {
     expect(limit("strikes_link:firm")).toBe("Firm settings and office team");
     expect(limit("strikes_link:firm_day")).toBe("Firm settings and office team");
     expect(limit("login:ip")).toBe("Logins");
+    // Phase 36.3: a client's own login links are logins; an admin's "Send link" to one is filed
+    // with the client logins.
+    expect(limit("login:client_email")).toBe("Logins");
+    expect(limit("client:office_link")).toBe("Client logins and requests");
+    // Phase 36.4: a client login's requests and replies, with the client logins too.
+    expect(limit("client_request:contact")).toBe("Client logins and requests");
+    expect(limit("client_reply:contact")).toBe("Client logins and requests");
     expect(limit("otp:worker")).toBe("Logins");
     // An older entry without a name, or one not known here: Logins.
     expect(logTypeLabel("auth.rate_limited")).toBe("Logins");

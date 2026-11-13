@@ -789,8 +789,9 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
 range; Northline has none), 60 workers (5 with expired SIA, 3 "applied"),
 3 sites (stadium, racecourse, shopping centre) and the story's 4, a Saturday event with 40 shifts, one 6am
 cancellation that becomes urgent, two open requests, pay records for 8 weeks, yesterday's event
-(5 bookings not marked yet), 10 pay queries (7 about one rate change), and the mock-up's story
-(below: 8 more casuals, six events, cancellations and strikes, enquiries, sorted pay groups).
+(5 bookings not marked yet), 10 pay queries (7 about one rate change), the mock-up's story
+(below: 8 more casuals, six events, cancellations and strikes, enquiries, sorted pay groups) and a
+match day to play with (below: Demo Stadium, 75 more casuals, a client login and its requests).
 
 **Northline Rail Labour (rail):** 30 workers with PTS/Sentinel/D&A dates, tomorrow night's
 possession with one short-notice firm cancellation. (Its mocked rota sheet is still to come: no
@@ -887,6 +888,32 @@ Acme as `docs/office-v2.md` §9 tells it, with dates from the day the seed runs:
 - Pay: two groups payroll has sorted, each with its note (the 10 open queries as before).
 - Added once, by fixed ids: a re-run changes nothing; `npm run db:reset` moves the story to today.
 
+**A match day to play with (Phase 36.5, `seed-match.ts`, loaded by `seed-match-load.ts`; its
+offers by `seed.ts`).** A made-up football match shaped like a match-day deployment sheet (every
+name, place, client and rate made up; docs/screens.md "36.5" has the whole of it):
+- "Demo Rovers v Visitors FC" at Demo Stadium (1 Demo Road, Exampleton, ZZ1 9SR), kick-off 16:30
+  on the coming Saturday (that Saturday itself until kick-off). 18 sessions at 14 posts, 83 places,
+  timed from kick-off; 69 booked. North Gate's SIA stewards 3 short and urgent (the office's
+  flag), with 2 offers waiting (sent by Acme's admin this week, outside quiet hours; none on a
+  Monday before 07:00); Car park North 4 short; Estate patrol 1 short; Agency area 4 short.
+- Cancellations: a casual's on the South Ramp three hours before the seed ran (the strike, and
+  urgency inside the 24-hour window, decided by the rules from the notice: a strike only from
+  Thursday afternoon on), the office's at Demo Park's station queue ("They've left, or can't work
+  here"), and, at the previous home match two weeks before ("Demo Rovers v Example Athletic",
+  worked), a late one that was a strike. One pay query open about that match.
+- Acme's own qualification types (data, golden rule 6): "Demo Stadium ground induction", needed
+  on every match session, and "Chapter 8 traffic management certificate" on the car parks; Acme's
+  own role "supervisor" (SIA door supervisor licence and Level 2 steward). 75 made-up casuals
+  (07700 900408 to 900449, 900457 to 900489) hold the induction; nobody else does, so the
+  walkthrough's and the story's lists are unchanged.
+- The contract "Demo Stadium Ltd" (the stadium its venue), its client login Hannah Price
+  (hannah.price@demo-stadium.example; "Client view" on "Choose a view" opens it on a demo server),
+  2 requests waiting (4 more SIA stewards at North Gate, urgent only within 2 days by the rules,
+  and a new event two weeks on) and, from the previous match, 1 accepted and 1 declined.
+- Added once, by fixed ids, like the story: a re-run changes nothing; `npm run db:reset` and a
+  demo server's nightly reset move it to the coming Saturday. `seed.match.test.ts` (unit and
+  integration) checks it.
+
 **Demo logins (Acme, `http://acme.localhost:3000/login`):**
 
 | Mobile | Who | Good for |
@@ -900,6 +927,10 @@ Acme as `docs/office-v2.md` §9 tells it, with dates from the day the seed runs:
 | 07700 900400 | Zoe Adeyemi (the story) | Home as the mock-up: Needs updating (photo due soon), the Arena and Northgate urgent cards with their travel lines, her next shift (Riverside Food Festival), three to apply for and "2 more shifts are further than you travel" |
 | 07700 900401 | Kieran Doyle | Profile: SIA expired, 2 strikes |
 | 07700 900404 | Leah Ward | Needs updating: SIA expiring, new one being checked; no photo |
+| 07700 900416 | Imran Irwin (the match day) | Booked at North Gate with its instructions and the 17:15 redeployment |
+| 07700 900441, 900442 | Nadia Rowe, Owen Stanton (the match day) | An offer waiting for North Gate; take one of its 3 places |
+| 07700 900457 | Carl Irwin (the match day) | Cancelled on the South Ramp; Booked shifts shows it |
+| 07700 900478 | Dina Marsh (the match day) | Her pay query about the previous match, still open |
 
 The login link appears in the `npm run dev` terminal (console messaging).
 

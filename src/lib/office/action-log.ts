@@ -344,6 +344,11 @@ export async function loadActionLog(
       typeof r.data.officeUserId === "string" ? r.data.officeUserId : null,
     ]),
   );
+  // Client logins (Phase 36): the contact who acted, and the contract an entry names.
+  const clientIds = ids(page.map((r) => (r.actor_type === "client" ? r.actor_id : null)));
+  const contractIds = ids(
+    page.map((r) => (typeof r.data.contractId === "string" ? r.data.contractId : null)),
+  );
   const shiftIds = ids([...page.map((r) => r.subject_shift), query.shift]);
   const siteIds = ids(page.map((r) => (typeof r.data.siteId === "string" ? r.data.siteId : null)));
   const codes = [
@@ -392,6 +397,24 @@ export async function loadActionLog(
           )
         ).rows.map((s) => [s.id, s.name]),
   );
+  const clientNames = new Map(
+    clientIds.length === 0
+      ? []
+      : (
+          await tx.execute<{ id: string; name: string }>(
+            sql`select id::text, name from client_contacts where id = any(${uuids(clientIds)})`,
+          )
+        ).rows.map((c) => [c.id, c.name]),
+  );
+  const contractNames = new Map(
+    contractIds.length === 0
+      ? []
+      : (
+          await tx.execute<{ id: string; name: string }>(
+            sql`select id::text, name from clients where id = any(${uuids(contractIds)})`,
+          )
+        ).rows.map((c) => [c.id, c.name]),
+  );
   type ShiftRow = { id: string; role: string; starts_at: string | Date; site_name: string | null };
   const shiftRows =
     shiftIds.length === 0
@@ -415,6 +438,8 @@ export async function loadActionLog(
     credential: (code: unknown) =>
       credentialNames.get(String(code)) ?? String(code ?? "credential").replace(/_/g, " "),
     site: (id: unknown) => siteNames.get(String(id)) ?? "a site",
+    client: (id: unknown) => clientNames.get(String(id)) ?? "A client",
+    contract: (id: unknown) => contractNames.get(String(id)) ?? "a contract",
   };
 
   const entries: LogEntry[] = page.map((r) => {

@@ -555,10 +555,11 @@ describe("texts to the shifts line", () => {
         },
       ],
     });
-    const shift = await t.f.shift({
-      role: "steward",
-      startsAt: new Date(Date.now() + 72 * 3_600_000),
-    });
+    // Three days ahead at 10:00 UTC (10:00 or 11:00 in London), so it ends the same day whatever time
+    // the test runs: 72 hours from an evening crossed midnight ("16:18 to 00:18 Sun").
+    const inThreeDays = new Date(Date.now() + 72 * 3_600_000);
+    inThreeDays.setUTCHours(10, 0, 0, 0);
+    const shift = await t.f.shift({ role: "steward", startsAt: inThreeDays });
     await su.query(
       "update shifts set uniform = 'Black trousers, hi-vis', instructions = 'Report to gate B' where id = $1",
       [shift],
@@ -1073,10 +1074,11 @@ describe("email's fill-ins at the job's clock, as texts and the app (L4)", () =>
     const t = await libraryFirm({
       answers: [{ name: "What to wear", examples: "what do i wear", body: "For {next_shift}." }],
     });
-    const shift = await t.f.shift({
-      role: "steward",
-      startsAt: new Date(Date.now() + 72 * 3_600_000),
-    });
+    // Three days ahead at 10:00 UTC (10:00 or 11:00 in London), so it ends the same day whatever time
+    // the test runs: 72 hours from an evening crossed midnight ("16:18 to 00:18 Sun").
+    const inThreeDays = new Date(Date.now() + 72 * 3_600_000);
+    inThreeDays.setUTCHours(10, 0, 0, 0);
+    const shift = await t.f.shift({ role: "steward", startsAt: inThreeDays });
     await t.f.booking(t.ann, shift);
     const now = await t.email("Saturday", "what do i wear");
     expect(now.result).toMatchObject({ status: "replied", answer: "answer" });

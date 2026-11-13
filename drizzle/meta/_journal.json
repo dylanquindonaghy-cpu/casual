@@ -526,6 +526,27 @@
       "when": 1794317683522,
       "tag": "0074_answer_examples",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1794410338360,
+      "tag": "0075_phase36_client_logins",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1794410353059,
+      "tag": "0076_phase36_client_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1794494139758,
+      "tag": "0077_phase36_client_request_contact",
+      "breakpoints": true
     }
   ]
 }

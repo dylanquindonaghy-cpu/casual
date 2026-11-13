@@ -1773,8 +1773,8 @@ panel.
 - **The event's Interested tab** (evt-2): its sessions to come with asks, soonest first: "{Steward},
   {Fri 6 Nov, 11:00 to 19:00}", **Choose who works it** (the session's Asked for it), and each
   person who asked as a chip ("{name}" waiting, "{name}: not this time"). The tab's count is the
-  asks waiting. Empty: "Nobody has asked for a session yet. Casuals see "I can do this" on this
-  event's sessions." (setting on) or how to switch it on.
+  asks waiting. Since Phase 36.1 the tab holds the event's **Casuals ask, you choose** switch too
+  (below, "## Phase 36"); its empty words are there.
 - **When asks end** (ses-6): the office books someone → `shift_confirmed` as before; "Not this
   time" → `shift_not_booked`; the session fills while others wait → their asks close and each gets
   `shift_not_booked` (not sent if, by then, they hold a place or asked again); the office cancels
@@ -3175,7 +3175,7 @@ shows the way: each page still checks who can open it.
   session", "Enquiries", "Enquiry", "Strikes", "Casuals", "Action log", "Notice and cancellation report", "Pilot metrics",
   "Pay queries", "Import pay records", "Office team", "Settings", "Integrations", "Data requests",
   "How-to guide", "Customise" (Phase 26.3), "Updates" (Phase 26.4), "Automatic answers", "Add an
-  answer", "Edit an answer" (Phase 35.3). A shift's, an event's, a casual's and a worker's data page keep "{firm} shifts".
+  answer", "Edit an answer" (Phase 35.3), "Client requests", "A contract" (Phase 36.4, 36.3). A shift's, an event's, a casual's and a worker's data page keep "{firm} shifts".
   `tests/unit/office.titles.test.ts` holds the pages to this list; the browser test checks "Events
   & sessions · Acme Events shifts".
 
@@ -3517,10 +3517,11 @@ action refuses on the server too. There's never a password login on a real serve
 **"Choose a view"** (`/start`). Demo servers only, on Acme, for anyone logged in to its office (the
 staffing login or any other office login there); not logged in, the staffing login.
 
-- "Choose a view", then "See the demo as the office or as a casual. You can come back here at any
-  time." and "Logged in as {Staffing (demo)}."
-- Two big glass cards, each one tap target (the whole card), one column on a phone and side by side
-  from 768px:
+- "Choose a view", then "See the demo as the office, a casual or a client. You can come back here at
+  any time." and "Logged in as {Staffing (demo)}." (Phase 36.5 added the third card and "a client";
+  until then "See the demo as the office or as a casual.")
+- Three big glass cards (two until Phase 36.5), each one tap target (the whole card), one column on
+  a phone, two side by side from 768px and three from 1024px:
   - **"Staffing and resourcing view"**: "The office: urgent gaps, who to offer, cancellations,
     enquiries and the log." → `/office`.
   - **"Casual mobile view"**: "What a casual sees on their phone: their shifts, open shifts, pay day
@@ -3531,6 +3532,7 @@ staffing login or any other office login there); not logged in, the staffing log
     session, only on a demo server. If it can't: "You're logged out. Log in again to open the casual
     view.", "The demo casual isn't there. Reset the demo, then try again." or "Something went wrong.
     Try again."
+  - **"Client view"** (Phase 36.5): see "36.5 A match day to play with" below.
 - Under them, a smaller link: "Quick guide: where everything lives" (→ `/start/guide`).
 
 **The phone frame** (`/start/phone`): the same access. "Casual mobile view", "This is the casual app
@@ -3576,6 +3578,8 @@ guide", "Where everything lives, what it does and how it works." Then five glass
    - Needs attention: "Things that need a person to look at them."
    - Events & sessions: "Every event and its sessions. Show or hide them from casuals."
    - Enquiries: "Messages from the shifts line and requests from the casual app."
+   - Client requests (Phase 36.4): "What your clients ask for from their logins. Accept or decline
+     each."
    - Cancellations: "Every cancellation, with its notice and reason."
    - Pay dashboard: "Pay at a glance for payroll."
    - Pay queries: "Casuals' pay questions, grouped for payroll."
@@ -4099,3 +4103,397 @@ answer", Edit's the answer's name with "On"/"Off", its uses and its last edit.
   food festival?", answered from What to wear by its example question with her Riverside shift's
   uniform and meeting point; Priya asks "Is there food at the festival?", which goes to the office
   (it's on No answer yet).
+
+## Phase 36
+
+Updates you can filter, client logins and client requests (PLAN.md "## Phase 36"; the mock-up
+approved by Dylan on 2026-11-11). 36.1 and 36.2 first, then the rules for 36.3 and 36.4 (`src/lib/client/`), which the client's pages
+and the office's Client requests page are built on.
+
+**Updates you can filter, client logins and client requests, two fixes, and a match day to play
+with** (Dylan, 2026-11-11; `PLAN.md` Phase 36; the approved mock-up:
+https://claude.ai/artifact/AXBY4CL2Hg7NPwNZuRqdaN). This part is the two fixes (36.1) and Updates
+you can filter (36.2); client logins, client requests and the match day (36.3 to 36.5) add their own
+sections.
+
+### 36.1 Two fixes
+
+- **What floats is solid** (Dylan: "the pop up shouldnt be transparent"): in the office, every menu
+  and pop-over (a session's "…" menu on Events & sessions and on an event's page, a row's "…" menu,
+  the account menu, the search's matches, the dashboard's choosers, the offer and Customise panels,
+  the cancellation pop-up, a session's slide-in panel, Casuals' menus and matches, the map's session
+  card and its buttons, the phone's top bar and drawer) is an opaque
+  raised surface: a charcoal a step lighter than a section in dark (`#1d1d20`), white in light, with
+  its shadow and its ring as before. The rows behind it never show through. One value
+  (`--color-panel` in the office's own blocks, `src/app/globals.css`); the casual app's tab bar and
+  sheet keep their glass, and both apps are solid as before when someone asks for less
+  transparency or more contrast.
+- **"Casuals ask, you choose" on an event's Interested tab** (Dylan: "doesnt have an option to even
+  do that"): it's the event's one setting, so its switch is where the asks show. The tab's panel
+  (named "Interested") starts with the title **Casuals ask, you choose**, then "Off: casuals take
+  places on this event straight away. On: they tap "I can do this" and you choose who works each
+  session, here and on each session's page.", and on the right (under it on a phone) the switch,
+  read as "Casuals ask, you choose", on or off, with **On** or **Off** beside its track. Flipping it
+  is the session page's action (an active admin or resourcer; logged `event.asks_on` /
+  `event.asks_off`); its answer stays under it ("On: casuals on this event now tap "I can do this",
+  and you choose." / "Off: the first casual to tap takes a place."). The switch stays on each
+  session's "This session" panel too.
+  - Who asked, as before: each session to come with asks, **Choose who works it**, a chip a person.
+  - Empty, off: "No one has asked yet. Switch it on and the casuals who ask show here, with "Choose
+    who works it" for each session."; on: "No one has asked yet. Casuals see "I can do this" on this
+    event's sessions, and the ones who ask show here."
+
+### 36.2 Updates you can filter
+
+`/office/updates` (as "## Updates (Phase 26.4)" above, with these changes; words:
+`src/lib/office/updates-copy.ts`; the view: `src/lib/office/updates-view.ts`; data:
+`src/lib/office/updates.ts`).
+
+- **The head:** "Updates", then "What's happened on your contracts, newest first. Choose how far
+  back, which event and what kind." (with no contracts: "What's happened, newest first. Choose how
+  far back, which event and what kind."); "Mark all as seen" as before.
+- **The filters** (above the list, full width), each kept in the address so a link opens the same
+  view (`?days=3&event={id}&kind=cancellations`; only what isn't the default; the old
+  `?view=everything` still opens Everything):
+  - **How far back** (a row of tabs): **Today** (since midnight, the firm's time), **3 days**,
+    **7 days** (the default), **30 days** (that many 24 hours back). Places still to fill, sessions
+    to mark and offers with no reply are how things stand now: they show in every period.
+  - **Which event** (a select, read as "Which event"): **All events** (the default), or one of the
+    events with something in the period, by name. Choosing one opens its view at once; only its
+    updates show (its sessions' news, and a pay query or a request that names one of its sessions).
+    An event of the firm's with nothing in the period stays chosen, its list empty; anything else
+    in the address is ignored (all events).
+  - **What kind** (a row of tabs, each with its count in the period and the event, but Everything):
+    **Needs action** (the default: as before), **Still to fill** (places open on a session starting
+    in the next 48 hours), **Cancellations** (casuals' cancellations), **Pay queries** (admins only:
+    a casual's pay query still with payroll), **Uploads** (photos and certificates to check),
+    **Enquiries** (a message to the shifts line or an email that needs a person, and a request in
+    the app waiting for an answer), **Everything**. Phase 36.4 adds Client requests after Needs
+    action.
+  - On a phone each row scrolls sideways inside its own track, never the page.
+- **The list** (`#updates-list`): its heading the kind and the period ("Needs action · Last 7 days",
+  "· {2} new today" when any came in since midnight), then the updates grouped by day, each day's
+  name over its rows: **Today** (with what stands now first), **Yesterday**, then "Sat 31 Oct". Each
+  update keeps its button. The new kinds:
+  - "{Ana Pay} asked about pay: {hours missing}" / "For {Sat 31 Oct} · with payroll" with **Open pay
+    queries**.
+  - "{Kim Ask} needs an answer" ("Unknown number", "Unknown address", "Withheld") / "{WhatsApp} ·
+    waiting for a person" with **Reply** (the enquiry).
+  - "{Ben Fraser} asked: {time change}" / "In the app · waiting for an answer · {event}" with
+    **Answer** (Enquiries' Requests from the app).
+  - Empty, by kind: "Nothing needs action. …" as before ("Nothing needs action for this event." for
+    one event); "No places still to fill in the next 48 hours."; "No cancellations {in the last 7
+    days}."; "No pay queries waiting, sent {in the last 7 days}."; "No uploads to check {today}.";
+    "No enquiries waiting for a person {in the last 30 days}."; "Nothing {in the last 3 days}." ("
+    for this event" after the period when one is chosen).
+  - The foot: "Showing the newest 100." when a kind holds more in the period, then "Older updates
+    are in the action log.".
+- **Low on cover** (`#low-on-cover`; beside the list from 1024px of page, above "Tell me about";
+  under the list before): "Low on cover", "Events in the next 7 days, least covered first.", then up
+  to 5 events with sessions in the next 7 days that still have places to fill (on the person's
+  contracts' venues), least covered first (booked over needed, then the soonest), each a link to the
+  event: its name, when its first session there starts as a chip ("Thu 12 Nov · in 17 h", amber,
+  within 2 days; else "Fri 13 Nov"), "{71} of {86} places booked · {15} to fill" and a bar (red
+  under half booked, amber above). None: "Every event in the next 7 days has its places booked.".
+  Then **All events** (Events & sessions).
+- **Tell me about:** as before, under Low on cover. Its switches come from one list
+  (`src/lib/office/tell-me-copy.ts` `TELL_ME_KINDS`): 36.4 adds "Client requests" ("A notification
+  for urgent ones") there.
+- **Who sees what:** admins and resourcers, as before (payroll has no Updates). Pay queries only
+  for those who may see them (admins). A resourcer's contracts narrow the sessions' updates and Low
+  on cover; pay queries, uploads and enquiries are a casual's, so they show whatever the contracts.
+- **The look:** 44px targets; no sideways scroll at 390px or 1280px, light or dark.
+
+### 36.3 Client logins (the rules)
+
+- **Who:** a client contact is a person at one of the firm's contracts (Settings → Contracts):
+  name, work email (lower case, one per firm), on or off. Admins only (`client_logins`) add one,
+  switch one off or on, and send one a login link from the contract's page ("Client logins": "Who
+  at the client may send requests. They log in with a link to their email, see their events'
+  numbers, and nothing about your casuals."). Switching one off ends every session and unused link
+  of theirs at once; on again, they log in afresh. Removing a contract removes its client logins and
+  their requests.
+- **Login** (`/client/login`, `/client/l#<token>`): the office login's rules exactly
+  (docs/architecture.md "Login"). "Log in to your client account" / "For {firm}'s clients. Type your
+  work email and we'll send you a login link." / "Your work email" / "Send me a link" / "Not set up
+  yet? Ask your contact at {firm} to add you." Sent: "Check your email." / "If {firm} has set this
+  address up, we've sent a login link. It works for 15 minutes." The same answer for any address.
+  The link page: "Tap the button to see your events with {firm}." / "Log me in" (a POST).
+- **What they see** (`clientEvents()`, `clientEvent()`): their contract's events to come (a session
+  not yet ended, at one of the contract's venues: its own site, else its event's), soonest first;
+  each session's role, location (post), times, places, booked and to fill; the chip "{n} to fill",
+  "Offers going out" (urgent, with places free), "Covered" or "Cancelled" (`coverWords()`).
+  Numbers only: no query selects a casual's name, id or any detail. The contract always comes from
+  the contact's own row, never from the page.
+
+### 36.4 Client requests (the rules)
+
+- **What they can ask** (`clientRequestInput`, one zod schema per kind): "A new event" (name,
+  venue: one of their venues or an address, date, 1 to 12 sessions of role, places, start, finish
+  and notes), "More places on a session" (1 to 200), "Fewer places" (fewer than the session has:
+  down to none is "Cancel a session"), "Different times" (date, start, finish; a finish before the
+  start is the next day), "Cancel a session", "Something else" (text, about a session, an event or
+  nothing), each with an optional note (up to 1,000 characters). Only their own sessions, to come
+  and not cancelled; anything else reads as not found. Sent: "Sent to {firm}. You'll get an answer
+  here and by email." (urgent: "… It starts soon or affects people already booked, so they'll treat
+  it as urgent. …"). A session's notes (up to 500 characters) become its instructions when the
+  office accepts.
+- **Limits** (`LIMITS.clientRequestPerContact`, `.clientReplyPerContact`): 20 requests and 20
+  replies an hour per client login, every try counted. Over it, nothing is sent and the answer is
+  `{status: "rate_limited", retryAfterMinutes}`; the page says "Too many requests. Nothing was
+  sent. Try again in {n minutes | an hour}." (`tooManyRequestsWords()`). Logged once a window
+  (`auth.rate_limited`: "Too many client requests from one client login: sending them was paused
+  for a while.").
+- **Urgency, by the rules** (`urgentWhy()`): urgent when it starts within 48 hours (a new event's
+  first session, the session, or new times asked for), or when it takes places or hours from
+  casuals already booked (fewer places than are free, new times or a cancel with anyone booked).
+  Stored when sent and worked out again whenever it's read, by one helper (`requestUrgency()`), so
+  the client's list, the office's queue, Updates and the alerts always agree. The form says before
+  sending: "This
+  starts within 2 days. {firm} will treat it as urgent. You'll get an answer here and by email."
+  The office's chip: "Urgent · starts within 2 days" / "Urgent · casuals are booked on it".
+- **Statuses:** waiting (for the office), asked (the office asked the client something; their reply
+  puts it back to waiting), accepted, declined (with a reason the client sees), done_in_planner
+  (accepted, still to do in the firm's planner: "To do in {planner}" until "Mark done"; the client
+  sees "Accepted"). The client's words: Waiting, Accepted, Declined, Question for you.
+- **The office's queue** (`officeClientRequests()`, admins and resourcers): tabs Waiting (urgent
+  first, then newest; asked ones last), Accepted, Declined, "To do in {planner}" (the planner's
+  name is its newest live API key's label, else "your planner"), narrowed to the contracts a person
+  looks after (none chosen: every contract; "all" shows every one).
+- **What accepting does** (`officeClientRequestPreview()`, worked out by code from the session as it
+  is now): more places: "12 places become 16 (9 booked, 7 to fill)" and the places offered at once
+  (as "Offer N open places" does) while the session shows to casuals ("hidden": none until it's
+  shown; a session the office marked filled stays closed); fewer places: the free places go first,
+  then the latest booked casuals are cancelled by the firm (the office may choose who), each named
+  with the notice they'd get; new times: from and to, a shortening or a move, each booked casual's
+  notice (the rules are run for each when accepted: a move someone can't work is refused as a
+  whole and the request still waits); cancel: every booking cancelled with notice; a new event: its
+  sessions (each with the client's notes as its instructions), made hidden from casuals until the
+  office shows it, at the client's venue, or for an address the firm has no venue for yet, one the
+  office chooses from the contract's venues (the preview's `choose_venue` and `venues`: required; a
+  venue that's no longer the contract's is `bad_venue`); a session from the firm's planner, sheet or
+  connector: nothing changes here, it goes on "To do in {planner}"; something else: nothing changes
+  by itself.
+- **Accepting** applies it through the office's own paths in one transaction (golden rules 4, 5 and
+  12): fewer places' cancellations "The client needs fewer staff", a cancelled session "The event
+  was cancelled", moves "The event's times or place changed" (for a cancel or a move the office may
+  pick another reason from its list), each asked by the client, each booked casual told. A new
+  event is made only at one of the contract's venues (checked in the transaction), so the client
+  always sees it; otherwise nothing is made and the answer is `{status: "invalid", problem:
+  "venue"}` (no venue chosen for an address, or a chosen one that isn't the contract's) or
+  `problem: "new_event"` with `bad_site` (the client's venue has left the contract).
+  Declining needs a reason (1 to 1,000 characters), asking needs the question. Each answer emails
+  the client who sent it (docs/messaging-templates.md "Client logins and requests").
+- **Notifications:** Updates lists open requests ("Client request: {request}" / "{contract} ·
+  waiting for you" ("urgent · starts within 2 days", "you asked them something", "accepted: still to
+  do in your planner"); buttons Answer, Open, Mark done), counts a request sent or replied to since
+  "Mark all as seen" on the bell, and counts waiting ones and planner to-dos in Needs action and
+  Needs attention; the top bar's "Client requests {n}" (waiting); the 08:00 summary lists them and
+  counts those sent ("…, 2 client requests."); an urgent one pushes to the admins and resourcers on
+  its contract with "Tell me about: Client requests" on (the default): "A notification on my phone
+  or computer when one is urgent", when it's sent urgent, when the client's reply puts an urgent one
+  back with the office, and when it becomes urgent later (the 5-minute tick); each person once.
+  Needs attention counts client requests only for those who may answer them (admins and
+  resourcers). The answer email's link is on the firm's verified own domain when it has one, else
+  its portal.
+- **A session that moved:** a request's session must still be at one of the request's contract's
+  venues to be changed for it. Moved to another contract's venue since, "What accepting does"
+  reads "Can't change it: the session isn't at one of this contract's venues any more. Decline it,
+  or ask the client." and accepting answers `{status: "not_theirs"}` ("Not changed: the session
+  isn't at one of this contract's venues any more. Decline it, or ask the client."), checked with
+  the session, its event and venue held, before a planner's to-do as well. The client's list shows
+  no session for such a request, and the answer's email names only their own venue
+  (`clientTitle`).
+- **Roles:** a new event's sessions may ask only for the roles the form offers (`contractRoles()`:
+  the firm's credential rules' roles and those of the contract's own sessions). Sending another
+  answers `bad_role` ("Nothing was sent: a role you chose isn't one we have any more. Reload the
+  page and choose again."); accepting one refuses with `bad_role` on that session ("Not changed:
+  it asks for a role you don't have. Decline it, or ask the client.").
+- **Nothing to accept:** fewer places that would leave none, or a request that doesn't change the
+  places, reads "that leaves no places. Decline it, or ask them to cancel the session." / "it
+  doesn't change the places. Decline it, or ask the client." (accepting refuses both).
+- **What the client sees of a venue:** an event's name and venue only when its venue is the
+  contract's; a session at their venue in an event at another contract's venue shows its own venue
+  (name and address), never the other contract's.
+
+### 36.3 and 36.4 screens
+
+The client's pages and the office's (built on the rules above; the approved mock-up's client side
+and office side). Words: `src/lib/client/page-copy.ts` (the client's), `src/lib/client/office-copy.ts`
+(the office's), `src/lib/client/words.ts` and `src/lib/client/form.ts` (the form's field words).
+44px targets; no sideways scroll at 390px or 1280px; every action ends with a confirmation.
+
+- **The client's frame** (every logged-in client page; `src/app/client/client-frame.tsx`): in the
+  office's look, light unless the person picked dark (the sd-theme cookie). A bar across the top:
+  the firm's mark and "{firm} · Client" (a link to Your events), on the right the contact's name
+  over their contract and the light or dark button; under them "Your events", "Your requests" (the
+  page you're on marked) and "Log out" (the route every login uses; then the client login with
+  "You're logged out."). The session's token is renewed once a day while they use it. The firm's
+  own bar steps aside (the frame names the firm).
+- **Your events** (`/client`, title "Your events"): "Your events", "Places you've booked with
+  {firm}, and how covered each is. Numbers only: we look after who works."; **New request** (the
+  main button) and **Your requests** (with the count still open). Then a card for each event to
+  come, soonest first (two to a row from 1024px): its name (a link to its page), its chip
+  ("{n} to fill", "Offers going out", "Covered", "Cancelled"), "Sat 14 Nov · from 12:30 · Demo
+  Stadium" ("Sat 14 Nov to Sun 15 Nov" over more days), a bar (red under half booked, amber short
+  of full, green covered) and "71 of 86 booked". None: "No events to come yet. Send a new request
+  and it shows here once it's set up." Then **Your requests**: their newest 3 (as on Your
+  requests) and "All your requests"; none: "No requests yet. Use New request, or Ask for a change on
+  an event."
+- **An event** (`/client/events/{id}`, title "An event"; another contract's or firm's, or one
+  with nothing to come: not found): back to "Your events"; the event's name; its line and the
+  venue's address; its bar and "{booked} of {places} booked"; **Ask for a change** and **Add
+  places** (the main button: the form with "More places on a session" chosen). **Sessions**: from
+  768px a table (Location, Role, Times, Booked as "9/12", the chip, and "Change" on each session to
+  come), the location shown once for the rows under it; on a phone a list of the same, each with
+  "Ask for a change to this session". Times have their day when the event runs over more than one.
+  Then **Waiting for {firm}**: that event's requests still waiting or asked about, and "Questions
+  from {firm} are answered on Your requests."
+- **Ask for a change / New request** (`/client/requests/new`, title "New request";
+  `?event=`, `&session=`, `&kind=` choose the event, the session and the kind; anything not theirs
+  is ignored): "Ask for a change" (from an event: its name and line) or "New request" ("A new
+  event, or a change to one you have. {firm} answers here and by email."). **What do you need?**: a
+  choice card each, "A new event" (New request only), "More places on a session", "Fewer places",
+  "Different times", "Cancel a session", "Something else". Then that kind's fields:
+  - a session's kinds: **Which session?** (theirs to come and not cancelled; from an event, its
+    own: "North Gate · Steward · Sat 14 Nov 12:30–19:30"), with "It has 12 places, 9 booked.";
+    **How many more?** / **How many fewer?**; **Date**, **Start**, **Finish** ("Before the start:
+    the next day."); a cancel: "If {firm} accepts, the session is cancelled and anyone booked on it
+    is told.";
+  - "Something else": **Which session? (optional)** ("No session in particular") and **What do you
+    need?**;
+  - "A new event": **The event's name**, **Venue** (the contract's venues, and "Somewhere else
+    (type the address)", then **The venue's address**), **Date**, and **Sessions ({n} of 12)**:
+    each "Session {n}" with **Role**, **Places**, **Start**, **Finish** and **Location or notes
+    (optional)**, "Remove session {n}" (with more than one) and **Add a session** (up to 12).
+  - **Why (optional)** for every kind.
+  - When the rules will find it urgent, before sending, a yellow box: "This starts within 2 days."
+    (or "This affects people already booked.") / "{firm} will treat it as urgent. You'll get an
+    answer here and by email."
+  - **Send to {firm}**. Problems show next to their fields before anything is sent ("Choose what
+    you need.", "Choose a session.", "Type how many more, from 1 to 200.", "Type how many fewer,
+    from 1 to {n}. To have none, cancel the session.", "Choose a date.", "Type a start time, like
+    09:30.", "These are the times it has now. Change one of them.", "That time has gone. Choose a
+    later one.", "Say what you need.", "Give the event a name.", "Type the venue's address.",
+    "Choose a role.", "Type how many places, from 1 to 1000."), with "Nothing was sent. Check the
+    fields marked."; over the limit: "Too many requests. Nothing was sent. Try again in {n}
+    minutes.". Sent: a green slip "Sent" / "Sent to {firm}. You'll get an answer here and by
+    email." (urgent: "… It starts soon or affects people already booked, so they'll treat it as
+    urgent. …"), then **See your requests** and **Back to the event** (or **Back to your events**).
+- **Your requests** (`/client/requests`, title "Your requests"): back to "Your events"; "Newest
+  first. {firm} answers each one here and by email."; **New request**. Each request: its status
+  chip (Waiting, Question for you, Accepted, Declined; "Urgent" beside a waiting urgent one), "Sent
+  14:40" ("Sent Tue 10 Nov 09:05"), what was asked (requestTitle), their words for "Something
+  else", "Your note: "…"", "Sent by a colleague on your contract." (another contact's), "Reason
+  from {firm}: "…"" (declined), "{firm}: "…"" (a word with an acceptance), "Open the event". A question:
+  an amber slip "{firm} asks" with the question, **Your answer** and **Send my answer**; sent: "Sent"
+  / "Sent. {firm} will look at your request again."; "Type your answer first." with none.
+- **Client requests** (`/office/client-requests`, title "Client requests"; admins and resourcers;
+  in the menu after Enquiries with its count of those waiting; the top bar's "Client requests {n}"
+  while any wait; Needs attention's "Client requests" part: "{n} waiting for you ({u} urgent) · {p}
+  to do in your planner" and "Open client requests"): "From your clients' logins. You accept or
+  decline each; they see your answer." Tabs **Waiting**, **Accepted**, **Declined**, **To do in
+  {planner}** (each with its count: Waiting's and the planner's always); **My contracts** and **All
+  contracts** for someone who looks after contracts. The list (from 1024px beside the chosen
+  request; under it on a phone): the contract, when, a chip ("Urgent · starts within 2 days",
+  "Urgent · casuals are booked on it", the kind while waiting, "You asked them", "Declined", "To do
+  in the planner", "Accepted"), what was asked, and once answered "Accepted · Tue 10 Nov 09:05".
+  Empty: "No client requests waiting. New ones show here, urgent first.", "No accepted requests
+  yet.", "No declined requests.", "Nothing to do in {planner}.". The chosen one (`?request=`, the
+  list's first by default; Updates' rows open it): its title and chip, "From Priya Shah, Demo
+  Stadium Ltd · {event} · Sat 14 Nov 12:30–19:30", when sent, "They asked: …", "Their note: …",
+  "Your reason: …" / "You asked: …"; **What accepting does** (or **To do in your planner**), each
+  line "{label}: {text}" (`acceptLines()`), e.g. "North Gate Steward: 12 places become 16 (9 booked,
+  7 to fill).", "Offers: the 7 open places go to the best eligible casuals now.", "Booked casuals:
+  2 bookings are cancelled by the firm, "The client needs fewer staff": Ana Steward (2 days'
+  notice), …", "Planner: this session comes from AXLR8, so nothing changes here.", "Client: Priya
+  sees "Accepted" and gets an email." Then the answers:
+  - **Accept**, in words that say what it does: "Accept and offer the places", "Accept and cancel
+    the session", "Accept and make the event", "Accept: to do in the planner", "Accept"; with
+    **Offer the places now** (more places offered at once: on), **Reason casuals are told** (new
+    times, cancel), **Make it at** (a new event: the contract's venues; required for an address),
+    and **A word to the client (optional)**. One that cancels bookings or moves people booked asks
+    first in red ("This cancels 2 bookings with notice: …. Each is told." / "This moves 3 people
+    booked on it. Each is told.") with **Yes, …** and **Not yet**.
+  - **Decline…**: **Why? The client sees this.** and **Decline the request** (a red step), or
+    **Not yet**.
+  - **Ask the client**: **Your question for the client** and **Send the question**, or **Not
+    yet**.
+  - On the planner's to-do list: "Made the change in your planner? Mark it done." and **Mark
+    done**.
+  - Each ends with a green "Done" slip: "Accepted. 12 places are now 16, and offers are going out.
+    The client is told.", "Declined. The client sees your reason and gets an email.", "Sent. The
+    client sees your question and gets an email. It waits for their answer.", "Marked done. It's
+    off the to-do list."; refused, why, in red ("Not changed: Ana Steward can't work the new times
+    (…). The request still waits: decline it, or ask the client.", "Someone has answered this
+    already. Reload the page.").
+- **A contract** (`/office/settings/contracts/{id}`, title "A contract"; admins; "Client logins"
+  under each contract on Settings opens it): back to "Settings"; the contract's name; "A contract:
+  its client logins and venues." **Client logins**: "Who at the client may send requests. They log
+  in with a link to their email, see their events' numbers, and nothing about your casuals." Each
+  login: name, "{email} · last in today" ("last in Mon 9 Nov", "not logged in yet"), On or Off, and
+  **Send link** and **Turn off** (on ones: "Turn off {name}? They're logged out now and their links
+  stop working." **Yes, turn off {name}** / **Keep them on**) or **Turn on**. None: "No client
+  logins yet. Add one below." **Add a client login**: **Their name**, **Their work email**, **Add a
+  client login**. Confirmations: "Added {name}. Send them a link so they can log in.", "Sent.
+  {name} has a login link by email. It works for 15 minutes.", "{name} is off. They're logged out
+  and their links don't work.", "{name} is on. Send them a link to log in."; problems: "Someone
+  already has a client login with that email.", "Type their name.", "Type their work email, like
+  name@example.com.", "You've sent {name} 3 links. Try again in {n} minutes.". **Its venues**: their
+  names ("No venues yet. Tick them on Settings.").
+
+### 36.5 A match day to play with
+
+Dylan (2026-11-11): "build more data so i can review if anything needs any changing … The Kick off
+is 16:30 add location etc cancels for it literally everything so i can play around". The demo seed
+(`src/lib/db/admin/seed-match.ts`, loaded by `seed-match-load.ts`; docs/testing.md "Fixtures and the
+demo seed") adds a made-up football match on Acme, shaped like a match-day deployment sheet. Every
+name, place, client and rate is made up (golden rule 7): nothing comes from the real sheet Dylan
+showed beyond its general shape.
+
+- **The match:** "Demo Rovers v Visitors FC" at Demo Stadium (1 Demo Road, Exampleton, ZZ1 9SR,
+  on the office map near the Arena), kick-off 16:30 on the demo's coming Saturday (that day itself
+  until kick-off), showing to casuals. Ids are fixed: the nightly reset (and `npm run db:reset`)
+  moves it to the new coming Saturday; a plain re-run of the seed leaves it as it is.
+- **Its posts** (each a session's post, with its meeting point, uniform, pay and instructions:
+  searches and ticket checks, queues, "report to event control", and the redeployments, "At 15:45,
+  5 of you move to the Demo Central station queue"): North Gate and South Bridge (a supervisor and
+  13 and 11 SIA stewards, as door supervisors), West Ramp and South Ramp (a supervisor and 4
+  stewards each), Players' entrance search (4 SIA), Stadium tours (2 stewards, 09:30 to 17:00),
+  the station queues at Demo Central and Demo Park stations (5 stewards each, 14:00 to 20:00), Estate
+  patrol (3 CSAS officers), Control room (3 supervisors), Car park North and South (8 and 6 stewards
+  with Chapter 8), the Agency area (10 stewards) and the Deployment manager (a supervisor): 83
+  places. Timed from kick-off as such sheets are: most 4 hours before for 7 hours (12:30 to 19:30),
+  the car parks 4h15 before for 8h15, the control room 3h30 before for 6h30, the deployment manager
+  6h30 before for 10h30.
+- **Qualifications, as data** (golden rule 6): every session needs the firm's own "Demo Stadium
+  ground induction" on top of its role's (a credential type of Acme's, not a pack's); the car parks
+  need "Chapter 8 traffic management certificate" too, another of Acme's own; "supervisor" is
+  Acme's own role (an SIA door supervisor licence and the Level 2 steward qualification). Only the
+  match's own 75 made-up casuals hold the induction, so the walkthrough's casuals and the story's
+  (Zoe included) see none of its places, and their lists are as before.
+- **The state to play with:** 69 of 83 booked (83%). North Gate's SIA stewards 3 short, marked
+  urgent by the office, two offers waiting there; Car park North 4 short; Estate patrol 1 short;
+  the Agency area 4 short. A casual cancelled on the South Ramp three hours before the seed ran
+  ("Travel problem"): the rules decide the strike from the notice (a strike under 48 hours, and
+  urgent by the system inside the urgent window). The office cancelled one booking at Demo Park's
+  station queue ("They've left, or can't work here", with the notice she had). The previous home
+  match, "Demo Rovers v Example Athletic" two weeks before: worked, a late cancellation there that
+  was a strike, and a pay query still open ("hours missing", a car park steward).
+- **The client:** the contract "Demo Stadium Ltd" (Demo Stadium is its venue), its client login
+  Hannah Price (hannah.price@demo-stadium.example), and her requests: waiting, "4 more SIA stewards
+  at North Gate" (urgent by the rules: within 2 days of the session) and a new event, "Demo Rovers v
+  Sample Town FC" two weeks later; answered, from the previous match, one accepted (2 more places at
+  the Agency area) and one declined (selling programmes, with the office's reason).
+
+**"Client view"** on "Choose a view" (`/start`; `src/app/start/client-view-button.tsx`,
+`openClientView()` in `src/lib/demo/staff-session.ts`): guarded exactly as "Casual mobile view"
+(demo servers only, on Acme, only from an office session there). The third card:
+
+- **"Client view"**: "What a client sees: their events in numbers and the requests they send. Never
+  a casual's name." It logs this browser in as the demo's client login (Hannah Price, Demo Stadium
+  Ltd) with a client's session and cookie, as her own login link would, logs it ("{Staffing (demo)}
+  opened the client view as {Hannah Price} ({Demo Stadium Ltd}).", ids only), then opens the client's
+  pages (`/client`). "Opening…" while it works. If it can't: "You're logged out. Log in again to open
+  the client view.", "The demo client isn't there. Reset the demo, then try again." (her login is
+  missing or switched off) or "Something went wrong. Try again."

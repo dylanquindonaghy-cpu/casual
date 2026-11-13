@@ -8,14 +8,17 @@ import { currentWorker } from "@/lib/auth/worker-login";
 import { seed } from "@/lib/db/admin/seed";
 import { withFirm } from "@/lib/db/scoped";
 import { seedId } from "@/lib/demo/seed-id";
+import { currentClient } from "@/lib/client/login";
+import { MATCH_CLIENT_CONTACT_ID, MATCH_CONTRACT_ID } from "@/lib/db/admin/seed-match";
 import {
   DEMO_CASUAL_ID,
+  DEMO_CLIENT_CONTACT_ID,
   STAFF_DEMO_FIRM_ID,
   STAFF_DEMO_USER,
   STAFF_LOGIN_NAME,
   hashStaffPassword,
 } from "@/lib/demo/staff-login";
-import { loginWithStaffAccount, openCasualView } from "@/lib/demo/staff-session";
+import { loginWithStaffAccount, openCasualView, openClientView } from "@/lib/demo/staff-session";
 import { superuserPool, urls } from "../helpers/db";
 
 // The staffing demo login and "Casual mobile view" (Phase 31) on the real database, as the app
@@ -357,5 +360,107 @@ describe("Casual mobile view", () => {
     expect(await openCasualView(ctx({ demoMode: undefined }), token)).toEqual({ status: "off" });
     expect(await openCasualView(ctx({ firmId: NORTHLINE }), token)).toEqual({ status: "off" });
     expect(await zoeSessions()).toBe(before);
+  });
+});
+
+// Phase 36.5: "Client view" on "Choose a view", guarded exactly as the casual view: from an office
+// session on Acme, in demo mode, a client's session for the match day's client login.
+describe("Client view", () => {
+  async function staffToken(): Promise<string> {
+    const r = await loginWithStaffAccount(ctx(), { email: STAFF_LOGIN_NAME, password });
+    if (r.status !== "ok") throw new Error(`login: ${r.status}`);
+    return r.token;
+  }
+  async function clientSessions(): Promise<number> {
+    const { rows } = await su.query<{ n: number }>(
+      "select count(*)::int as n from sessions where firm_id = $1 and client_contact_id = $2 and kind = 'client'",
+      [ACME, DEMO_CLIENT_CONTACT_ID],
+    );
+    return rows[0]?.n ?? 0;
+  }
+
+  it("is the match day's client login, Hannah Price of Demo Stadium Ltd", () => {
+    expect(DEMO_CLIENT_CONTACT_ID).toBe(MATCH_CLIENT_CONTACT_ID);
+  });
+
+  it("from the staffing login, a client's session for the demo client, logged with ids only", async () => {
+    const before = await clientSessions();
+    const r = await openClientView(ctx(), await staffToken());
+    expect(r.status).toBe("ok");
+    if (r.status !== "ok") return;
+    expect(r.clientContactId).toBe(DEMO_CLIENT_CONTACT_ID);
+    expect(await clientSessions()).toBe(before + 1);
+    const client = await currentClient({ firm: { id: ACME } }, r.token);
+    expect(client?.contact).toMatchObject({
+      id: DEMO_CLIENT_CONTACT_ID,
+      name: "Hannah Price",
+      contractId: MATCH_CONTRACT_ID,
+      contractName: "Demo Stadium Ltd",
+    });
+    // A client's session: not the office's, not a casual's.
+    expect(await currentOfficeUser({ firm: { id: ACME } }, r.token)).toBeNull();
+    expect(await currentWorker({ firm: { id: ACME } }, r.token)).toBeNull();
+    const { rows } = await su.query<{ id: string }>(
+      "select id::text from sessions where firm_id = $1 and client_contact_id = $2 order by created_at desc limit 1",
+      [ACME, DEMO_CLIENT_CONTACT_ID],
+    );
+    expect(await eventsFor("auth.demo_client_view", rows[0]?.id)).toEqual([
+      {
+        firm_id: ACME,
+        actor_type: "office",
+        actor_id: STAFF_DEMO_USER.id,
+        entity_type: "session",
+        entity_id: rows[0]?.id,
+        data: {
+          kind: "client",
+          clientContactId: DEMO_CLIENT_CONTACT_ID,
+          contractId: MATCH_CONTRACT_ID,
+        },
+      },
+    ]);
+  });
+
+  it("only from an office session: none, junk, a casual's or a client's own session open nothing", async () => {
+    const zoe = await openCasualView(ctx(), await staffToken());
+    const hannah = await openClientView(ctx(), await staffToken());
+    if (zoe.status !== "ok" || hannah.status !== "ok") throw new Error("no views");
+    const before = await clientSessions();
+    for (const token of [
+      undefined,
+      "not-a-token",
+      `shiftdesk_${"A".repeat(43)}`,
+      zoe.token,
+      hannah.token,
+    ]) {
+      expect(await openClientView(ctx(), token)).toEqual({ status: "logged_out" });
+    }
+    expect(await clientSessions()).toBe(before);
+  });
+
+  it("only in demo mode, and only on Acme; another firm's office session opens nothing there", async () => {
+    const token = await staffToken();
+    const northlineOffice = seedId("northline/office/resourcer");
+    const theirs = await withFirm(NORTHLINE, (tx) =>
+      createSession(tx, { kind: "office", subjectId: northlineOffice, now: new Date() }),
+    );
+    const before = await clientSessions();
+    expect(await openClientView(ctx({ demoMode: undefined }), token)).toEqual({ status: "off" });
+    expect(await openClientView(ctx({ demoMode: "" }), token)).toEqual({ status: "off" });
+    expect(await openClientView(ctx({ firmId: NORTHLINE }), token)).toEqual({ status: "off" });
+    expect(await openClientView(ctx(), theirs.token)).toEqual({ status: "logged_out" });
+    expect(await clientSessions()).toBe(before);
+  });
+
+  it("a client login switched off opens nothing: the demo client isn't there", async () => {
+    await su.query("update client_contacts set is_on = false where id = $1", [
+      DEMO_CLIENT_CONTACT_ID,
+    ]);
+    try {
+      expect(await openClientView(ctx(), await staffToken())).toEqual({ status: "no_client" });
+    } finally {
+      await su.query("update client_contacts set is_on = true where id = $1", [
+        DEMO_CLIENT_CONTACT_ID,
+      ]);
+    }
   });
 });

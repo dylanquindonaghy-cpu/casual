@@ -59,6 +59,8 @@ architecture.md, Tenancy).
 | inbound_emails | Emails to a firm's staffing inbox, one row per Message-ID: who it's from, and only a known casual's subject and words, quoted history taken off; how many attachments were left out (P7.1); how its job handled it, and the AI's draft of the office's reply (P7.4, P7.5) | P7 |
 | email_replies | What went back about an email, as sent: the automatic link email or the office's reply, to the address the firm held for the casual then; added once, never changed (whether it went is in the log); deleted with its email (Phase 25.5) | P7 |
 | push_subscriptions | Web push endpoints per worker | 4 |
+| client_contacts | A person at one of the firm's contracts (clients) who may log in and send requests: name, work email (lower case, one per firm), on or off, who added them, last login; gone with the contract (Phase 36.3) | 36 |
+| client_requests | What a client contact asks the office for: a new event, more or fewer places, new times, cancel a session, or something else; the session or event it's about, the details (checked in code per kind), their note, the status (waiting, asked, accepted, declined, done_in_planner), whether the rules found it urgent, the office's answer (who, when) and, for a planner's session, when it was marked done there; gone with the contract (Phase 36.4) | 36 |
 | office_push_subscriptions | Web push endpoints per office user, for Updates' "Tell me about" notifications (one row per browser, at most 5 each) | 26.4 |
 | roster_sources | Where a firm's rota lives when it isn't our tables: a Google Sheet (its id, column mapping) or a connector to the firm's own system (which one, its base address; P5.2), with the last sync, error code and sync lease | 2 |
 | name_map | What the firm's own system calls a role, qualification, staff type or cancellation reason, mapped to a ShiftDesk code or to skip (P3.2) | P3 |
@@ -330,6 +332,56 @@ create table office_push_subscriptions (
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, endpoint)
+);
+
+-- Phase 36.3 (src/lib/db/schema/client.ts). A client contact: a person at one of the firm's
+-- contracts. Added, switched off or on by an admin (client_contact.added, .switched_off,
+-- .switched_on: ids only). magic_links and sessions have a third kind, 'client', with
+-- client_contact_id (on delete cascade). The app may change only name, is_on and last_login_at.
+create table client_contacts (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  contract_id uuid not null,             -- (firm_id, contract_id) -> clients, on delete cascade
+  name text not null,                    -- 1 to 120 characters
+  email text not null,                   -- lower case, one per firm
+  is_on boolean not null default true,
+  created_by uuid not null,              -- (firm_id, created_by) -> office_users
+  last_login_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, contract_id, id),     -- for client_requests' contact on its own contract (0077)
+  unique (firm_id, email)
+);
+
+-- Phase 36.4. A client's request. payload is checked in code per kind (src/lib/client/payloads.ts):
+-- new_event {name, venue {siteId} | {address}, date, sessions [{role, places, start, end, notes}]},
+-- more_places / fewer_places {places}, new_times {date, start, end}, cancel_session {},
+-- other {text}. The four session kinds need shift_id. A decline and a question carry the office's
+-- words; every answer says who and when. The app may change only the answer's columns, the status,
+-- the client's note (their reply), updated_at and event_id (the event a new event became).
+create table client_requests (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  contract_id uuid not null,             -- (firm_id, contract_id) -> clients, on delete cascade
+  client_contact_id uuid not null,       -- (firm_id, contract_id, client_contact_id) ->
+                                         -- client_contacts (firm_id, contract_id, id), on delete
+                                         -- cascade: a contact on the request's own contract
+  kind text not null,                    -- new_event | more_places | fewer_places | new_times |
+                                         -- cancel_session | other
+  shift_id uuid,                         -- (firm_id, shift_id) -> shifts
+  event_id uuid,                         -- (firm_id, event_id) -> shift_events
+  payload jsonb not null,
+  client_note text,                      -- 1 to 1,000 characters
+  status text not null default 'waiting', -- waiting | asked | accepted | declined | done_in_planner
+  urgent boolean not null default false, -- the rules' answer when sent (worked out again on read)
+  office_answer text,                    -- the reason, the question, or a note with an acceptance
+  answered_by uuid,                      -- (firm_id, answered_by) -> office_users
+  answered_at timestamptz,
+  planner_done_at timestamptz,           -- done_in_planner only: marked done there
+  planner_done_by uuid,                  -- (firm_id, ...) -> office_users
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  unique (firm_id, id)
 );
 
 -- Phase 3 (src/lib/db/schema/people.ts). Days the worker can't work, set on their profile: today

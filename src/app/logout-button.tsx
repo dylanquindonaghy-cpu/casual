@@ -6,6 +6,7 @@ import {
   logOut,
   logOutOfThisPhone,
   logoutProblemText,
+  type LogoutKind,
   type LogoutOutcome,
 } from "@/lib/portal/logout-client";
 import { forgetThisPhonesPush } from "@/lib/portal/push-client";
@@ -22,7 +23,7 @@ export function LogoutButton({
   className,
   icon,
 }: {
-  kind: "worker" | "office";
+  kind: LogoutKind;
   after: string;
   className: string;
   icon?: ReactNode;

@@ -67,6 +67,7 @@ const noNeeds: NeedsAttention = {
   webhookFailing: null,
   sheetNames: [],
   sheetNamesTotal: 0,
+  clientRequests: { waiting: 0, urgent: 0, plannerToDo: 0 },
 };
 
 // Each list's total as its length (a test of a list past its 50 sets one itself).
@@ -469,6 +470,13 @@ describe("Needs attention's page (Phase 18: the top bar's To check opens it sinc
     expect(
       needsCount({ ...needsFull, evidence: { ...needsFull.evidence, failedTotal: 400 } }),
     ).toBe(needsCount(needsFull) + 399);
+    // Client requests (Phase 36.4): each waiting one and each planner to-do; the urgent ones are
+    // among those waiting, never counted twice.
+    expect(
+      needsCount({ ...needsFull, clientRequests: { waiting: 3, urgent: 2, plannerToDo: 1 } }),
+    ).toBe(
+      needsCount({ ...needsFull, clientRequests: { waiting: 0, urgent: 0, plannerToDo: 0 } }) + 4,
+    );
     // All shown: no line.
     expect(words(part(needsFull, "to-check"))).not.toContain("Showing the first");
   });

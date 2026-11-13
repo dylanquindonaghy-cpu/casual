@@ -9,7 +9,7 @@ import { WORKER_LIST_ACTIONS } from "./worker-lists";
 // transaction as the change. data holds ids, reasons and flags only: never a token, code, phone
 // number, email, name or IP. Anything the log masker would change is refused.
 
-export type ActorType = "worker" | "office" | "system" | "ai";
+export type ActorType = "worker" | "office" | "system" | "ai" | "client";
 
 export interface EventInput {
   actorType: ActorType;

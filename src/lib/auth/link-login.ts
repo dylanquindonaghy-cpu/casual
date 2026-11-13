@@ -1,3 +1,5 @@
+import { eq } from "drizzle-orm";
+import { clientContacts } from "../db/schema";
 import { withFirm, type FirmTx, type WithFirm } from "../db/scoped";
 import { appEnv } from "../env";
 import { recordEvent } from "../events/record";
@@ -15,7 +17,7 @@ import { hitLimit, LIMITS, logLimitReached, peekLimit, toMinutes } from "./throt
 import { looksLikeToken } from "./tokens";
 import type { FirmAddress } from "../tenancy/portal-url";
 
-// The parts of link login that workers and office users share (docs/architecture.md, Login):
+// The parts of link login that workers, office users and client contacts (Phase 36.3) share (docs/architecture.md, Login):
 // spending a one-time link, starting a session, looking it up, rotating it, ending it. Each
 // kind's own module (worker-login.ts, office-login.ts) adds how links are asked for. The firm
 // always comes from the request's host.
@@ -66,6 +68,13 @@ export async function loginWithLinkOf(
   }
   await retireOtherLinks(tx, { kind, subjectId: used.subjectId, now });
   const session = await createSession(tx, { kind, subjectId: used.subjectId, now });
+  // A client contact's last login (Phase 36.3): the office sees it beside their name.
+  if (kind === "client") {
+    await tx
+      .update(clientContacts)
+      .set({ lastLoginAt: now })
+      .where(eq(clientContacts.id, used.subjectId));
+  }
   await recordEvent(tx, {
     actorType: kind,
     actorId: used.subjectId,

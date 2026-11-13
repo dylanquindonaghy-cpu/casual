@@ -59,7 +59,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // checked #rrggbb values only, never raw input (src/lib/tenancy/brand-values.ts).
   const firmColours = brand ? (brandStyle(brand) as CSSProperties | undefined) : undefined;
   return (
-    <html lang="en-GB" data-theme={theme} className={fontVariables}>
+    // suppressHydrationWarning: the client's pages (Phase 36.3) are light with no theme picked, so
+    // their layout's one-line script writes data-theme="light" here before the page is drawn
+    // (src/app/client/layout.tsx); this element's own attributes only.
+    <html lang="en-GB" data-theme={theme} className={fontVariables} suppressHydrationWarning>
       <body
         style={firmColours}
         data-firm-colour={firmColours ? "" : undefined}

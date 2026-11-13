@@ -2,6 +2,7 @@ import { z } from "zod";
 import { logoutOffice } from "@/lib/auth/office-login";
 import { clearSessionCookie, readSessionToken } from "@/lib/auth/session-cookie";
 import { logoutWorker } from "@/lib/auth/worker-login";
+import { logoutClient } from "@/lib/client/login";
 import { requestLog } from "@/lib/request";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 
@@ -11,7 +12,7 @@ import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 // the request must come from the site's own page (its Origin is this host). Ends the session and
 // clears its cookie, as the old actions did; the browser then goes to the login page itself.
 
-const body = z.strictObject({ kind: z.enum(["worker", "office"]) });
+const body = z.strictObject({ kind: z.enum(["worker", "office", "client"]) });
 const MAX_BODY = 1024;
 
 export async function POST(request: Request): Promise<Response> {
@@ -45,6 +46,7 @@ export async function POST(request: Request): Promise<Response> {
     const token = await readSessionToken(kind);
     if (token) {
       if (kind === "worker") await logoutWorker({ firm }, token);
+      else if (kind === "client") await logoutClient({ firm }, token);
       else await logoutOffice({ firm }, token);
     }
     await clearSessionCookie(kind);

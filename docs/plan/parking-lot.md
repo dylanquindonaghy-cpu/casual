@@ -2546,3 +2546,56 @@ Each task adds what it left out here as its wave is merged.
 - **"Reply anyway" on an answered enquiry** (in the mock-up, left out as optional).
 - **A switch-off of `auto_replies` mid-job for a message that isn't a library answer** still sends
   the office's acknowledgement (as before Phase 35; found by the fix builder).
+
+## Phase 36, deferred while building (36.1, 36.2; 2026-11-11)
+
+- **Several kinds at once on Updates.** The kinds are one at a time (`?kind=`), as the mock-up's
+  chips read; "Cancellations and still to fill" together would need a list in the address
+  (`?kind=cancellations,to-fill`) and chips that toggle.
+- **Enquiries and pay queries under Needs action.** Needs action is as it was (what the 08:00
+  summary lists and `countNeedsAction` counts), so an enquiry for a person shows under Enquiries
+  (and the menu's count) and a pay query under Pay queries; adding them to Needs action means the
+  summary and its count too.
+- **Updates' event filter needs JavaScript** (it waits for the page, as every office field does): a
+  plain form with a "Show" button would work without it.
+
+## Phase 36, deferred while building (36.5; 2026-11-12)
+
+- **Demo mode's people check doesn't count client logins** (guardrails review N8). `realPeopleIn()`
+  (`src/lib/demo/people.ts`, the demo worker's guard) counts casuals' and the office's numbers and
+  emails, not `client_contacts`' emails. The seed's client login is on a reserved example domain
+  (tests check it), but an admin on a demo server could add a real address as a client login; the
+  guard would then let its login emails go to the outbox unnoticed. Add client contacts to the
+  check (and its test).
+- **The match day moves only with a reset.** Like the story, its ids are fixed and undated: a plain
+  `npm run db:seed` in a later week leaves last week's match where it was (the nightly reset and
+  `npm run db:reset` move it). Dated ids, as the Saturday's, would add a match each week instead.
+- **The North Gate request is urgent only within 2 days.** By the rules (`urgentWhy`), "4 more SIA
+  stewards" is urgent only when the session starts within 48 hours: from Thursday 12:30 before the
+  match. Earlier in the week it waits as not urgent. A second waiting request urgent by
+  "affects booked" (fewer places or new times on a booked session) would show one every day.
+
+## Phase 36, deferred after the guardrails review and the screens (36.3, 36.4; 2026-11-12)
+
+- **A client's reply overwrites their original note** (review N4). `replyToClientQuestion`
+  (`src/lib/client/requests.ts`) writes the reply into `client_note`, so the note the office's
+  question was about is lost. Keep the reply in its own column (a schema change: needs approval)
+  or a reply history.
+- **Client tables in retention and erasure** (review N5). `client_contacts` (names, emails) and
+  `client_requests`' free text (`client_note`, `office_answer`) are not in `src/lib/gdpr/retention.ts`
+  or an erase path; a contact can only be switched off. Also: the office's decline reason, question
+  or note goes to the client word for word, so it could name a casual against the "numbers only"
+  rule; warn when it contains a booked casual's name.
+- **"Who can work it" on a client request.** The mock-up's count of casuals who could take the
+  requested places isn't shown: nothing in the back end supplies it yet.
+- **Choosing who goes when a client cuts places.** Accepting "fewer places" cancels the latest
+  booked; choosing needs every booking listed in the preview (`src/lib/client/queue.ts`).
+- **A client's request title names the venue, not the post.** `ClientRequestView.session` has no
+  post (`src/lib/client/reads.ts`), so two requests on different posts of one event read the same.
+- **The office's request detail on a phone** sits under the list, not on a page of its own.
+- **Lock order on accepting a client request** (second re-review L2). Accepting locks the session,
+  then shares its event and venue (`sessionStillTheirs` in `src/lib/client/answer.ts`); the planner
+  API (`src/lib/integrations/sessions.ts`), `src/lib/office/showing.ts` and
+  `src/lib/office/casuals-ask.ts` lock the event first. Postgres breaks a deadlock and accept
+  retries, but the other side can get a 40P01 (a planner request it has to resend). Take the event's
+  share lock before the session's, or retry those paths too.

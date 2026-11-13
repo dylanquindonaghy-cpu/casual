@@ -1,3 +1,4 @@
+import type { SQL } from "drizzle-orm";
 import { and, arrayContains, desc, eq, gt, inArray, like, sql } from "drizzle-orm";
 import { dramaMobile, SPARE_MOBILES, type SpareBlock } from "./spare-mobiles";
 import { createHash } from "node:crypto";
@@ -1845,6 +1846,179 @@ export async function setCasualTourSeen(
     await createWithFirm(pool)(seedId(`firm/${slug}`), (tx) =>
       tx.update(workers).set({ tourSeenAt: at }).where(eq(workers.id, workerId)),
     );
+  } finally {
+    await pool.end();
+  }
+}
+
+// Updates you can filter (Phase 36.2), a scene of a spec's own: the venue of its session (`shiftId`)
+// becomes a contract of its own that the office user `email` looks after, so their Updates and "Low
+// on cover" show only it, whatever else the other specs and the seed have; and `workerId` holds one
+// of its places. Returns the contract's id, for endContractScene.
+export async function contractScene(
+  slug: string,
+  o: { tag: string; email: string; shiftId: string; workerId: string },
+): Promise<{ clientId: string }> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      const [client] = await tx
+        .insert(clients)
+        .values({ firmId, name: `Filter Council ${o.tag}` })
+        .returning({ id: clients.id });
+      const [me] = await tx
+        .select({ id: officeUsers.id })
+        .from(officeUsers)
+        .where(eq(officeUsers.email, o.email));
+      const [shift] = await tx
+        .select({ siteId: shifts.siteId })
+        .from(shifts)
+        .where(eq(shifts.id, o.shiftId));
+      if (!client || !me || !shift?.siteId) throw new Error("no contract, office user or venue");
+      await tx.update(sites).set({ clientId: client.id }).where(eq(sites.id, shift.siteId));
+      await tx
+        .insert(officeUserClients)
+        .values({ firmId, officeUserId: me.id, clientId: client.id });
+      await tx.insert(assignments).values({
+        firmId,
+        shiftId: o.shiftId,
+        slot: 1,
+        workerId: o.workerId,
+        status: "confirmed",
+        confirmedAt: new Date(),
+      });
+      return { clientId: client.id };
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
+// Ends a contract scene: its session cancelled (so no later spec sees its open places) and its
+// contract removed (its venue stays, as Settings' "Remove" leaves it).
+export async function endContractScene(
+  slug: string,
+  scene: { shiftId: string; clientId: string },
+): Promise<void> {
+  await cancelOwnShift(slug, scene.shiftId);
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    await createWithFirm(pool)(seedId(`firm/${slug}`), async (tx) => {
+      await tx.delete(officeUserClients).where(eq(officeUserClients.clientId, scene.clientId));
+      await tx.update(sites).set({ clientId: null }).where(eq(sites.clientId, scene.clientId));
+      await tx.delete(clients).where(eq(clients.id, scene.clientId));
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
+// Phase 36.3 and 36.4's browser test (tests/e2e/client.requests.spec.ts): a contract of its own
+// ("Client Spec Ltd {tag}") with a venue, an event there with two sessions (a native one of 4 places
+// starting in `hours`, two of them booked by seeded casuals, and one from the firm's planner, source
+// "api"), all made up. Returns the ids and the booked casuals' names (which the client must never
+// see).
+export async function clientScene(
+  slug: string,
+  o: { tag: string; hours: number },
+): Promise<{
+  contractId: string;
+  contractName: string;
+  eventId: string;
+  eventName: string;
+  shiftId: string;
+  plannerShiftId: string;
+  casuals: string[];
+}> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      const one = async (q: SQL) => {
+        const { rows: r } = await tx.execute<{ id: string }>(q);
+        const id = r[0]?.id;
+        if (!id) throw new Error("insert returned nothing");
+        return id;
+      };
+      const contractName = `Client Spec Ltd ${o.tag}`;
+      const eventName = `Client Spec Match ${o.tag}`;
+      const contractId = await one(sql`
+        insert into clients (firm_id, name) values (${firmId}, ${contractName}) returning id::text as id`);
+      const siteId = await one(sql`
+        insert into sites (firm_id, name, client_id, address_line1, postcode)
+        values (${firmId}, ${`Client Spec Ground ${o.tag}`}, ${contractId}, '1 Spec Road', 'ZZ9 9ZZ')
+        returning id::text as id`);
+      const eventId = await createNamedEvent(tx, { name: eventName, siteId });
+      const startsAt = new Date(Date.now() + o.hours * 3_600_000);
+      startsAt.setUTCMinutes(0, 0, 0);
+      const endsAt = new Date(startsAt.getTime() + 7 * 3_600_000);
+      const shiftId = await one(sql`
+        insert into shifts (firm_id, site_id, event_id, role, post, starts_at, ends_at, headcount,
+                            status, source)
+        values (${firmId}, ${siteId}, ${eventId}, 'steward', 'North Gate', ${startsAt}, ${endsAt}, 4,
+                'open', 'native')
+        returning id::text as id`);
+      const plannerShiftId = await one(sql`
+        insert into shifts (firm_id, site_id, event_id, role, post, starts_at, ends_at, headcount,
+                            status, source, external_ref)
+        values (${firmId}, ${siteId}, ${eventId}, 'steward', 'South Bridge', ${startsAt}, ${endsAt},
+                2, 'open', 'api', ${`client-spec-${o.tag}`})
+        returning id::text as id`);
+      const { rows: people } = await tx.execute<{ id: string; name: string }>(sql`
+        select id::text as id, first_name || ' ' || last_name as name from workers
+         where status = 'active' order by first_name, id limit 2`);
+      let slot = 1;
+      for (const p of people) {
+        await tx.execute(sql`
+          insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at)
+          values (${firmId}, ${shiftId}, ${slot++}, ${p.id}, 'confirmed', now())`);
+      }
+      return {
+        contractId,
+        contractName,
+        eventId,
+        eventName,
+        shiftId,
+        plannerShiftId,
+        casuals: people.map((p) => p.name),
+      };
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
+// Ends a client scene: its sessions cancelled (no later spec sees their places), its contract
+// removed with its client logins and requests (its venue stays, as Settings' "Remove" leaves it).
+export async function endClientScene(
+  slug: string,
+  scene: { contractId: string; eventId: string },
+): Promise<void> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    await createWithFirm(pool)(seedId(`firm/${slug}`), async (tx) => {
+      await tx.execute(sql`
+        update shifts set status = 'cancelled'
+         where event_id in (select id from shift_events where id = ${scene.eventId}
+                            union select event_id from client_requests
+                             where contract_id = ${scene.contractId} and event_id is not null)`);
+      // Its client logins and requests go with the contract (their keys cascade, as Settings'
+      // "Remove" takes them).
+      await tx.execute(
+        sql`update sites set client_id = null where client_id = ${scene.contractId}`,
+      );
+      await tx.execute(sql`delete from office_user_clients where client_id = ${scene.contractId}`);
+      await tx.execute(sql`delete from clients where id = ${scene.contractId}`);
+    });
   } finally {
     await pool.end();
   }

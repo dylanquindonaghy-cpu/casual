@@ -2,14 +2,14 @@
 
 import { z } from "zod";
 import { readSessionToken, setSessionCookie } from "@/lib/auth/session-cookie";
-import { loginWithStaffAccount, openCasualView } from "@/lib/demo/staff-session";
+import { loginWithStaffAccount, openCasualView, openClientView } from "@/lib/demo/staff-session";
 import { appEnv } from "@/lib/env";
 import { clientIp, requestLog } from "@/lib/request";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 
-// The staffing demo's two actions (Phase 31). Demo mode and the firm are checked again in
-// src/lib/demo/staff-session.ts, on the server, whatever the page showed: off a demo server both
-// refuse. They set the cookie the way the magic-link logins do (src/app/office/l/actions.ts,
+// The staffing demo's actions (Phase 31; the client view, 36.5). Demo mode and the firm are
+// checked again in src/lib/demo/staff-session.ts, on the server, whatever the page showed: off a
+// demo server each refuses. They set the cookie the way the magic-link logins do (src/app/office/l/actions.ts,
 // src/app/l/actions.ts) and return a result; the browser then goes on by itself.
 
 export type StaffLoginState =
@@ -67,6 +67,27 @@ export async function openCasualViewAction(): Promise<CasualViewState> {
     return { status: "ok" };
   } catch (error) {
     (await requestLog()).error("casual view failed", { firmId: firm.id, error });
+    return { status: "error" };
+  }
+}
+
+export type ClientViewState = {
+  status: "idle" | "ok" | "logged_out" | "no_client" | "off" | "error";
+};
+
+// "Client view" (Phase 36.5): a client's session for the match day's client login, its own cookie.
+export async function openClientViewAction(): Promise<ClientViewState> {
+  const firm = await getCurrentFirm();
+  try {
+    const result = await openClientView(
+      { firm, clientIp: await clientIp(), demoMode: appEnv().DEMO_MODE },
+      await readSessionToken("office"),
+    );
+    if (result.status !== "ok") return { status: result.status };
+    await setSessionCookie("client", result.token, result.expiresAt);
+    return { status: "ok" };
+  } catch (error) {
+    (await requestLog()).error("client view failed", { firmId: firm.id, error });
     return { status: "error" };
   }
 }

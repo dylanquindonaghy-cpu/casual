@@ -231,6 +231,8 @@ export const LOG_TYPES = {
       "auth.demo_login",
       "auth.demo_login_failed",
       "auth.demo_casual_view",
+      // Phase 36.5 (demo servers only): the client view ({kind, clientContactId, contractId}).
+      "auth.demo_client_view",
       // Phase 33.1: someone finished or skipped their first-login tour ({kind}, ids only).
       "tour.finished",
       "tour.skipped",
@@ -302,6 +304,26 @@ export const LOG_TYPES = {
       "webhook.failed",
     ],
   },
+  // Client logins and client requests (Phase 36): a contact's id and their contract's, a request's
+  // id, kind and counts; never a name, an address or the client's words.
+  clients: {
+    label: "Client logins and requests",
+    actions: [
+      "client_contact.added",
+      "client_contact.switched_off",
+      "client_contact.switched_on",
+      "client_contact.link_requested",
+      "client_request.created",
+      "client_request.replied",
+      "client_request.accepted",
+      "client_request.declined",
+      "client_request.asked",
+      "client_request.planner_done",
+      "client_request.email_sending",
+      "client_request.email_sent",
+      "client_request.email_failed",
+    ],
+  },
   sheet: {
     label: "Rota sheet and imports",
     actions: [
@@ -339,6 +361,10 @@ export const LIMIT_TYPES: Readonly<Record<string, LogType>> = {
   "api:key": "firm",
   "strikes_link:firm": "firm",
   "strikes_link:firm_day": "firm",
+  "client:office_link": "clients", // an admin's "Send link" to a client login (Phase 36.3)
+  // A client login's requests and replies to the office's questions (Phase 36.4).
+  "client_request:contact": "clients",
+  "client_reply:contact": "clients",
 };
 const limitType = (data: Record<string, unknown> | undefined): LogType => {
   const name = data?.limit;

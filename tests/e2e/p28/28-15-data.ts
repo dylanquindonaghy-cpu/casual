@@ -81,7 +81,11 @@ export async function offerScene(casual: {
     const { rows } = await tx.execute<{ id: string }>(sql`
       insert into offers (firm_id, shift_id, worker_id, wave, channel, sent_at)
       values (${seedId("firm/acme")}, ${shiftId}, ${workerId}, 1, 'push',
-              now() - interval '40 minutes')
+              -- 40 minutes ago, but never before today's midnight in London: an offer from
+              -- yesterday reads "Offered 23:37 on Thu 12 Nov", and the spec checks today's wording
+              -- (a run between 00:00 and 00:40 failed on that).
+              greatest(now() - interval '40 minutes',
+                       (date_trunc('day', now() at time zone 'Europe/London')) at time zone 'Europe/London'))
       returning id::text as id`);
     const id = rows[0]?.id;
     if (!id) throw new Error("offer insert returned nothing");

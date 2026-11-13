@@ -190,19 +190,37 @@ describe("Tell me about", () => {
   it("the defaults until someone changes one; each change saved and logged; a repeat writes nothing", async () => {
     const t = await office();
     const read = (who: string) => withFirm(t.f.firmId, (tx) => loadTellMe(tx, who));
-    expect(await read(t.anna)).toEqual(["popup", "cancel_push", "open_push", "summary"]);
-    expect(await read(t.cara)).toEqual(["popup", "summary"]);
+    // "Client requests" (Phase 36.4) is on by default too.
+    expect(await read(t.anna)).toEqual([
+      "popup",
+      "cancel_push",
+      "open_push",
+      "summary",
+      "client_requests",
+    ]);
+    expect(await read(t.cara)).toEqual(["popup", "summary", "client_requests"]);
     // Cara's two changes, each logged with what she's now told about.
     expect((await eventsOf(t.f, "office_user.tell_me_saved")).map((e) => e.data)).toEqual([
-      { kind: "cancel_push", on: false, tellMe: ["popup", "open_push", "summary"] },
-      { kind: "open_push", on: false, tellMe: ["popup", "summary"] },
+      {
+        kind: "cancel_push",
+        on: false,
+        tellMe: ["popup", "open_push", "summary", "client_requests"],
+      },
+      { kind: "open_push", on: false, tellMe: ["popup", "summary", "client_requests"] },
     ]);
     // Already off: nothing written or logged.
     await saveTellMe(t.ctx(t.cara), { kind: "open_push", on: false });
     expect(await eventsOf(t.f, "office_user.tell_me_saved")).toHaveLength(2);
     // Uploads on for Anna; a kind that doesn't exist, and payroll, refused.
     await saveTellMe(t.ctx(t.anna), { kind: "uploads", on: true });
-    expect(await read(t.anna)).toEqual(["popup", "cancel_push", "open_push", "uploads", "summary"]);
+    expect(await read(t.anna)).toEqual([
+      "popup",
+      "cancel_push",
+      "open_push",
+      "uploads",
+      "summary",
+      "client_requests",
+    ]);
     expect(await saveTellMe(t.ctx(t.anna), { kind: "everything", on: true })).toEqual({
       status: "invalid",
     });
@@ -469,14 +487,34 @@ describe("the tick", () => {
         clock: clockAt(at),
       });
     // 07:55 London: the open places only.
-    expect(await tick(new Date("2026-11-02T07:55:00Z"))).toEqual({ open: 1, summaries: 0 });
+    expect(await tick(new Date("2026-11-02T07:55:00Z"))).toEqual({
+      open: 1,
+      summaries: 0,
+      clientRequests: 0,
+    });
     // 08:00: the summary too; 08:05: the next slot's open places, the same day's summary not again.
-    expect(await tick(new Date("2026-11-02T08:00:00Z"))).toEqual({ open: 1, summaries: 1 });
-    expect(await tick(new Date("2026-11-02T08:05:00Z"))).toEqual({ open: 1, summaries: 0 });
+    expect(await tick(new Date("2026-11-02T08:00:00Z"))).toEqual({
+      open: 1,
+      summaries: 1,
+      clientRequests: 0,
+    });
+    expect(await tick(new Date("2026-11-02T08:05:00Z"))).toEqual({
+      open: 1,
+      summaries: 0,
+      clientRequests: 0,
+    });
     // The same slot twice: once.
-    expect(await tick(new Date("2026-11-02T08:06:00Z"))).toEqual({ open: 0, summaries: 0 });
+    expect(await tick(new Date("2026-11-02T08:06:00Z"))).toEqual({
+      open: 0,
+      summaries: 0,
+      clientRequests: 0,
+    });
     // 11:00 the next day: too late for that day's summary.
-    expect(await tick(new Date("2026-11-03T11:00:00Z"))).toEqual({ open: 1, summaries: 0 });
+    expect(await tick(new Date("2026-11-03T11:00:00Z"))).toEqual({
+      open: 1,
+      summaries: 0,
+      clientRequests: 0,
+    });
     expect(await jobsOf(t.f, "office-summary")).toEqual([
       { firmId: t.f.firmId, idempotencyKey: "office-summary:2026-11-02", date: "2026-11-02" },
     ]);

@@ -32,6 +32,13 @@ export const LIMITS = {
   officeLoginPerEmail: { name: "office:email", max: 3, windowMs: 15 * MINUTE },
   officeLoginPerEmailDaily: { name: "office:email_day", max: 10, windowMs: 24 * 60 * MINUTE },
   officeLoginPerIp: { name: "office:ip", max: 10, windowMs: 15 * MINUTE },
+  // Client login links by email (Phase 36.3): the office's rules, counted apart.
+  clientLoginPerEmail: { name: "login:client_email", max: 3, windowMs: 15 * MINUTE },
+  clientLoginPerEmailDaily: { name: "login:client_email_day", max: 10, windowMs: 24 * 60 * MINUTE },
+  clientLoginPerIp: { name: "login:client_ip", max: 10, windowMs: 15 * MINUTE },
+  // An admin's "Send link" to a client contact: 3 per contact every 15 minutes, counted by the
+  // contact's id (each is an email to them).
+  clientLinkByOffice: { name: "client:office_link", max: 3, windowMs: 15 * MINUTE },
   // Pay-page codes: 3 per worker every 15 minutes and 10 a day (each costs a message and gives
   // 5 guesses, so the daily cap bounds guessing over a long, noisy attack).
   codePerWorker: { name: "otp:worker", max: 3, windowMs: 15 * MINUTE },
@@ -54,6 +61,11 @@ export const LIMITS = {
   // worker's id. Each is sorted (perhaps by the AI) and may wait in Need a person, so one session
   // can't flood either.
   appMessagePerWorker: { name: "app_message:worker", max: 20, windowMs: 60 * MINUTE },
+  // A client contact's requests (Phase 36.4): 20 sent an hour, and 20 replies to the office's
+  // questions an hour, counted by the contact's id (each lands in the office's queue, and an urgent
+  // one notifies the resourcers), so one login can't flood the office.
+  clientRequestPerContact: { name: "client_request:contact", max: 20, windowMs: 60 * MINUTE },
+  clientReplyPerContact: { name: "client_reply:contact", max: 20, windowMs: 60 * MINUTE },
   // The demo's staffing login (Phase 31.1; demo servers only): 5 wrong passwords every 15 minutes,
   // per IP and per login name typed. Only wrong ones count, so a room of people trying the demo on
   // one Wi-Fi isn't locked out by logging in.

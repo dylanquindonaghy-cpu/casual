@@ -1488,6 +1488,66 @@ its line says, as the approved mock-up shows (with the three changes above); `RU
 ./scripts/verify.sh` prints VERIFIED; the `guardrails-reviewer` has no open findings; the
 `claims-auditor` checks each task against its line and this one.
 
+## Phase 36 — Updates you can filter, client logins and client requests, two fixes, and a match day to play with (go-ahead: Dylan, 2026-11-11; S, A, T, M, R, UI)
+
+Asked, 2026-11-11 (Dylan, in chat, word for word): "i want you to work on a new feature to the
+platform that allows clients to send over new requests and amendments to their current deployments
+obviously needs to intergrete into the notifications urgency status' etc", then, with screenshots of
+Updates, the events page's session menu and an event's Interested tab and a match-day deployment
+sheet: "this part needs to be more polished how many days you watn to see updates from what events
+if its cancellations new requests pay roll queries if we are still low on certain events etc", "the
+pop up shouldnt be transparent", "Casuals take places on this event. Switch on "Casuals ask, you
+choose" on a session's page to choose from who asks. doesnt have an option to even do that", "also
+client login for your question", "can you also build more data so i can review if anything needs
+any changing add this to the portal also i wanna use it for testing the Kick off is 16:30 add
+location etc cancels for it literally everything so i can play around use it how its meant to be".
+The mock-up: https://claude.ai/artifact/AXBY4CL2Hg7NPwNZuRqdaN. Approved the same day: "approved,
+go with your recommendations and build it", so: **a client login**; **the office accepts or
+declines each request**; **clients see numbers only, never casuals' names**; **the rules decide
+urgency** (urgent when it starts within 48 hours, or cuts places or hours casuals are booked on);
+a change to an event the firm's planner, sheet or connector owns goes on **"To do in AXLR8"** (the
+planner's name) until the office marks it done. The match-day sheet is a real client deployment, so
+nothing from it is copied (golden rule 7): the demo match day is made up in the same shape. Words
+in `docs/screens.md` ("## Phase 36") and `docs/messaging-templates.md`.
+
+- [x] Two fixes (UI): every floating menu and pop-over in the office solid (the session menu on
+      Events & sessions first), still readable in light and dark; "Casuals ask, you choose"'s
+      switch on an event's Interested tab (the event's one setting; still on each session's page),
+      the tab's words saying what it does (UI) (36.1)
+- [x] Updates you can filter (UI): how far back (today, 3, 7 or 30 days), which event (or all), and
+      which kinds (needs action, client requests, still to fill, cancellations, pay queries,
+      uploads, enquiries, everything), kept in the address so a link opens the same view; "Low on
+      cover": the next 7 days' events, least covered first; "Tell me about: client requests" (a
+      notification for urgent ones) (UI; M) (36.2)
+- [x] Client logins (S, A, T): client contacts on a contract (name, work email, on or off; admins
+      add, switch off and send a link on the contract's page), a magic-link login at
+      `/client/login` (the office login's rules: one-time link, 15 minutes, hashed, rate-limited, the
+      same answer for any address) and its own session cookie; the client's pages: their contract's
+      events to come with places needed, booked and to fill per session, and their requests, never a
+      casual's name or details; firm and contract enforced on the server (S, A, T; UI) (36.3)
+- [x] Client requests (S, M, R): a client asks for a new event (date, venue, sessions with role,
+      places and times, notes) or a change to a session (more or fewer places, new times, cancel, or
+      something else); urgency by the rules; the office's Client requests page (waiting, accepted,
+      declined, to do in the planner; what accepting does; accept, decline with a reason the client
+      sees, or ask the client), accepting applies it through the office's own paths (places offered
+      at once, booked casuals given notice and the change logged by the firm: golden rule 12; a new
+      event created hidden from casuals until the office shows it) or, for a planner's, sheet's or
+      connector's event, lists it under "To do in AXLR8"; the client sees the answer and gets an
+      email; in Updates, the bell, the top bar's count, the 08:00 summary and, when urgent, a
+      notification to the resourcers on that contract; every step logged, ids only (S, M, R; UI)
+      (36.4)
+- [x] A match day to play with (demo seed): "Demo Rovers v Visitors FC" at a made-up Demo Stadium
+      (address, postcode, map pin), kick-off 16:30 on the demo's coming Saturday, shaped like the
+      sheet (locations, roles including supervisors, SIA stewards, stewards, CSAS and Chapter 8,
+      shifts from kick-off, descriptions, redeployment notes), partly booked, with cancellations, an
+      urgent gap, pay queries, a client contract with a client login (made up) and two waiting
+      requests; "Client view" on the staffing demo's "Choose a view" (36.5)
+
+Done when: all five tasks are ticked with a stamp that includes the browser tests; each built what
+its line says, as the approved mock-up shows; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; the
+`guardrails-reviewer` has no open findings; the `claims-auditor` checks each task against its line
+and this one.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

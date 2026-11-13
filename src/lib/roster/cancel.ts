@@ -118,6 +118,17 @@ export async function cancelBooking(
   return retryAborted(() => run(firmId, (tx) => cancelInTransaction(tx, request, now)));
 }
 
+// The office's cancellation of one booking inside a transaction the caller already holds (Phase
+// 36.4: accepting a client's "fewer places" cancels the bookings the cut needs in the accept's own
+// transaction, each exactly as the office's own cancel does it). The office only.
+export function cancelBookingInTx(
+  tx: FirmTx,
+  raw: CancelRequest & { by: { type: "office"; id: string } },
+  now: Date,
+): Promise<CancelBookingResult> {
+  return cancelInTransaction(tx, cancelRequestSchema.parse(raw), now);
+}
+
 // Whether the firm's system listed this casual as booked at its last read (by their staff ref).
 async function listedThere(tx: FirmTx, workerId: string, listed: string[]): Promise<boolean> {
   const [worker] = await tx

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MENU_AREAS, officeMenu } from "@/app/office/office-menu";
+import { barCounts, MENU_AREAS, menuBadges, officeMenu } from "@/app/office/office-menu";
 import { canAccess, OFFICE_AREAS, ROLE_LABELS, type OfficeRole } from "@/lib/auth/roles";
 import { OFFICE_ROLES_THAT_PLACE } from "@/lib/roster/book";
 
@@ -71,6 +71,56 @@ describe("office roles", () => {
     }
   });
 
+  it("client logins (36.3) are for admins; client requests (36.4) for the roles that place staff", () => {
+    expect(canAccess("admin", "client_logins")).toBe(true);
+    expect(canAccess("resourcer", "client_logins")).toBe(false);
+    expect(canAccess("payroll", "client_logins")).toBe(false);
+    // Accepting a request changes sessions, so it's exactly the roles that may place staff.
+    expect([...OFFICE_AREAS.client_requests].sort()).toEqual([...OFFICE_ROLES_THAT_PLACE].sort());
+    expect(canAccess("payroll", "client_requests")).toBe(false);
+  });
+
+  it("Client requests (36.4) is in the menu, its count and the top bar's chip, for the roles that may answer them", () => {
+    const hrefs = (role: OfficeRole) => officeMenu(role).flatMap((g) => g.links.map((l) => l.href));
+    expect(hrefs("admin")).toContain("/office/client-requests");
+    expect(hrefs("resourcer")).toContain("/office/client-requests");
+    expect(hrefs("payroll")).not.toContain("/office/client-requests");
+    // Right after Enquiries, in Today.
+    const today = officeMenu("resourcer").find((g) => g.label === "Today");
+    expect(today?.links.map((l) => l.label)).toEqual([
+      "Events & sessions",
+      "Enquiries",
+      "Client requests",
+      "Cancellations",
+    ]);
+    const counts = { payQueries: 0, needPerson: 0, uploads: 0 };
+    expect(
+      menuBadges("resourcer", { ...counts, clientRequests: 2 })["/office/client-requests"],
+    ).toEqual({ count: 2, words: "2 waiting", needs: true });
+    expect(menuBadges("resourcer", { ...counts, clientRequests: 0 })).toEqual({});
+    // The menu shows the badge on its link.
+    const link = officeMenu("admin", menuBadges("admin", { ...counts, clientRequests: 3 }))
+      .flatMap((g) => g.links)
+      .find((l) => l.href === "/office/client-requests");
+    expect(link?.badge?.count).toBe(3);
+    // The top bar's chip: only while there are any, and only for roles that may open the page.
+    const bar = (role: OfficeRole, clientRequests: number | null) =>
+      barCounts(role, { shell: null, attention: null, payQueries: null, clientRequests }).find(
+        (c) => c.key === "clientRequests",
+      );
+    expect(bar("resourcer", 4)).toEqual({
+      key: "clientRequests",
+      label: "Client requests",
+      href: "/office/client-requests",
+      icon: "list",
+      count: 4,
+    });
+    expect(bar("admin", 1)?.count).toBe(1);
+    expect(bar("admin", 0)).toBeUndefined();
+    expect(bar("admin", null)).toBeUndefined();
+    expect(bar("payroll", 4)).toBeUndefined();
+  });
+
   it("pay queries are for payroll and admins", () => {
     expect(canAccess("payroll", "pay")).toBe(true);
     expect(canAccess("admin", "pay")).toBe(true);
@@ -86,6 +136,7 @@ describe("office roles", () => {
       "/office/pay": ["pay"],
       "/office/events": ["shifts"],
       "/office/enquiries": ["enquiries"],
+      "/office/client-requests": ["client_requests"],
       "/office/cancellations": ["cancellations"],
       "/office/strikes": ["strikes"],
       "/office/casuals": ["casuals"],

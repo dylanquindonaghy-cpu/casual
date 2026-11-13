@@ -35,12 +35,15 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
   const value = (p: { ok: true; data: number } | { ok: false } | null) => (p?.ok ? p.data : null);
   const needPerson = value(frame.needPerson);
   const attention = frame.needs ? attentionOf(frame.needs.needs, frame.needPerson) : null;
+  // Client requests waiting for the office (Phase 36.4: the menu's count and the top bar's chip).
+  const clientRequests = frame.clientRequests?.ok ? frame.clientRequests.data.waiting : null;
   // Pale yellow when it needs this person (Phases 18 and 20; office-menu.ts menuBadges).
   const badges = menuBadges(s.officeUser.role, {
     payQueries: value(frame.payQueries) ?? 0,
     needPerson: needPerson ?? 0,
     uploads: value(frame.uploads) ?? 0,
     attention,
+    clientRequests: clientRequests ?? 0,
   });
   const jar = await cookies();
   return (
@@ -57,6 +60,7 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
             ? { count: attention?.count ?? null, more: attention?.more ?? false }
             : null,
           payQueries: frame.payQueries ? value(frame.payQueries) : null,
+          clientRequests,
         })}
         canSearch={
           canAccess(s.officeUser.role, "casuals") || canAccess(s.officeUser.role, "shifts")

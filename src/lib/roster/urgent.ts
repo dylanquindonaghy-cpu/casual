@@ -170,46 +170,54 @@ export async function offerShiftPlaces(
 ): Promise<OfferPlacesResult> {
   if (!uuid.safeParse(input.shiftId).success) return { status: "not_found" };
   const now = (deps.clock ?? systemClock).now();
-  return run(firmId, async (tx) => {
-    if (!(await officeCanPlace(tx, input.by.id))) return { status: "not_allowed" };
-    const [shift] = await tx
-      .select({
-        status: shifts.status,
-        startsAt: shifts.startsAt,
-        headcount: shifts.headcount,
-        isUrgent: shifts.isUrgent,
-      })
-      .from(shifts)
-      .where(eq(shifts.id, input.shiftId))
-      .for("no key update");
-    if (!shift) return { status: "not_found" };
-    const { rows: held } = await tx.execute<{ booked: number }>(sql`
-      select count(*)::int as booked from assignments
-       where shift_id = ${input.shiftId} and worker_id is not null
-         and status not in (${CANCELLED}) and slot <= ${shift.headcount}
-    `);
-    const free = shift.headcount - (held[0]?.booked ?? 0);
-    if (shift.status !== "open" || shift.startsAt.getTime() <= now.getTime() || free <= 0) {
-      return { status: "full" };
-    }
-    if (shift.isUrgent && !(await wavesStopped(tx, input.shiftId))) {
-      return { status: "already_offering" };
-    }
-    if (!shift.isUrgent) {
-      await tx.update(shifts).set({ isUrgent: true }).where(eq(shifts.id, input.shiftId));
-    }
-    const offering = await startOfferWaves(tx, { shiftId: input.shiftId, now });
-    await queueTravelEstimates(tx, [input.shiftId], { startAfter: AFTER_WAVE_DELAY_SECONDS });
-    await recordEvent(tx, {
-      actorType: "office",
-      actorId: input.by.id,
-      action: shift.isUrgent ? "shift.offers_restarted" : "shift.marked_urgent",
-      entityType: "shift",
-      entityId: input.shiftId,
-      data: { by: "firm", cause: "office", hoursToStart: hoursToStart(shift.startsAt, now) },
-    });
-    return { status: offering ? "offering" : "offering_hidden" };
+  return run(firmId, (tx) => offerPlacesInTx(tx, { ...input, now }));
+}
+
+// The same inside a transaction the caller holds (Phase 36.4: accepting a client's request for
+// more places offers them at once, in the accept's own transaction).
+export async function offerPlacesInTx(
+  tx: FirmTx,
+  input: { shiftId: string; by: { type: "office"; id: string }; now: Date },
+): Promise<OfferPlacesResult> {
+  const { now } = input;
+  if (!(await officeCanPlace(tx, input.by.id))) return { status: "not_allowed" };
+  const [shift] = await tx
+    .select({
+      status: shifts.status,
+      startsAt: shifts.startsAt,
+      headcount: shifts.headcount,
+      isUrgent: shifts.isUrgent,
+    })
+    .from(shifts)
+    .where(eq(shifts.id, input.shiftId))
+    .for("no key update");
+  if (!shift) return { status: "not_found" };
+  const { rows: held } = await tx.execute<{ booked: number }>(sql`
+    select count(*)::int as booked from assignments
+     where shift_id = ${input.shiftId} and worker_id is not null
+       and status not in (${CANCELLED}) and slot <= ${shift.headcount}
+  `);
+  const free = shift.headcount - (held[0]?.booked ?? 0);
+  if (shift.status !== "open" || shift.startsAt.getTime() <= now.getTime() || free <= 0) {
+    return { status: "full" };
+  }
+  if (shift.isUrgent && !(await wavesStopped(tx, input.shiftId))) {
+    return { status: "already_offering" };
+  }
+  if (!shift.isUrgent) {
+    await tx.update(shifts).set({ isUrgent: true }).where(eq(shifts.id, input.shiftId));
+  }
+  const offering = await startOfferWaves(tx, { shiftId: input.shiftId, now });
+  await queueTravelEstimates(tx, [input.shiftId], { startAfter: AFTER_WAVE_DELAY_SECONDS });
+  await recordEvent(tx, {
+    actorType: "office",
+    actorId: input.by.id,
+    action: shift.isUrgent ? "shift.offers_restarted" : "shift.marked_urgent",
+    entityType: "shift",
+    entityId: input.shiftId,
+    data: { by: "firm", cause: "office", hoursToStart: hoursToStart(shift.startsAt, now) },
   });
+  return { status: offering ? "offering" : "offering_hidden" };
 }
 
 // Whether a session's offer waves have stopped: its latest stop names a wave no offer went in

@@ -29,7 +29,8 @@ import { foldBadge, railItems, tipWords, type RailItem } from "./rail-items";
 // person: Needs attention, enquiries that need a person, uploads to check, pay queries for payroll),
 // on a fold's icon when one of its pages does. Shut, an icon's name shows beside it under the pointer
 // and on keyboard focus (with its count's words), stays while the pointer moves onto it, and Escape
-// puts it away (WCAG 1.4.13). Shut, it's 585px tall: in a window under 640px it scrolls, with no bar
+// puts it away (WCAG 1.4.13). Shut, it's about 625px tall (Phase 36.4: Client requests joined it, and
+// its spacing closed up 24px so it still fits a 640px window): under 640px it scrolls, with no bar
 // (its names then show only with the rail open). Shut, each icon is a dark circle and the page
 // you're on a solid white one (ink on the light look), its icon dark; a fold holding it is the same
 // while it's shut. Plain links and buttons (no list items, headings, regions or menu roles, which the
@@ -193,7 +194,7 @@ export function OfficeRail({
     const lit = holds && !expanded;
     const icon: IconName = group.icon ?? "settings";
     return (
-      <div key={id} className={item.apart ? "mt-4 border-t border-line pt-3" : undefined}>
+      <div key={id} className={item.apart ? "mt-3 border-t border-line pt-2" : undefined}>
         <Row open={open} tip={tipWords(group.label, badge)} away={away} onBack={back}>
           <button
             type="button"
@@ -243,11 +244,11 @@ export function OfficeRail({
       id={RAIL_ID}
       data-rail={open ? "open" : "shut"}
       data-tour="menu"
-      className={`glass sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card px-2 py-4 transition-[width] duration-200 ease-sd lg:flex ${open ? "max-h-[calc(100dvh-1.5rem)] w-59" : "scrollbar-none w-18 items-center [@media(height<40rem)]:max-h-[calc(100dvh-1.5rem)] [@media(height<40rem)]:overflow-y-auto"}`}
+      className={`glass sticky top-3 z-30 mt-3 hidden flex-col self-start rounded-card px-2 py-3 transition-[width] duration-200 ease-sd lg:flex ${open ? "max-h-[calc(100dvh-1.5rem)] w-59" : "scrollbar-none w-18 items-center [@media(height<40rem)]:max-h-[calc(100dvh-1.5rem)] [@media(height<40rem)]:overflow-y-auto"}`}
     >
       {/* The firm (its name only while the rail is open), then the rail's own button. */}
       <div
-        className={`mb-4 flex shrink-0 ${open ? "items-center gap-3 pl-1" : "flex-col items-center gap-3"}`}
+        className={`mb-3 flex shrink-0 ${open ? "items-center gap-3 pl-1" : "flex-col items-center gap-2"}`}
       >
         <span
           aria-hidden="true"

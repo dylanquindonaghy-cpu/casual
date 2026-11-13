@@ -30,6 +30,9 @@ export interface Names {
   office: (id: unknown) => string;
   credential?: (code: unknown) => string; // a credential type's name ("SIA door supervisor licence")
   site?: (id: unknown) => string; // a site's name ("Riverside Arena")
+  // Phase 36: a client contact's name (a client login: never a casual) and a contract's.
+  client?: (id: unknown) => string;
+  contract?: (id: unknown) => string;
 }
 
 // A message the shifts line didn't answer by itself, and an alert left for the hour's one email
@@ -218,7 +221,14 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       ? names.worker(e.actorId)
       : e.actorType === "office"
         ? names.office(e.actorId)
-        : "Someone";
+        : e.actorType === "client"
+          ? (names.client?.(e.actorId) ?? "A client")
+          : "Someone";
+  // Client logins and requests (Phase 36): the client's name, and their contract's.
+  const clientName =
+    e.actorType === "client" ? (names.client?.(e.actorId) ?? "A client") : "A client";
+  const contract = names.contract?.(d.contractId) ?? "a contract";
+  const requestKind = CLIENT_KIND_LOG_WORDS[String(d.kind)] ?? "a request";
   const credential = (code: unknown) =>
     names.credential?.(code) ?? String(code ?? "credential").replace(/_/g, " ");
   const kind = (type: unknown) => (KIND_NAMES[String(type)] ?? "a request").toLowerCase();
@@ -1084,6 +1094,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
 
     // Logins.
     case "auth.link_requested":
+      if (d.kind === "client") {
+        return `A client login link was asked for${d.matched ? "" : " (an address we don't know)"}.`;
+      }
       if (d.kind === "office") {
         return `An office login link was asked for${d.matched ? "" : " (an address we don't know)"}.`;
       }
@@ -1091,11 +1104,13 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return d.workerId ? `${worker} asked for a login link.` : "A worker asked for a login link.";
     case "auth.link_sent":
       if (d.purpose === "office_login") return `Login link sent to an office user${unconfirmed(d)}`;
+      if (d.purpose === "client_login") return `Login link sent to a client${unconfirmed(d)}`;
       return d.workerId
         ? `Login link sent to ${worker}${unconfirmed(d)}`
         : `Login link sent to a worker${unconfirmed(d)}`;
     case "auth.link_send_failed":
       if (d.purpose === "office_login") return "A login link to an office user couldn't be sent.";
+      if (d.purpose === "client_login") return "A login link to a client couldn't be sent.";
       return d.workerId
         ? `A login link to ${worker} couldn't be sent.`
         : "A login link to a worker couldn't be sent.";
@@ -1132,6 +1147,11 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return d.workerId
         ? `${who} opened the casual view as ${worker}.`
         : `${who} opened the casual view.`;
+    // Phase 36.5 (demo servers only): a client's session for the demo's client login.
+    case "auth.demo_client_view":
+      return d.clientContactId
+        ? `${who} opened the client view as ${names.client?.(d.clientContactId) ?? "a client"} (${contract}).`
+        : `${who} opened the client view.`;
     // Phase 33.1: the first-login tour, the office's or a casual's.
     case "tour.finished":
       return `${who} finished the welcome tour.`;
@@ -1144,6 +1164,10 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       // A casual's own limits (13.3, 13.5): not logging in.
       if (d.limit === "take:worker") {
         return "Too many taps on Take shift: taking shifts was paused for a while.";
+      }
+      // A client contact's (Phase 36.4).
+      if (d.limit === "client_request:contact" || d.limit === "client_reply:contact") {
+        return "Too many client requests from one client login: sending them was paused for a while.";
       }
       if (d.limit === "push:worker") {
         return "Too many changes to phone notifications: saving them was paused for a while.";
@@ -1258,8 +1282,43 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         ? `${officeName} added a contract with ${venues}.`
         : `${officeName} saved a contract: ${venues}.`;
     }
-    case "client.removed":
-      return `${officeName} removed a contract.`;
+    case "client.removed": {
+      const logins = typeof d.clientLogins === "number" ? d.clientLogins : 0;
+      return logins === 0
+        ? `${officeName} removed a contract.`
+        : `${officeName} removed a contract and its ${logins === 1 ? "client login" : `${logins} client logins`}.`;
+    }
+    // Client logins (Phase 36.3): the contact by name (a client's, never a casual's), not their
+    // address.
+    case "client_contact.added":
+      return `${officeName} added a client login to ${contract}.`;
+    case "client_contact.switched_off":
+      return `${officeName} switched off a client login on ${contract}${loggedOut(d)}.`;
+    case "client_contact.switched_on":
+      return `${officeName} switched a client login on ${contract} back on.`;
+    case "client_contact.link_requested":
+      return `${officeName} sent a client a login link.`;
+    // Client requests (Phase 36.4): ids, the kind and counts only; the words stay on the request.
+    case "client_request.created":
+      return `${clientName} (${contract}) asked for ${requestKind}${d.urgent === true ? ": urgent" : ""}.`;
+    case "client_request.replied":
+      return `${clientName} (${contract}) answered your question about their request.`;
+    case "client_request.accepted":
+      return d.plannerToDo === true
+        ? `${officeName} accepted a client's request for ${requestKind}: it's on the to-do list for ${d.owner === "sheet" ? "your rota sheet" : "your planner"}.`
+        : `${officeName} accepted a client's request for ${requestKind}${acceptedWhat(d)}.`;
+    case "client_request.declined":
+      return `${officeName} declined a client's request for ${requestKind}.`;
+    case "client_request.asked":
+      return `${officeName} asked the client about their request for ${requestKind}.`;
+    case "client_request.planner_done":
+      return `${officeName} marked a client's request for ${requestKind} done in the planner.`;
+    case "client_request.email_sending":
+      return "Emailing the client the office's answer.";
+    case "client_request.email_sent":
+      return "The client was emailed the office's answer.";
+    case "client_request.email_failed":
+      return "The email to the client with the office's answer couldn't be sent.";
     case "office_user.tell_me_saved": {
       const kind = String(d.kind) as TellMeKind;
       const title = TELL_ME_ROWS[kind]?.title ?? "an alert";
@@ -1284,6 +1343,41 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     default:
       return `Recorded: ${e.action}.`;
   }
+}
+
+// A client request's kind in the log's words (Phase 36.4).
+const CLIENT_KIND_LOG_WORDS: Record<string, string> = {
+  new_event: "a new event",
+  more_places: "more places",
+  fewer_places: "fewer places",
+  new_times: "different times",
+  cancel_session: "a session to be cancelled",
+  other: "something else",
+};
+
+// " and logged out of 2 devices" when switching a login off ended any sessions.
+function loggedOut(d: Record<string, unknown>): string {
+  const n = typeof d.sessions === "number" ? d.sessions : 0;
+  return n === 0 ? "" : ` and logged them out of ${n === 1 ? "1 device" : `${n} devices`}`;
+}
+
+// What accepting a client request did, from its entry's counts.
+function acceptedWhat(d: Record<string, unknown>): string {
+  const num = (v: unknown) => (typeof v === "number" ? v : null);
+  const from = num(d.from);
+  const to = num(d.to);
+  if (from !== null && to !== null) {
+    const cancelled = num(d.cancelled) ?? 0;
+    return `: ${from} places became ${to}${cancelled > 0 ? ` (${cancelled === 1 ? "1 booking" : `${cancelled} bookings`} cancelled with notice)` : ""}`;
+  }
+  if (typeof d.moved === "string") return d.moved === "curtailed" ? ": shortened" : ": moved";
+  const bookings = num(d.bookings);
+  if (bookings !== null)
+    return `: the session is cancelled${bookings > 0 ? ` (${bookings === 1 ? "1 booking" : `${bookings} bookings`} cancelled with notice)` : ""}`;
+  const sessions = num(d.sessions);
+  if (sessions !== null)
+    return `: a new event with ${sessions === 1 ? "1 session" : `${sessions} sessions`}, hidden from casuals`;
+  return "";
 }
 
 // What a webhook was about, for its log entry (12J.2).

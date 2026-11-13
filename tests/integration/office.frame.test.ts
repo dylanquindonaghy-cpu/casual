@@ -103,6 +103,11 @@ describe("the office frame", () => {
       needs: null,
       shell: null,
       updates: null,
+      clientRequests: null, // Phase 36.4: client requests are for admins and resourcers
+    });
+    expect(resourcer.clientRequests).toEqual({
+      ok: true,
+      data: { waiting: 0, urgent: 0, plannerToDo: 0 },
     });
   });
 
@@ -116,6 +121,7 @@ describe("the office frame", () => {
       needs: null,
       shell: null,
       updates: null,
+      clientRequests: null,
     };
     expect((await t.frame(await t.f.office("admin", "disabled"))).read).toEqual(none);
     // Another firm's admin, asking under this firm: not one of its users.

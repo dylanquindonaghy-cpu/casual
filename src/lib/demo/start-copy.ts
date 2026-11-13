@@ -21,7 +21,7 @@ export const LOGIN_COPY = {
 
 export const CHOOSER_COPY = {
   title: "Choose a view",
-  intro: "See the demo as the office or as a casual. You can come back here at any time.",
+  intro: "See the demo as the office, a casual or a client. You can come back here at any time.",
   office: {
     title: "Staffing and resourcing view",
     body: "The office: urgent gaps, who to offer, cancellations, enquiries and the log.",
@@ -33,6 +33,16 @@ export const CHOOSER_COPY = {
     pending: "Opening…",
     loggedOut: "You're logged out. Log in again to open the casual view.",
     noCasual: "The demo casual isn't there. Reset the demo, then try again.",
+    problem: "Something went wrong. Try again.",
+  },
+  // Phase 36.5: the client's pages, as the match day's client login sees them.
+  client: {
+    title: "Client view",
+    body: "What a client sees: their events in numbers and the requests they send. Never a casual's name.",
+    href: "/client",
+    pending: "Opening…",
+    loggedOut: "You're logged out. Log in again to open the client view.",
+    noClient: "The demo client isn't there. Reset the demo, then try again.",
     problem: "Something went wrong. Try again.",
   },
   guide: "Quick guide: where everything lives",
@@ -124,6 +134,7 @@ export const OFFICE_PAGE_LINES: Record<string, string> = {
   "/office/needs-attention": "Things that need a person to look at them.",
   "/office/events": "Every event and its sessions. Show or hide them from casuals.",
   "/office/enquiries": "Messages from the shifts line and requests from the casual app.",
+  "/office/client-requests": "What your clients ask for from their logins. Accept or decline each.",
   "/office/cancellations": "Every cancellation, with its notice and reason.",
   "/office/pay": "Pay at a glance for payroll.",
   "/office/pay-queries": "Casuals' pay questions, grouped for payroll.",

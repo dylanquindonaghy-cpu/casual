@@ -10,26 +10,32 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { clientContacts } from "./client";
 import { bytea, createdAt, firmIsolation, timestamptz } from "./helpers";
 import { officeUsers, workers } from "./people";
 import { firms } from "./tenancy";
 
 // Login tables. Raw tokens and codes are never stored: only sha256 (tokens) or an HMAC (codes).
 // kind says which subject a row belongs to, so a worker link or session can never be used as
-// an office one (and the reverse).
+// an office one (and the reverse). 'client' (Phase 36.3): a client contact's (client_contacts).
 
-export const SUBJECT_KINDS = ["worker", "office"] as const;
+export const SUBJECT_KINDS = ["worker", "office", "client"] as const;
 
 const subjectCheck = (
   name: string,
   kind: AnyPgColumn,
   workerId: AnyPgColumn,
   officeUserId: AnyPgColumn,
+  clientContactId: AnyPgColumn,
 ) =>
   check(
     name,
-    sql`(${kind} = 'worker' and ${workerId} is not null and ${officeUserId} is null)
-     or (${kind} = 'office' and ${officeUserId} is not null and ${workerId} is null)`,
+    sql`(${kind} = 'worker' and ${workerId} is not null and ${officeUserId} is null
+         and ${clientContactId} is null)
+     or (${kind} = 'office' and ${officeUserId} is not null and ${workerId} is null
+         and ${clientContactId} is null)
+     or (${kind} = 'client' and ${clientContactId} is not null and ${workerId} is null
+         and ${officeUserId} is null)`,
   );
 
 export const magicLinks = pgTable(
@@ -42,6 +48,7 @@ export const magicLinks = pgTable(
     kind: text("kind", { enum: SUBJECT_KINDS }).notNull(),
     workerId: uuid("worker_id"),
     officeUserId: uuid("office_user_id"),
+    clientContactId: uuid("client_contact_id"),
     tokenHash: bytea("token_hash").notNull().unique(),
     // The login request this link answers. Makes the send job safe to retry.
     requestId: uuid("request_id").notNull().unique(),
@@ -61,8 +68,19 @@ export const magicLinks = pgTable(
       columns: [t.firmId, t.officeUserId],
       foreignColumns: [officeUsers.firmId, officeUsers.id],
     }).onDelete("cascade"),
-    check("magic_links_kind_check", sql`${t.kind} in ('worker', 'office')`),
-    subjectCheck("magic_links_subject_check", t.kind, t.workerId, t.officeUserId),
+    foreignKey({
+      name: "magic_links_client_contact_fk",
+      columns: [t.firmId, t.clientContactId],
+      foreignColumns: [clientContacts.firmId, clientContacts.id],
+    }).onDelete("cascade"),
+    check("magic_links_kind_check", sql`${t.kind} in ('worker', 'office', 'client')`),
+    subjectCheck(
+      "magic_links_subject_check",
+      t.kind,
+      t.workerId,
+      t.officeUserId,
+      t.clientContactId,
+    ),
     firmIsolation(t.firmId),
   ],
 ).enableRLS();
@@ -77,6 +95,7 @@ export const sessions = pgTable(
     kind: text("kind", { enum: SUBJECT_KINDS }).notNull(),
     workerId: uuid("worker_id"),
     officeUserId: uuid("office_user_id"),
+    clientContactId: uuid("client_contact_id"),
     tokenHash: bytea("token_hash").notNull().unique(),
     // After rotation the previous token stays valid briefly, so parallel requests that still
     // carry the old cookie aren't logged out.
@@ -101,8 +120,13 @@ export const sessions = pgTable(
       columns: [t.firmId, t.officeUserId],
       foreignColumns: [officeUsers.firmId, officeUsers.id],
     }).onDelete("cascade"),
-    check("sessions_kind_check", sql`${t.kind} in ('worker', 'office')`),
-    subjectCheck("sessions_subject_check", t.kind, t.workerId, t.officeUserId),
+    foreignKey({
+      name: "sessions_client_contact_fk",
+      columns: [t.firmId, t.clientContactId],
+      foreignColumns: [clientContacts.firmId, clientContacts.id],
+    }).onDelete("cascade"),
+    check("sessions_kind_check", sql`${t.kind} in ('worker', 'office', 'client')`),
+    subjectCheck("sessions_subject_check", t.kind, t.workerId, t.officeUserId, t.clientContactId),
     firmIsolation(t.firmId),
   ],
 ).enableRLS();

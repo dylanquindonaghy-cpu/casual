@@ -28,6 +28,7 @@ import {
   OFFICE_SUMMARY_QUEUE,
 } from "../../lib/office/alert-jobs";
 import { OFFICE_OFFER_QUEUE } from "../../lib/offers/office-offer";
+import { CLIENT_REQUEST_ALERT_QUEUE, CLIENT_REQUEST_ANSWER_QUEUE } from "../../lib/client/jobs";
 import { STRIKES_EMAIL_LINK_QUEUE } from "../../lib/office/strikes-email";
 import { STRIKE_EVIDENCE_QUEUE } from "../../lib/strikes/evidence-queue";
 import { TRAVEL_ESTIMATES_QUEUE } from "../../lib/travel/estimate-queue";
@@ -116,6 +117,9 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   OFFICE_CANCEL_ALERT_QUEUE,
   OFFICE_OPEN_ALERT_QUEUE,
   OFFICE_SUMMARY_QUEUE,
+  // Client requests (Phase 36.4): an urgent one's notification, and the client's answer email.
+  CLIENT_REQUEST_ALERT_QUEUE,
+  CLIENT_REQUEST_ANSWER_QUEUE,
 ];
 
 const sheetsSync = firmQueue(SHEETS_SYNC_QUEUE);

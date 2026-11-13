@@ -156,7 +156,8 @@ export async function saveContract(
   }
 }
 
-// Removes a contract: its sites are left with none first, and everyone's choice of it goes with it.
+// Removes a contract: its sites are left with none first, and everyone's choice of it goes with it,
+// as do its client logins and their requests (Phase 36).
 export async function removeContract(
   ctx: OfficeContext,
   clientId: string,
@@ -174,6 +175,11 @@ export async function removeContract(
                            returning 1)
           select count(*)::int as n from cleared`,
     );
+    // Its client logins and their requests go with it (Phase 36: the cascade; their sessions and
+    // links too), counted here for the log.
+    const { rows: logins } = await tx.execute<{ n: number }>(
+      sql`select count(*)::int as n from client_contacts where contract_id = ${clientId}::uuid`,
+    );
     const { rows } = await tx.execute<{ id: string }>(
       sql`delete from clients where id = ${clientId}::uuid returning id::text as id`,
     );
@@ -184,7 +190,10 @@ export async function removeContract(
       action: "client.removed",
       entityType: "client",
       entityId: clientId,
-      data: { sites: sites[0]?.n ?? 0 },
+      data: {
+        sites: sites[0]?.n ?? 0,
+        ...(logins[0]?.n ? { clientLogins: logins[0].n } : {}),
+      },
     });
     return { status: "removed" };
   });

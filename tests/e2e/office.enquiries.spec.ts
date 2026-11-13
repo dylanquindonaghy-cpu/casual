@@ -21,7 +21,8 @@ import { readOutbox, sentTo } from "./outbox";
 // this spec's own sees them in Need a person (the menu's badge, the honest banner), opens one, reads
 // how it was answered, and replies: the reply reaches that number from Acme's line and the message
 // leaves Need a person. The other is closed with a reason, with no reply. Numbers: 07700
-// 900980-900998, and 900920-900937 on a laptop, which no seeded casual has.
+// 900980-900998, and 900920-900937 on a laptop: the enquiryPhone and enquiryLaptop blocks in
+// spare-mobiles.ts, so no seeded or spec casual can have one (tests/unit/e2e.spare-mobiles.test.ts).
 
 const acme = "http://acme.localhost:3100";
 const webhook = "http://localhost:3100/api/webhooks/twilio/whatsapp";

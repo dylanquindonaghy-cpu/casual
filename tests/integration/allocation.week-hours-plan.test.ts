@@ -19,8 +19,8 @@ import { appRolePool, superuserPool } from "../helpers/db";
 //
 // A test can't take a table's statistics away (only a superuser can, and autovacuum puts them
 // back when it likes), so this forces the plan they led to: no hash or merge joins and no
-// Material node, leaving the planner the same nested loop. The hours' scan of assignments must
-// then run once, not once per worker.
+// Material node, leaving the planner the same nested loop. The hours must then be added up
+// once, not once per worker.
 
 let su: Pool;
 let app: Pool;
@@ -90,10 +90,17 @@ async function stewards(n: number) {
   return { f, ids, target, week };
 }
 
-// How many times the plan scanned assignments for the hours (the alias `a`).
+// How many times the plan added up the hours: the loops of each Aggregate whose input scans the
+// bookings (assignments, alias `a`). Once, whatever join the planner picks inside it (it may read
+// the bookings once per shift there, which is fine); the old correlated subquery ran it once per
+// worker. Measuring the scans of assignments instead depended on that inner join (CI on #56).
 const hoursScans = (plan: PlanNode) =>
   nodes(plan)
-    .filter((n) => n["Relation Name"] === "assignments" && n.Alias === "a")
+    .filter(
+      (n) =>
+        n["Node Type"] === "Aggregate" &&
+        nodes(n).some((m) => m["Relation Name"] === "assignments" && m.Alias === "a"),
+    )
     .map((n) => n["Actual Loops"]);
 
 describe("the week's hours, added up once", () => {

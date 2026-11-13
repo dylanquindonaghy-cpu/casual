@@ -229,8 +229,11 @@ test("the unseen pages: login and the link, Pay with the code, an upload, the ca
       await page.getByRole("button", { name: "Can't make it?" }).first().click();
       const sheet = page.getByRole("dialog", { name: "Can't make it?" });
       await expect(sheet.getByRole("button", { name: "Keep my shift" })).toBeVisible();
+      // A cancelled animation (the sheet redrawn) rejects `finished` with an AbortError: it's done too.
       await sheet.evaluate((d) =>
-        Promise.all(d.getAnimations({ subtree: true }).map((a) => a.finished)),
+        Promise.all(
+          d.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => undefined)),
+        ),
       );
       await check(page, where("the cancel sheet"), null);
       await shoot(page, testInfo, `28.16 cancel sheet ${label}`);
@@ -260,7 +263,9 @@ test("the unseen pages: login and the link, Pay with the code, an upload, the ca
       await expect(page.getByText("You're booked.")).toBeVisible();
       const cover = page.locator("[data-booked]");
       await cover.evaluate((d) =>
-        Promise.all(d.getAnimations({ subtree: true }).map((a) => a.finished)),
+        Promise.all(
+          d.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => undefined)),
+        ),
       );
       await check(page, where("You're booked."), null);
       await shoot(page, testInfo, `28.16 you're booked ${label}`);

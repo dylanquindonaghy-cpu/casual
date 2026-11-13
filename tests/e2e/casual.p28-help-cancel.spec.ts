@@ -152,10 +152,11 @@ test("Help states the firm's rules and why a shift may not show; the cancel shee
         "Your cancellation is recorded the moment you tap Cancel this shift. Nobody needs to approve it.",
       ),
     ).toBeVisible();
-    // The reasons are choice cards: 56px tall, 8px round.
+    // The reasons are choice cards: 56px tall, 8px round (rounded: on a phone the layout lands on
+    // device pixels, so 56px can measure 55.99997).
     const reason = sheet.getByText("Travel problem", { exact: true }).locator("..");
     await expect(reason).toHaveCSS("border-top-left-radius", "8px");
-    expect((await reason.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(56);
+    expect(Math.round((await reason.boundingBox())?.height ?? 0)).toBeGreaterThanOrEqual(56);
     await sheet.getByLabel("Travel problem").check();
     await expect(reason).toHaveCSS("border-top-width", "2px");
     await sheet.getByRole("button", { name: "Cancel this shift" }).click();
@@ -224,7 +225,9 @@ test("Help states the firm's rules and why a shift may not show; the cancel shee
         await expect(sheet.getByRole("note")).toBeVisible();
         await sheet.getByLabel("I'm unwell").check();
         await sheet.evaluate((d) =>
-          Promise.all(d.getAnimations({ subtree: true }).map((a) => a.finished)),
+          Promise.all(
+            d.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => undefined)),
+          ),
         );
         await shoot(page, testInfo, `cancel-sheet-${size.name}-${theme}`, false);
         await sheet.getByRole("button", { name: "Keep my shift" }).click();

@@ -9,8 +9,8 @@ import { tooManyRequestsWords } from "@/lib/client/words";
 import { replyToQuestionAction, type ReplyActionResult } from "../../actions";
 
 // The reply box under the office's question (Phase 36.4: "Question for you"): their answer goes
-// back to the office and the request waits for it again. Ends with a confirmation; the page
-// refreshes under it. Waits for the page to be ready.
+// back to the office and the request waits for it again. Ends with a confirmation that stays: the
+// page reloads with ?answered= and shows it on the request. Waits for the page to be ready.
 export function ReplyForm({
   requestId,
   question,
@@ -52,7 +52,13 @@ export function ReplyForm({
             status: "error",
           }));
           setResult(r);
-          if (r.status === "sent") router.refresh();
+          // The address names the request answered, so the page keeps its "Sent" once it has
+          // refreshed and this reply box has gone (the request has no question any more).
+          if (r.status === "sent") {
+            router.replace(`/client/requests?answered=${encodeURIComponent(requestId)}`, {
+              scroll: false,
+            });
+          }
         });
       }}
     >

@@ -2703,3 +2703,30 @@ From builder A (37.1, 37.2, 37.8; 2026-11-13):
 - **The demo planner's event-created entry (37.8):** the planner API logs no entry for a new
   event itself (only each session's `shift.created`), so the seed logs none either.
 
+
+## The dashboard pin's slow "who can take it" (fix/office-pick-refresh; 2026-11-13)
+
+The streets run's pin click failed now and then because "who can take it" took 5-7 s on a
+freshly seeded database: `weeklyHours` got a per-worker plan before Postgres had analyzed the new
+tables. Fixed in the query (`weekHoursQuery()`, `src/lib/roster/allocation-input.ts`; pinned by
+`tests/integration/allocation.week-hours-plan.test.ts`). Left for later:
+
+- **Other dashboard queries on a fresh database.** Only the week-hours query was fixed. "Coming
+  up" took 340-610 ms during the slow runs, so other queries may also get bad plans before the
+  first analyze (intermittent e2e slowness, or slow first minutes for a newly seeded firm). Audit
+  the dashboard's queries under the same forced plan the new test uses (`enable_hashjoin`,
+  `enable_mergejoin` and `enable_material` off), or timed straight after a seed. Don't hide it by
+  analyzing the e2e database after its seed. Done since for each casual's record
+  (`casualRecordsQuery()`, `src/lib/office/reliability.ts`; `tests/integration/
+  reliability.records-plan.test.ts`): 4.5-7.9 s on a fresh seed, 1.7 ms once analysed. It made
+  casual.app.spec.ts's "Need updating" click time out, and it also feeds Coming up, the
+  dashboard's card and a casual's page. The rest of the dashboard's queries are still to audit.
+- **The auto refresh against an in-place navigation: checked, not guarded.** The first guess was
+  that `useAutoRefresh`'s `router.refresh()` dropped the pin's `router.replace`. Throwaway browser
+  tests on a fake clock (`page.clock`, server answers held to force each order) passed in all four
+  orders, and Next 16.4.3's router queue agrees (a refresh queued after a navigation runs on the
+  new URL; a navigation that interrupts a refresh discards the refresh). They were deleted, so a
+  Next upgrade that changes this would go unnoticed on every page that auto-refreshes and also
+  navigates in place (the board's pin, the enquiries pane links, the client requests' actions).
+  Keep one as a guard: refresh fires while a `router.replace` is pending, then the URL ends on
+  `?session=` and the Updated stamp moves on.

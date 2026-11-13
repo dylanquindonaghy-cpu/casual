@@ -139,8 +139,20 @@ test("the office logs in from its own firm's Demo phone; no firm sees another's 
   await expect(page).toHaveURL(`${northline}/office`);
   await expect(page.getByRole("complementary", { name: "Demo" })).toBeVisible();
 
+  // Acme's own page shows Acme's casual's text. A fresh one, asked for now: the Demo phone shows
+  // the newest 50, and on a Friday afternoon or evening the demo worker's day-before reminders for
+  // Saturday's match day (106 of them) push the earlier test's text out of that window.
+  await page.goto(`${acme}/login`);
+  await page.getByLabel("Your mobile number").fill("07700 900150");
+  await page.getByRole("button", { name: "Send me a link" }).click();
+  await expect(page.getByText("Check your phone.")).toBeVisible();
   await page.goto(`${acme}/demo`);
   await expect(page.getByRole("heading", { name: "Demo phone", level: 1 })).toBeVisible();
-  await expect(page.getByText(`to ${casualName}`).first()).toBeVisible();
+  const fresh = page
+    .getByRole("listitem")
+    .filter({ hasText: `to ${casualName}` })
+    .filter({ hasText: "shifts link" })
+    .first();
+  await expect(fresh).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText(RESOURCER)).toHaveCount(0);
 });

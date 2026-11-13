@@ -282,6 +282,18 @@ test("a client logs in, asks for places and gets answers; the office accepts, de
         .getByRole("status")
         .filter({ hasText: "Sent. Acme Events will look at your request again." }),
     ).toBeVisible();
+    // The confirmation stays after the page refreshes under it (it did once vanish: answered, the
+    // request has no question any more, so the reply box, and its "Sent", went from the page).
+    // The address names the request answered first (that's what keeps it), then a reload.
+    await expect(client).toHaveURL(/\/client\/requests\?answered=[0-9a-f-]{36}$/);
+    await client.reload();
+    await expect(
+      client
+        .locator("#your-requests li")
+        .filter({ hasText: "A supervisor too" })
+        .getByRole("status")
+        .filter({ hasText: "Sent. Acme Events will look at your request again." }),
+    ).toBeVisible();
     chosen = await choose(office, null, "Something else");
     await expect(chosen).toContainText("Their note: “North Gate.”");
 

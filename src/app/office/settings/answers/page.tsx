@@ -6,19 +6,21 @@ import { Icon } from "@/app/ui/icons";
 import { PageHeader } from "@/app/ui/page-header";
 import { Slip } from "@/app/ui/slip";
 import { StatusChip } from "@/app/ui/status-chip";
-import { ANSWER_CHANNELS } from "@/lib/answers/switches";
+import { ANSWER_CHANNELS, answersCanGo, anyAnswerChannelOn } from "@/lib/answers/switches";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import {
   ANSWERS_INTRO,
   ANSWERS_TITLE,
   BUILT_IN,
   BUILT_IN_SIDE,
+  BUILT_IN_SWITCHES,
   CHANNEL_LABELS,
   CHANNELS_INTRO,
   CHANNELS_TITLE,
   channelUsesText,
   lastEditedText,
   MASTER_OFF,
+  NO_CHANNELS_ON,
   savedText,
   UNANSWERED_EMPTY,
   UNANSWERED_INTRO,
@@ -53,6 +55,9 @@ export default async function AnswersPage({
   const { saved } = await searchParams;
   const justSaved = typeof saved === "string" ? data.answers.find((a) => a.id === saved) : null;
   const tz = data.timeZone;
+  // Whether a switched-on answer can go by any channel, and whether any channel is on (w1-06).
+  const canGo = answersCanGo(data.switches, data.autoReplies);
+  const channelsOn = anyAnswerChannelOn(data.switches);
   return (
     <main className={page.office}>
       <PageHeader back={{ href: "/office/settings", label: "Settings" }} title={ANSWERS_TITLE}>
@@ -61,7 +66,7 @@ export default async function AnswersPage({
 
       {justSaved && (
         <Slip tone="done" role="status" className="mb-6 max-w-2xl">
-          <p>{savedText(justSaved.name, justSaved.isOn)}</p>
+          <p>{savedText(justSaved.name, justSaved.isOn, canGo)}</p>
         </Slip>
       )}
 
@@ -92,6 +97,11 @@ export default async function AnswersPage({
 
         <div className="flex flex-col gap-8 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:gap-6">
           <section aria-labelledby="yours">
+            {!channelsOn && (
+              <p className={`${notice} mb-4 text-sm`} data-no-channel role="note">
+                {NO_CHANNELS_ON}
+              </p>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 id="yours" className={h2}>
                 Your answers
@@ -112,7 +122,7 @@ export default async function AnswersPage({
                         {a.name}
                         {!a.isOn && <StatusChip tone="quiet">Off</StatusChip>}
                       </h3>
-                      <AnswerSwitch id={a.id} name={a.name} on={a.isOn} />
+                      <AnswerSwitch id={a.id} name={a.name} on={a.isOn} canGo={canGo} />
                       <Link
                         href={`/office/settings/answers/${a.id}`}
                         className={btn.small}
@@ -144,6 +154,7 @@ export default async function AnswersPage({
               </h2>
               <span className={meta}>{BUILT_IN_SIDE}</span>
             </div>
+            <p className={`${meta} mt-1`}>{BUILT_IN_SWITCHES}</p>
             <ul role="list" className={`${rows} ${headingGap}`}>
               {BUILT_IN.map((b) => (
                 <li key={b.key} className={`${row} flex flex-col gap-1`}>

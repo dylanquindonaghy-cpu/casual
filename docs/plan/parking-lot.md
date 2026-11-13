@@ -1057,7 +1057,9 @@ numbers that older docs give for it are `PLAN.md`'s as it was then, and where th
   - **Dylan to confirm:** "Your request (review, ref …) is approved." can read as "you're booked",
     and an approved time change as "the times changed", though neither is done until the office
     acts. Reword `request_update` per kind (e.g. "approved: the office will update the shift"),
-    and something better than "approved/declined" for a question?
+    and something better than "approved/declined" for a question? (Wave 1, w1-05: the time change
+    and swap half is done, as `request_change_agreed`. The review half is still open, and so is
+    having approve apply the change itself.)
   - A 500-character note is about 9 text messages (the dash makes it Unicode). Lower the limit,
     or accept the cost.
   - The action log (next task) needs words for `request.approved` / `request.declined` and the
@@ -2606,3 +2608,19 @@ Each task adds what it left out here as its wave is merged.
   Dylan: wait). "Not worked lately" counts casuals who have never worked, so the demo shows most
   casuals as lapsed. Split them into their own count and tab ("New: not worked yet"), as the
   casual's own page already does.
+
+## Phase 37 (Wave 1), deferred while building
+
+- **A time change made on the rota sheet tells the booked casual nothing** (37.5, w1-05).
+  `logTimeChange` (`src/lib/roster/sheets/sync.ts`) records `shift.moved` or `shift.curtailed`
+  but queues no firm-change notice, so `request_change_agreed` promises no later message.
+- **An approved review still reads "Your request (review, ref …) is approved."**, and the
+  casual's My requests chip still says "Approved" for a time change or swap (37.5, w1-05; the chip
+  is a screen change and needs a mock-up). Approve applying the change itself is still open too.
+- **The channel confirmation's words** (37.5, w1-06): "App messages: answered automatically now,
+  with the answers that are on." (`src/lib/office/answers-copy.ts`), and Settings' link line "sent
+  straight away by app, text or email", are also untrue when no answer is switched on.
+- **Unsorted emails to the staffing inbox have no time rule** (37.4, w1-04): while the inbox's
+  sort job is down, an email from a casual waits unsorted and is never counted in Need a person.
+- **The detail page's empty "Reply sent", "Sent" and "Considered" lines on an unsorted message**
+  (37.4, w1-04; the audit's x2-copy-02 one-line suggestion).

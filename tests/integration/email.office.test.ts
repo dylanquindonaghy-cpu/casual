@@ -375,6 +375,43 @@ describe("the inbox's summary every 3 hours", () => {
     ]);
   });
 
+  // Wave 1 (w1-04): Need a person's rule now reads created_at (an unsorted message after 10
+  // minutes), so the summary's slot carries it; an unsorted email is counted as before.
+  it("an email the inbox hasn't sorted yet: the slot's counts read, and as before", async () => {
+    const t = await inboxFirm({ repliesOn: true });
+    await t.f.office("admin");
+    const { rows } = await su.query<{ id: string }>(
+      `insert into inbound_emails (firm_id, provider_message_id, worker_id, from_address, to_address,
+                                   subject, body, created_at)
+       values ($1, $2, $3, $4, $5, 'Boots', 'Can I bring my own?', now() - interval '1 hour')
+       returning id::text as id`,
+      [
+        t.f.firmId,
+        `<${randomBytes(6).toString("hex")}@mail.example.test>`,
+        t.priya,
+        t.address,
+        t.inbox,
+      ],
+    );
+    expect(rows).toHaveLength(1);
+    const slot = summarySlotOf(new Date(), "Europe/London");
+    const start = new Date(Math.min(slot.start.getTime(), Date.now() - 2 * 3_600_000));
+    const { transport } = captureTransport();
+    const result = await runInboxSummary(
+      {
+        firmId: t.f.firmId,
+        idempotencyKey: `inbox-summary:${start.getTime()}`,
+        slotStart: start.toISOString(),
+        slotEnd: slot.end.toISOString(),
+      },
+      withFirm,
+      { transport, baseDomain: "shiftdesk.test" },
+    );
+    expect(result).toMatchObject({
+      counts: { emails: 1, linked: 0, waiting: 0, office: 0, pay: 0, notCasuals: 0 },
+    });
+  });
+
   it("a slot with no email sends nothing; with nobody to send to, it says so", async () => {
     const t = await inboxFirm();
     const empty = summarySlotOf(new Date(Date.now() - 86_400_000), "Europe/London");

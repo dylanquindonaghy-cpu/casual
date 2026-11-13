@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { NeedsAttention } from "@/lib/office/dashboard";
 import { evidenceItems, needsCount } from "@/lib/office/dashboard";
 import {
+  appRequestsNeedText,
   clientRequestsNeedText,
   COUNT_ERROR,
   expiredText,
@@ -102,14 +103,17 @@ export function NeedsItems({
   today,
   isAdmin,
   needPerson = 0,
+  appRequests = 0,
 }: {
   n: NeedsAttention;
   timeZone: string;
   today: string;
   isAdmin: boolean;
   needPerson?: number; // enquiries that need a person (Phase 20: they count here too)
+  appRequests?: number; // requests from the app waiting for an answer (w1-07: they count too)
 }) {
-  if (needsCount(n) === 0 && needPerson === 0) return <Empty>{SECTIONS.needs.empty}</Empty>;
+  if (needsCount(n) === 0 && needPerson === 0 && appRequests === 0)
+    return <Empty>{SECTIONS.needs.empty}</Empty>;
   const evidence = evidenceItems(n.evidence);
   return (
     <div className="flex flex-col gap-4">
@@ -257,6 +261,17 @@ export function NeedsItems({
             </span>
             <Link href="/office/enquiries" className={textLink}>
               Open Enquiries
+            </Link>
+          </p>
+        </Need>
+      )}
+
+      {appRequests > 0 && (
+        <Need id="app-requests" n={appRequests}>
+          <p className={`${headingGap} flex flex-wrap items-center gap-x-4 gap-y-1`}>
+            <span>{appRequestsNeedText(appRequests)}</span>
+            <Link href="/office/enquiries?view=app" className={textLink}>
+              Open requests from the app
             </Link>
           </p>
         </Need>

@@ -2,7 +2,15 @@ import { randomBytes } from "node:crypto";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { twilioSignature } from "../../src/lib/inbound/twilio-signature";
 import { E2E_TWILIO_AUTH_TOKEN } from "../../playwright.config";
-import { addOfficeUser, cancelOwnShift, personalReplyScene } from "./db";
+import {
+  addOfficeUser,
+  addSwapRequest,
+  addUnsortedMessage,
+  addWorker,
+  cancelOwnShift,
+  personalReplyScene,
+  unusedMobile,
+} from "./db";
 import { expect, menuLink, test } from "./fixtures";
 import { readOutbox, sentTo } from "./outbox";
 
@@ -295,6 +303,129 @@ test("a casual's personal shift list: each check, the sessions listed and the on
       await cancelOwnShift("acme", id);
     }
   }
+});
+
+// Wave 1 (w1-04): a message the shifts line never sorted (its job never ran: tests/e2e/db.ts
+// addUnsortedMessage) needs a person 10 minutes after it came in. A casual of this spec's own (a
+// number from the "unsorted" block) has one from 15 minutes ago and one from 2 minutes ago: the
+// first is counted in the menu's badge and listed in Need a person under her name, with "Answer
+// it"; the second reads "Not answered yet", with no "Answer it". Closing the first passes it to a
+// person and takes it out of Need a person.
+test("a message the shifts line never answered needs a person after 10 minutes", async ({
+  page,
+}, testInfo) => {
+  const mobile = await unusedMobile("acme", "unsorted");
+  const casual = { firstName: "Una", lastName: `Sortley${testInfo.retry || ""}` };
+  await addWorker("acme", { ...casual, mobileE164: mobile });
+  const name = `${casual.firstName} ${casual.lastName}`;
+  const tag = randomBytes(3).toString("hex");
+  const oldWords = `Can someone ring me about Saturday? (e2e ${tag})`;
+  const newWords = `Also, is parking free? (e2e ${tag})`;
+  const old = await addUnsortedMessage("acme", mobile, oldWords, 15);
+  const recent = await addUnsortedMessage("acme", mobile, newWords, 2);
+
+  await logIn(page, `unsorted.resourcer${testInfo.retry || ""}@example.com`, "Unsorted Resourcer");
+
+  // The menu's Enquiries badge counts it (its words, for screen readers, beside the link).
+  const link = await menuLink(page, "Enquiries");
+  await expect(link).toContainText(/\d+/);
+  await expect(link.locator("xpath=following-sibling::span[@class='sr-only']")).toHaveText(
+    /^\d+ needs? a person(, \d+ requests? to answer)?$/,
+  );
+  await link.click();
+  await expect(page).toHaveURL(`${acme}/office/enquiries`);
+
+  // Need a person lists the 15-minute-old one under her name, waiting; not the 2-minute-old one.
+  await page.goto(`${acme}/office/enquiries?view=person`);
+  const waiting = page.getByRole("region", { name: "Need a person" });
+  const oldRow = waiting.getByRole("listitem").filter({ hasText: oldWords });
+  await expect(oldRow).toContainText(name);
+  await expect(oldRow).toContainText("Passed to a person, waiting");
+  await expect(waiting.getByText(newWords)).toHaveCount(0);
+  await noSidewaysScroll(page);
+
+  // Its page: the casual, the one-colon Sorted line, and Answer it.
+  await page.goto(`${acme}/office/enquiries/${old}`);
+  await expect(page.getByRole("heading", { name: `Message from ${name}` })).toBeVisible();
+  const how = page.getByRole("region", { name: "How it was answered" });
+  await expect(how.getByRole("listitem").nth(0)).toContainText(`from ${name}'s number`);
+  await expect(how).toContainText(
+    "Sorted: Not yet. The shifts line hasn't answered it in 10 minutes, so it's waiting for a person.",
+  );
+  await expect(how).toContainText("Then: Waiting for a person.");
+  const answer = page.getByRole("region", { name: "Answer it" });
+  await expect(answer).toBeVisible();
+  await noSidewaysScroll(page);
+
+  // Closed: passed to a person, out of Need a person.
+  await answer.getByRole("button", { name: "Close, no reply needed" }).click();
+  await answer.getByLabel("Why close it?").selectOption({ label: "Spam" });
+  await answer.getByRole("button", { name: "Close without a reply" }).click();
+  await expect(answer.getByRole("status")).toHaveText("Closed. No reply was sent.");
+  await page.reload();
+  await expect(page.getByRole("region", { name: "How it was answered" })).toContainText(
+    "Sorted: The shifts line hadn't answered it after 10 minutes, so it was passed to a person.",
+  );
+  await page.goto(`${acme}/office/enquiries?view=person`);
+  await expect(page.getByRole("region", { name: "Need a person" }).getByText(oldWords)).toHaveCount(
+    0,
+  );
+
+  // The 2-minute-old one: not answered yet, and nothing to answer it with.
+  await page.goto(`${acme}/office/enquiries`);
+  await expect(page.getByRole("listitem").filter({ hasText: newWords })).toContainText(
+    "Not answered yet",
+  );
+  await page.goto(`${acme}/office/enquiries/${recent}`);
+  await expect(page.getByRole("region", { name: "How it was answered" })).toContainText(
+    "Sorted: Not yet. The shifts line hasn't answered it.",
+  );
+  await expect(page.getByRole("region", { name: "Answer it" })).toHaveCount(0);
+  await noSidewaysScroll(page);
+});
+
+// Wave 1 (w1-07): the requests casuals made in the app, still waiting for an answer, count in the
+// frame: Needs attention has their own part, linking to Requests from the app, and the Enquiries
+// badge names them. A swap request of this spec's own keeps at least one waiting; other specs
+// make and take back requests meanwhile, so numbers are read, never fixed.
+test("requests from the app waiting for an answer: counted, with their own part in Needs attention", async ({
+  page,
+}, testInfo) => {
+  await addSwapRequest("acme", `Counted in the frame (e2e ${randomBytes(3).toString("hex")})`);
+  await logIn(page, `appcount.resourcer${testInfo.retry || ""}@example.com`, "Appcount Resourcer");
+  const link = await menuLink(page, "Enquiries");
+  // The link's own name stays "Enquiries"; its badge's words say what waits.
+  await expect(link.locator("xpath=following-sibling::span[@class='sr-only']")).toHaveText(
+    /^(\d+ needs? a person, )?\d+ requests? to answer$/,
+  );
+  await page.goto(`${acme}/office/needs-attention`);
+  const part = page.getByRole("region", { name: /^Requests from the app ?\d+$/ });
+  await expect(part).toContainText(
+    /\d+ requests? (casuals|a casual) made in the app (are|is) waiting for an answer\./,
+  );
+  const shown = Number(/(\d+)$/.exec((await part.getByRole("heading").innerText()).trim())?.[1]);
+  expect(shown).toBeGreaterThan(0);
+  await part.getByRole("link", { name: "Open requests from the app" }).click();
+  await expect(page).toHaveURL(`${acme}/office/enquiries?view=app`);
+  // Its tab names the same number (other specs may change it meanwhile: read again until equal).
+  await expect
+    .poll(async () => {
+      await page.reload();
+      const tab = await page
+        .getByRole("link", { name: /^Requests from the app/ })
+        .first()
+        .innerText();
+      const n = Number(/(\d+)/.exec(tab)?.[1]);
+      await page.goto(`${acme}/office/needs-attention`);
+      const again = await page
+        .getByRole("region", { name: /^Requests from the app ?\d+$/ })
+        .getByRole("heading")
+        .innerText();
+      await page.goto(`${acme}/office/enquiries?view=app`);
+      return n === Number(/(\d+)$/.exec(again.trim())?.[1]);
+    })
+    .toBe(true);
+  await noSidewaysScroll(page);
 });
 
 // From 1024px (Phase 24, 24.4: round 7 of the canvas): the list at the left, the chosen message at

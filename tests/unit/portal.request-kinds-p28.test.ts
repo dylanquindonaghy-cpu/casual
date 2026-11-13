@@ -11,6 +11,7 @@ import {
 import { eventWords } from "@/lib/office/event-words";
 import { logTypeLabel } from "@/lib/office/log-types";
 import {
+  agreedNotApplied,
   attendancePayload,
   attendancePayloadSchema,
   holdsContactDetails,
@@ -195,5 +196,20 @@ describe("the action log's two new entries", () => {
     expect(say("request.created", { type: "attendance", shiftId: "s", said: "worked" })).toBe(
       "Ann Booker sent a request (attendance question).",
     );
+  });
+});
+
+// Wave 1 (w1-05): the answers where saying yes changes nothing yet go as request_change_agreed.
+describe("agreedNotApplied: an approved time change or swap", () => {
+  it("is true only for an approved time change or swap", () => {
+    expect(agreedNotApplied("time_change", "approved")).toBe(true);
+    expect(agreedNotApplied("swap", "approved")).toBe(true);
+    for (const status of REQUEST_STATUSES.filter((s) => s !== "approved")) {
+      expect(agreedNotApplied("time_change", status)).toBe(false);
+      expect(agreedNotApplied("swap", status)).toBe(false);
+    }
+    for (const type of ["review", "availability", "general", "attendance"]) {
+      for (const status of REQUEST_STATUSES) expect(agreedNotApplied(type, status)).toBe(false);
+    }
   });
 });

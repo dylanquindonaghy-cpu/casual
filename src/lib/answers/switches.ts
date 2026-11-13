@@ -33,3 +33,14 @@ export function answerSwitches(settings: Record<string, unknown>): AnswerSwitche
 
 export const answersOn = (settings: Record<string, unknown>, channel: AnswerChannel): boolean =>
   answerSwitches(settings)[channel];
+
+// Whether any of the three switches is on (Wave 1, w1-06): with all three off, Automatic answers
+// shows a banner that the firm's answers don't go out yet.
+export const anyAnswerChannelOn = (s: AnswerSwitches): boolean => ANSWER_CHANNELS.some((c) => s[c]);
+
+// Whether an answer that's switched on can go out by any channel (w1-06): App on, or Texts or
+// Emails on with the owner's auto_replies on. It mirrors recheckAnswer's rule
+// (src/lib/answers/library.ts: `answersOn(channel) && (channel === "app" || autoRepliesOn)`); if
+// that rule changes, this must change with it (tests/unit/answers.library.test.ts).
+export const answersCanGo = (s: AnswerSwitches, autoReplies: boolean): boolean =>
+  s.app || ((s.texts || s.email) && autoReplies);

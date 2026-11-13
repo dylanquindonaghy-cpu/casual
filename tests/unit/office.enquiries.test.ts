@@ -3,6 +3,8 @@ import {
   ageWords,
   CLOSE_REASON_WORDS,
   countsLine,
+  emailSortedStep,
+  OUTCOME_TONES,
   OUTCOME_WORDS,
   planLine,
   sortedStep,
@@ -84,10 +86,17 @@ describe("outcome labels, from logged facts only", () => {
       facts({ handledAs: "ai", intent: "cancel", doneInApp: true }),
       "They sorted it in the app",
     ],
+    // Wave 1 (w1-04): not "Not understood" (nothing tried to read it yet): "Not answered yet",
+    // then, 10 minutes after it came in, waiting for a person.
     [
       "not sorted by the shifts line (yet)",
       facts({ handled: false, handledAs: null, intent: null }),
-      "Not understood",
+      "Not answered yet",
+    ],
+    [
+      "still not sorted 10 minutes after it came in",
+      facts({ handled: false, handledAs: null, intent: null, waiting: true }),
+      "Passed to a person, waiting",
     ],
   ] as const)("%s", (_, f, label) => {
     expect(OUTCOME_WORDS[enquiryOutcome(f)]).toBe(label);
@@ -308,6 +317,28 @@ describe("words", () => {
     expect(sortedStep({ how: "person", why: "answer_failed", code: "TypeError" })).toBe(
       "The automatic answer failed on every try (TypeError): passed to a person.",
     );
+  });
+
+  // Wave 1 (w1-04): one colon after "Sorted:", and the 10 minutes in the words.
+  it("an unsorted message: not yet, then waiting for a person, then passed to one", () => {
+    expect(OUTCOME_TONES.not_yet).toBe("wait");
+    const lines = [
+      [sortedStep({ how: "not_yet" }), "Not yet. The shifts line hasn't answered it."],
+      [
+        sortedStep({ how: "not_yet", late: true }),
+        "Not yet. The shifts line hasn't answered it in 10 minutes, so it's waiting for a person.",
+      ],
+      [
+        sortedStep({ how: "person", why: "late" }),
+        "The shifts line hadn't answered it after 10 minutes, so it was passed to a person.",
+      ],
+      [emailSortedStep({ how: "not_yet" }), "Not yet. The inbox hasn't answered it."],
+    ] as const;
+    for (const [got, want] of lines) {
+      expect(got).toBe(want);
+      // No "Sorted: …:" double colon: nothing before the first full stop has ": ".
+      expect(got.split(".")[0]).not.toContain(": ");
+    }
   });
 
   it("a failed office reply says it's back in Need a person", () => {

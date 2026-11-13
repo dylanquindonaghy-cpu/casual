@@ -98,8 +98,19 @@ export function ChannelSwitch({
   );
 }
 
-// An answer's own switch, beside its name.
-export function AnswerSwitch({ id, name, on }: { id: string; name: string; on: boolean }) {
+// An answer's own switch, beside its name. `canGo`: whether the firm's answers can go by any
+// channel (answersCanGo, w1-06); its words say so when they can't.
+export function AnswerSwitch({
+  id,
+  name,
+  on,
+  canGo,
+}: {
+  id: string;
+  name: string;
+  on: boolean;
+  canGo: boolean;
+}) {
   const router = useRouter();
   const ready = useHydrated();
   const [pending, startTransition] = useTransition();
@@ -107,7 +118,7 @@ export function AnswerSwitch({ id, name, on }: { id: string; name: string; on: b
   const flip = () =>
     startTransition(async () => {
       const result: AnswerSwitchResult = await switchAnswerAction(id, !on).catch(() => failed);
-      setMessage(answerSwitchResultText(name, result));
+      setMessage(answerSwitchResultText(name, result, canGo));
       if (result.status === "switched" || result.status === "unchanged") router.refresh();
     });
   return (

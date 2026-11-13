@@ -415,6 +415,19 @@ export function requestUpdateMessage(
   return `Your request (${request.type}, ref ${request.ref}) is ${request.status}.${note} — ${firm.signOff}`;
 }
 
+// request_change_agreed (WhatsApp or SMS, utility; Wave 1, w1-05): the office said yes to a time
+// change or swap. Saying yes changes nothing yet: the office makes the change on the shift's page.
+// {type} is "time change" or "swap". No promise of a later message: a change made on the rota
+// sheet sends none (src/lib/roster/sheets/sync.ts logTimeChange). With no note, "The office says:
+// {note}" is left out (request_change_agreed_no_note).
+export function requestChangeAgreedMessage(
+  firm: FirmVoice,
+  request: { type: string; ref: string; note: string | null },
+): string {
+  const note = request.note ? ` The office says: ${request.note}` : "";
+  return `The office said yes to your ${request.type}. Your shift changes when they update it. Ref ${request.ref}.${note} — ${firm.signOff}`;
+}
+
 // The office's own reply on Enquiries (docs/messaging-templates.md "The office's reply on Enquiries";
 // 12D.1): their words on one line, signed. Free text only inside WhatsApp's 24-hour window or by
 // text; outside the window it goes as `request_update` instead (src/lib/office/enquiry-rules.ts).
@@ -484,6 +497,11 @@ export function detailsChangedEmailSubject(shift: { date: string }): string {
 
 export function requestUpdateEmailSubject(request: { ref: string; status: string }): string {
   return `Your request (ref ${request.ref}) is ${request.status}`;
+}
+
+// An agreed time change or swap (request_change_agreed; w1-05). {type} is "time change" or "swap".
+export function requestChangeAgreedEmailSubject(type: string): string {
+  return `The office said yes to your ${type}`;
 }
 
 export function payQueryUpdateEmailSubject(): string {
@@ -1015,6 +1033,15 @@ export function requestUpdatePush(request: { type: string; status: string }): {
   body: string;
 } {
   return { title: `Request ${request.status}`, body: `${request.type} — tap to view.` };
+}
+
+// Push: the office said yes to a time change or swap (request_change_agreed; w1-05). {Type} is the
+// kind as the list names it ("Time change"). Tapping opens My requests.
+export function requestChangeAgreedPush(type: string): { title: string; body: string } {
+  return {
+    title: "The office said yes",
+    body: `${type}: your shift hasn't changed yet. Tap to view.`,
+  };
 }
 
 // Push: a pay query sorted. Nothing about the pay itself (a lock screen shows it): tapping opens the

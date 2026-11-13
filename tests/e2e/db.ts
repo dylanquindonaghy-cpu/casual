@@ -10,6 +10,7 @@ import {
   clients,
   credentials,
   firms,
+  messages,
   offers,
   officeUserClients,
   officeUsers,
@@ -667,6 +668,48 @@ export async function addSwapRequest(
         worker: `${booked.first} ${booked.last}`,
         firstName: booked.first,
       };
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
+// A WhatsApp to a seeded firm's shifts line that the shifts line never sorted (Wave 1, w1-04): stored
+// as the webhook stores one (handled_at null), `minutesAgo` minutes ago, with no job queued, so it
+// stays unsorted. From a number of the spec's own (the job answers older unanswered messages from
+// the same number first). Returns its id.
+export async function addUnsortedMessage(
+  slug: string,
+  from: string,
+  body: string,
+  minutesAgo: number,
+): Promise<string> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      const [firm] = await tx
+        .select({ line: firms.shiftsLineE164 })
+        .from(firms)
+        .where(eq(firms.id, firmId));
+      if (!firm?.line) throw new Error(`firm ${slug} has no shifts line`);
+      const [row] = await tx
+        .insert(messages)
+        .values({
+          firmId,
+          direction: "in",
+          channel: "whatsapp",
+          providerMessageId: `SM${createHash("sha256").update(`${from}:${body}:${Date.now()}`).digest("hex").slice(0, 32)}`,
+          fromE164: from,
+          toE164: firm.line,
+          body,
+          createdAt: new Date(Date.now() - minutesAgo * 60_000),
+        })
+        .returning({ id: messages.id });
+      if (!row) throw new Error("message insert returned nothing");
+      return row.id;
     });
   } finally {
     await pool.end();

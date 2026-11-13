@@ -12,8 +12,8 @@ import { AlsoNeedsYou, NeedsItems, needsPageLine } from "../needs-items";
 export const metadata: Metadata = { title: "Needs attention" };
 
 // Needs attention (docs/office-v2.md 3.2; docs/screens.md `/office/needs-attention`; Phases 18 and
-// 20): every to-do the dashboard counts, in full, each with what to do about it, and the
-// enquiries that need a person; beside them "Also needs you", the urgent places still to fill, so
+// 20): every to-do the dashboard counts, in full, each with what to do about it, the enquiries
+// that need a person and the requests from the app waiting for an answer (Wave 1, w1-07); beside them "Also needs you", the urgent places still to fill, so
 // this page's count and the dashboard's add up. The menu's "Needs attention" opens it, with the
 // same count. Admins and resourcers, as the dashboard; payroll goes to the pay dashboard. Its items
 // and count are the office frame's, read once with the menu's (Phase 25.3: src/app/office/frame.ts).
@@ -25,7 +25,8 @@ export default async function NeedsAttentionPage() {
   if (!frame?.needs || !urgent) notFound();
   const data = { ...frame.needs, urgent };
   const needPerson = frame.needPerson?.ok ? frame.needPerson.data : 0;
-  const count = attentionOf(data.needs, frame.needPerson);
+  const appRequests = frame.appRequests?.ok ? frame.appRequests.data : 0;
+  const count = attentionOf(data.needs, frame.needPerson, frame.appRequests);
   return (
     <main className={page.office}>
       <PageHeader
@@ -44,6 +45,7 @@ export default async function NeedsAttentionPage() {
               today={data.today}
               isAdmin={officeUser.role === "admin"}
               needPerson={needPerson}
+              appRequests={appRequests}
             />
           ) : (
             <p role="status" className={notice}>

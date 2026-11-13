@@ -7,12 +7,14 @@ import { keywordIntent, libraryAllowed } from "@/lib/inbound/keywords";
 import {
   ANSWERS_INTRO,
   answerSwitchResultText,
+  BUILT_IN_SWITCHES,
   channelSwitchResultText,
   channelUsesText,
   exampleFromQuestion,
   fillInLabels,
   lastEditedText,
   MASTER_OFF,
+  NO_CHANNELS_ON,
   savedText,
   usesText,
   wordParts,
@@ -90,21 +92,64 @@ describe("Settings → Automatic answers' words", () => {
     expect(channelSwitchResultText("texts", { status: "not_allowed" })).toBe(
       "Only admins can change automatic answers.",
     );
-    expect(answerSwitchResultText("Pay day", { status: "switched", on: true })).toBe(
+    expect(answerSwitchResultText("Pay day", { status: "switched", on: true }, true)).toBe(
       "“Pay day” is on: it answers casuals now.",
     );
-    expect(savedText("Pay day", false)).toBe(
+    expect(savedText("Pay day", false, true)).toBe(
       "Saved “Pay day”. It's off: nothing goes until you switch it on.",
     );
     for (const words of [
       ANSWERS_INTRO,
       MASTER_OFF,
+      NO_CHANNELS_ON,
+      BUILT_IN_SWITCHES,
+      "“Pay day” is on, but it doesn't go out yet. See Answer casuals automatically.",
+      "Saved “Pay day”. It's on, but it doesn't go out yet. See Answer casuals automatically.",
       "App messages: answered automatically now, with the answers that are on.",
       "“Pay day” is off: those questions go to a person.",
       "Saved “Pay day”. It's on: it answers casuals now.",
       "No questions went to a person in the last 30 days.",
     ])
       expect(screens).toContain(words);
+  });
+
+  // Wave 1 (w1-06): an answer that's on but can't go by any channel never says it answers now.
+  it("an answer that's on but can't go out says so, on its switch and after a save", () => {
+    const notGoing =
+      "“Pay day” is on, but it doesn't go out yet. See Answer casuals automatically.";
+    expect(answerSwitchResultText("Pay day", { status: "switched", on: true }, false)).toBe(
+      notGoing,
+    );
+    expect(answerSwitchResultText("Pay day", { status: "unchanged", on: true }, false)).toBe(
+      notGoing,
+    );
+    expect(answerSwitchResultText("Pay day", { status: "unchanged", on: true }, true)).toBe(
+      "“Pay day” is on: it answers casuals now.",
+    );
+    for (const canGo of [true, false]) {
+      expect(answerSwitchResultText("Pay day", { status: "switched", on: false }, canGo)).toBe(
+        "“Pay day” is off: those questions go to a person.",
+      );
+      expect(answerSwitchResultText("Pay day", { status: "not_found" }, canGo)).toBe(
+        "That answer isn't there any more. Reload the page.",
+      );
+      expect(answerSwitchResultText("Pay day", { status: "not_allowed" }, canGo)).toBe(
+        "Only admins can change automatic answers.",
+      );
+      expect(savedText("Pay day", false, canGo)).toBe(
+        "Saved “Pay day”. It's off: nothing goes until you switch it on.",
+      );
+    }
+    expect(savedText("Pay day", true, true)).toBe(
+      "Saved “Pay day”. It's on: it answers casuals now.",
+    );
+    expect(savedText("Pay day", true, false)).toBe(
+      "Saved “Pay day”. It's on, but it doesn't go out yet. See Answer casuals automatically.",
+    );
+    expect(NO_CHANNELS_ON).toBe(
+      "Your answers don't go out yet: app messages, texts and emails are all switched off. Switch one on under Answer casuals automatically.",
+    );
+    expect(BUILT_IN_SWITCHES).toBe("These still answer with the three switches off.");
   });
 
   it("Make this an answer: their question on one line, cut at a word before 100 characters", () => {

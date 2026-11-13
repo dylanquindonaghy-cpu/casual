@@ -6,7 +6,8 @@
 //   (tests/unit/copy.templates-doc.test.ts) checks the template functions in templates.ts produce
 //   exactly this text with the sample values: what we send is what we submitted.
 // - Words that are sometimes left out need their own template: "at {site}" when the shift has no
-//   site (the `_no_site` variants), the office's note (`request_update_no_note`), and the upload
+//   site (the `_no_site` variants), the office's note (`request_update_no_note`,
+//   `request_change_agreed_no_note`), and the upload
 //   link for a qualification she can't upload (`credential_expiring_to_office`,
 //   `credential_expired_to_office`: the link to her Messages instead). In
 //   shift_urgent, "a" or "an" before the role goes inside the role's variable (`role`); shift_offer
@@ -304,10 +305,10 @@ export const WHATSAPP_TEMPLATES: readonly WhatsAppTemplate[] = [
     variables: ["type", "ref", "status", "note", "signOff"],
     body: "Your request ({{1}}, ref {{2}}) is {{3}}. The office says: {{4}} — {{5}}",
     example: {
-      type: "time change",
+      type: "swap",
       ref: "3F2A9C1B",
-      status: "approved",
-      note: "See you at 13:00.",
+      status: "declined",
+      note: "Cal isn't free.",
       signOff: SIGN_OFF,
     },
   },
@@ -319,6 +320,24 @@ export const WHATSAPP_TEMPLATES: readonly WhatsAppTemplate[] = [
     variables: ["type", "ref", "status", "signOff"],
     body: "Your request ({{1}}, ref {{2}}) is {{3}}. — {{4}}",
     example: { type: "swap", ref: "3F2A9C1B", status: "declined", signOff: SIGN_OFF },
+  },
+  {
+    name: "request_change_agreed",
+    docName: "request_change_agreed",
+    category: "utility",
+    language: "en_GB",
+    variables: ["type", "ref", "note", "signOff"],
+    body: "The office said yes to your {{1}}. Your shift changes when they update it. Ref {{2}}. The office says: {{3}} — {{4}}",
+    example: { type: "time change", ref: "3F2A9C1B", note: "See you at 13:00.", signOff: SIGN_OFF },
+  },
+  {
+    name: "request_change_agreed_no_note",
+    docName: "request_change_agreed",
+    category: "utility",
+    language: "en_GB",
+    variables: ["type", "ref", "signOff"],
+    body: "The office said yes to your {{1}}. Your shift changes when they update it. Ref {{2}}. — {{3}}",
+    example: { type: "swap", ref: "3F2A9C1B", signOff: SIGN_OFF },
   },
   {
     name: "credential_expiring",

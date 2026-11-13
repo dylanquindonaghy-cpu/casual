@@ -29,18 +29,23 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
   const { session: s, frame } = read;
   // Every count below, read in one transaction (src/lib/office/frame.ts; Phase 25.3): the Pay
   // queries badge (admins and payroll), the Casuals badge (uploads waiting for a check, 12F.2), the
-  // Enquiries badge (messages that need a person, 12D.1), Needs attention's count (its items and the
-  // enquiries that need a person, the one count the dashboard's headline uses; 12E.1, Phase 20) and
-  // the top bar's sessions (Phase 24). A count that couldn't be read shows no number.
+  // Enquiries badge (messages that need a person, 12D.1, and the requests from the app waiting for
+  // an answer, w1-07), Needs attention's count (its items, the enquiries that need a person and
+  // those requests from the app, the one count the dashboard's headline uses; 12E.1, Phase 20,
+  // w1-07) and the top bar's sessions (Phase 24). A count that couldn't be read shows no number.
   const value = (p: { ok: true; data: number } | { ok: false } | null) => (p?.ok ? p.data : null);
   const needPerson = value(frame.needPerson);
-  const attention = frame.needs ? attentionOf(frame.needs.needs, frame.needPerson) : null;
+  const appRequests = value(frame.appRequests);
+  const attention = frame.needs
+    ? attentionOf(frame.needs.needs, frame.needPerson, frame.appRequests)
+    : null;
   // Client requests waiting for the office (Phase 36.4: the menu's count and the top bar's chip).
   const clientRequests = frame.clientRequests?.ok ? frame.clientRequests.data.waiting : null;
   // Pale yellow when it needs this person (Phases 18 and 20; office-menu.ts menuBadges).
   const badges = menuBadges(s.officeUser.role, {
     payQueries: value(frame.payQueries) ?? 0,
     needPerson: needPerson ?? 0,
+    appRequests: appRequests ?? 0,
     uploads: value(frame.uploads) ?? 0,
     attention,
     clientRequests: clientRequests ?? 0,

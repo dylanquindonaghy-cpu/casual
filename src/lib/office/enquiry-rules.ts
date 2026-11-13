@@ -11,6 +11,11 @@ export const WHATSAPP_WINDOW_MS = 24 * 3_600_000;
 // most this many characters (a question's resolution note holds 500).
 export const REPLY_MAX = 500;
 
+// A message to the shifts line still unsorted this long after it came in needs a person (Wave 1,
+// w1-04): the shifts line's job may be down, or never ran. Counted in Need a person, the menu's
+// badge, Needs attention and Updates, with "Answer it" (src/lib/office/enquiry-sql.ts needsPerson).
+export const UNSORTED_FOR_PERSON_MINUTES = 10;
+
 // "Close without a reply": a code from this list only, never typed text (the log is append-only).
 export const CLOSE_REASONS = ["by_phone", "not_for_us", "duplicate", "spam", "other"] as const;
 export type CloseReason = (typeof CLOSE_REASONS)[number];
@@ -20,7 +25,7 @@ export const OUTCOMES = [
   "ai", // Sorted by AI, answered from your data
   "person_waiting", // Passed to a person, waiting
   "person_answered", // Passed to a person, answered
-  "not_understood", // Not understood
+  "not_yet", // Not answered yet: the shifts line hasn't sorted it (under 10 minutes: w1-04)
   "pay", // Pay: link to their pay page
   "payroll", // Pay: sent to payroll (a pay question from Messages about her pay: Phase 29.1)
   "in_app", // They sorted it in the app
@@ -34,7 +39,7 @@ export interface OutcomeFacts {
   handled: boolean; // the shifts line's job has sorted it (handled_at)
   handledAs: "keyword" | "ai" | "office" | "unknown" | "opt_out" | null;
   intent: "shifts" | "cancel" | "pay" | "office" | "answer" | null;
-  waiting: boolean; // Need a person (enquiries.ts NEEDS_PERSON)
+  waiting: boolean; // Need a person (enquiries.ts NEEDS_PERSON; an unsorted one after 10 minutes)
   doneInApp: boolean; // the casual booked or cancelled in the app within a day of the reply
   email?: boolean; // an email to the staffing inbox (Phase 25.5), not a message to the shifts line
 }
@@ -46,7 +51,8 @@ export const forAPerson = (f: Pick<OutcomeFacts, "handledAs" | "intent" | "email
   (f.handledAs === "unknown" && !f.email) || f.intent === "office";
 
 export function enquiryOutcome(f: OutcomeFacts): Outcome {
-  if (!f.handled) return "not_understood";
+  // Not sorted yet: waiting for a person once it's 10 minutes old (w1-04), else not answered yet.
+  if (!f.handled) return f.waiting ? "person_waiting" : "not_yet";
   if (f.email && f.handledAs === "unknown") return "inbox";
   // Pay is never answered by AI or by the shifts line's words: the casual gets the pay page's link.
   // One sent from Messages about her pay went to payroll's digest as a pay query instead (Phase

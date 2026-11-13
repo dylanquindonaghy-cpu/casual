@@ -28,6 +28,13 @@ export const CHANNEL_LABELS: Record<AnswerChannel, string> = {
 // The owner's `auto_replies` is off: nothing goes by text or email, whatever these say (P4.7).
 export const MASTER_OFF =
   "Nothing goes by text or email until the shifts line's automatic replies are on. That's set on the server.";
+// Wave 1 (w1-06): App messages, Texts and Emails are all off (anyAnswerChannelOn), at the top of
+// Your answers.
+export const NO_CHANNELS_ON =
+  "Your answers don't go out yet: app messages, texts and emails are all switched off. Switch one on under Answer casuals automatically.";
+// Under Built in (w1-06): keywords and the AI's built-in labels answer whatever the three switches
+// say (texts and email still follow the owner's auto_replies: MASTER_OFF).
+export const BUILT_IN_SWITCHES = "These still answer with the three switches off.";
 
 // "41 answered in the last 7 days" beside a switch (answers from the library only).
 export function channelUsesText(on: boolean, n: number): string {
@@ -69,14 +76,20 @@ export type AnswerSwitchResult =
   | { status: "not_found" }
   | Common;
 
-// The answer under an answer's own switch.
-export function answerSwitchResultText(name: string, r: AnswerSwitchResult): string {
+// The answer under an answer's own switch. `canGo` is answersCanGo (src/lib/answers/switches.ts):
+// an answer that's on but can't go by any channel says so (w1-06), never "it answers casuals now".
+export function answerSwitchResultText(
+  name: string,
+  r: AnswerSwitchResult,
+  canGo: boolean,
+): string {
   switch (r.status) {
     case "switched":
     case "unchanged":
-      return r.on
+      if (!r.on) return `“${name}” is off: those questions go to a person.`;
+      return canGo
         ? `“${name}” is on: it answers casuals now.`
-        : `“${name}” is off: those questions go to a person.`;
+        : `“${name}” is on, but it doesn't go out yet. See Answer casuals automatically.`;
     case "not_found":
       return "That answer isn't there any more. Reload the page.";
     default:
@@ -207,9 +220,10 @@ export function saveResultText(r: Exclude<SaveResult, { status: "saved" }>): str
   }
 }
 
-// On the list after a save ("?saved={id}").
-export function savedText(name: string, on: boolean): string {
-  return on
+// On the list after a save ("?saved={id}"). `canGo` as for answerSwitchResultText (w1-06).
+export function savedText(name: string, on: boolean, canGo: boolean): string {
+  if (!on) return `Saved “${name}”. It's off: nothing goes until you switch it on.`;
+  return canGo
     ? `Saved “${name}”. It's on: it answers casuals now.`
-    : `Saved “${name}”. It's off: nothing goes until you switch it on.`;
+    : `Saved “${name}”. It's on, but it doesn't go out yet. See Answer casuals automatically.`;
 }

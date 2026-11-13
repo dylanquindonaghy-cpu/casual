@@ -116,11 +116,24 @@ const MENU: {
   },
 ];
 
+// The Enquiries badge's words (Wave 1, w1-07; the rail's tip and screen readers): the messages
+// that need a person, then the requests from the app waiting for an answer, each only when there
+// are any: "2 need a person, 1 request to answer", "1 needs a person", "2 requests to answer".
+export function enquiriesBadgeWords(needPerson: number, appRequests: number): string {
+  const parts: string[] = [];
+  if (needPerson > 0) parts.push(`${needPerson} ${needPerson === 1 ? "needs" : "need"} a person`);
+  if (appRequests > 0)
+    parts.push(`${appRequests} ${appRequests === 1 ? "request" : "requests"} to answer`);
+  return parts.join(", ");
+}
+
 // The menu's counts (Phases 18 and 20; since Phase 21 one grey pill, office-nav.tsx): `needs` when
 // it needs this person.
 // Pay queries waiting need payroll (for the others they're with payroll); enquiries that need a
 // person, uploads to check and Needs attention's items (with those enquiries: `attention`, the
-// one count) need whoever sees them. No count, no badge.
+// one count) need whoever sees them. Enquiries' badge also counts the requests from the app
+// waiting for an answer (Wave 1, w1-07): "2 need a person, 1 request to answer". No count, no
+// badge.
 export function menuBadges(
   role: OfficeRole,
   counts: {
@@ -129,9 +142,11 @@ export function menuBadges(
     uploads: number;
     attention?: { count: number; more: boolean } | null;
     clientRequests?: number; // client requests waiting for the office (Phase 36.4)
+    appRequests?: number; // requests from the app waiting for an answer (w1-07)
   },
 ): Partial<Record<string, MenuBadge>> {
   const { payQueries, needPerson, uploads, attention, clientRequests = 0 } = counts;
+  const appRequests = counts.appRequests ?? 0;
   return {
     ...(attention && attention.count > 0
       ? {
@@ -152,11 +167,11 @@ export function menuBadges(
           },
         }
       : {}),
-    ...(needPerson
+    ...(needPerson + appRequests > 0
       ? {
           "/office/enquiries": {
-            count: needPerson,
-            words: `${needPerson} need a person`,
+            count: needPerson + appRequests,
+            words: enquiriesBadgeWords(needPerson, appRequests),
             needs: true,
           },
         }

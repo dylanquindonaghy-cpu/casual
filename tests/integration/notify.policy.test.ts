@@ -338,7 +338,8 @@ const requestSender: Sender = {
   push: true,
   sent: "request.update_sent",
   failed: "request.update_failed",
-  subject: /^Your request \(ref [0-9A-F]{8}\) is approved$/,
+  // Its setup approves a time change: request_change_agreed (Wave 1, w1-05).
+  subject: /^The office said yes to your time change$/,
   async setup(settings = {}) {
     const f = await bookingFirm(su, withFirm, { settings });
     const workerId = await f.worker({ first: "Rae" });

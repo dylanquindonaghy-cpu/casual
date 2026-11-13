@@ -466,7 +466,12 @@ test("Part 3: as the office", async ({ browser }) => {
     const asked = justBefore();
     await card.getByRole("button", { name: "Approve and tell Sam" }).click();
     await expect(card.getByText("Approved. Sam will be told.")).toBeVisible();
-    await sent(SAM.e164, asked, /^(Your request \(time change, ref [0-9A-F]{8}\) is approved\.)/);
+    // An approved time change says the shift changes only when the office updates it (w1-05).
+    await sent(
+      SAM.e164,
+      asked,
+      /^(The office said yes to your time change\. Your shift changes when they update it\.)/,
+    );
   });
 
   await test.step("26. Mark who worked", async () => {

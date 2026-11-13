@@ -11,6 +11,7 @@ import {
 } from "@/lib/portal/logout-client";
 import { forgetThisPhonesPush } from "@/lib/portal/push-client";
 import { forgetTourLater } from "@/lib/tour/steps";
+import { useHydrated } from "./use-hydrated";
 
 // Logs out (worker or office user), then the browser goes to `after` itself. Through a plain
 // route, not a server action, so a page kept from an earlier build can still log out (audit L92).
@@ -29,6 +30,8 @@ export function LogoutButton({
   icon?: ReactNode;
 }) {
   const [pending, startTransition] = useTransition();
+  // Its work is a click handler: disabled until the page is ready (Phase 37.7).
+  const ready = useHydrated();
   const [problem, setProblem] = useState<{
     outcome: Exclude<LogoutOutcome, "done">;
     copyCleared: boolean;
@@ -37,7 +40,7 @@ export function LogoutButton({
     <>
       <button
         type="button"
-        disabled={pending}
+        disabled={!ready || pending}
         onClick={() =>
           startTransition(async () => {
             setProblem(null);

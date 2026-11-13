@@ -33,8 +33,11 @@ import {
   strikesIntro,
   strikeStatusText,
 } from "@/lib/office/strikes-copy";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Strikes" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("strikes", { title: "Strikes" });
+}
 
 const isView = (v: unknown): v is StrikeView =>
   typeof v === "string" && (STRIKE_VIEWS as readonly string[]).includes(v);

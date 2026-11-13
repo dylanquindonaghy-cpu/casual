@@ -1951,9 +1951,16 @@ and the casual app's pages; the order: `src/lib/notify/send.ts` (`docs/messaging
 - **"Not offered, and why"** (off-2), beside "Who can take it" from 1024px and under it on a phone:
   the firm's active casuals with the session's role who can't be offered it, each with one reason,
   the first that applies: "Booked on it", "Cancelled off it", "Already offered it", "Turned offers
-  off", "Over today's {3} offers", "No licence in date", "Booked elsewhere then", "Too soon after
-  another shift" (rest or travel), "Over their weekly hours", "Marked unavailable", "Blocked from
-  the site", "No rule for the role", "The rules say no" (any other rule), "No way to reach them".
+  off", "Over today's {3} offers", a licence or card (below), "Booked elsewhere then", "Too soon
+  after another shift" (rest or travel), "Over their weekly hours", "Marked unavailable", "Blocked
+  from the site", "No rule for the role", "The rules say no" (any other rule), "No way to reach
+  them". A licence or card (Phase 37.3) names the first card the rules found, by the firm's own
+  name for it, in the office's existing words: "Needs {manual handling certificate} (none on
+  file)" (one of a group: "Needs {A} or {B} (none on file)"), "{Name} out of date ({7 Oct})"
+  ("({7 Oct 2025})" in another year; no date known: "{Name} out of date"), "{Name} runs out {Sat
+  14 Nov}" (in date today, but not for the whole session), "{Name} marked expired", "{Name}
+  suspended", "{Name} applied for, not counted", "{Name} applied for, over the allowance".
+  Fallback: "A licence or card missing or out of date".
   At most 20, by name ("And {12} more."); none: "Everyone with the role can be offered it." The
   offer waves leave out anyone nothing can reach, too (no phone with notifications, no email
   address, and no text: STOP, or no text sender).
@@ -3090,6 +3097,11 @@ text; an office reply comes with a notification on her phone.
   from the server again (Next's `retry()`). It's disabled until the page is ready to respond to a
   tap, and while there's no signal (it comes back on, with "Something went wrong", when the signal
   does). "Go to my shifts" is a full page load, so it recovers on My shifts itself too.
+  On an `/office` address (Phase 37.6; `src/app/office/error.tsx`, `error-view.tsx`) it keeps the
+  office frame (or, if the frame itself failed, the office's words without it): "Something went
+  wrong" / "It's not you. Try again in a moment." / "Try again" / "Back to the office" (a full
+  load of `/office`), with no "contact the office" and no "Updated" time; no signal: "No signal" /
+  "Check your signal and try again." / "Try again" / "Back to the office".
 - The whole page fails, frame and all (`src/app/global-error.tsx`): the same words, without "Go to
   my shifts". "Try again" loads the page again (as Next's own whole-page error does), even before
   the page's scripts have loaded.
@@ -3098,12 +3110,18 @@ text; an office reply comes with a notification on her phone.
   (`tryAgainText()`, `src/lib/portal/copy.ts`).
 - Forms wait for the page (Phase 11, staff and office): until the page is ready to respond to a
   tap (usually under a second), its fields are greyed out and can't be typed in or picked from,
-  like its buttons, so nothing typed or picked early is lost. No words change. The login forms
+  so nothing typed or picked early is lost; the buttons that act on a tap ("Take shift", "I can do
+  this", "Cancel this shift", "Log out") are greyed out for that moment too (Phase 37.7). No words change. The login forms
   work straight away. (`docs/ui-design.md` "Forms wait for the page";
   `tests/unit/forms.hydration.test.ts`.)
-- Browser tab titles (Phase 11) read "{page} · {firm} shifts": "Open shifts", "Urgent shifts",
-  "My requests", "New request", "Your pay", "Raise a pay query", "My profile", "Help", "Booked shifts".
-  Home, a shift's page, `/login` and `/l` keep "{firm} shifts".
+- Browser tab titles (Phase 11; Phase 37) read "{page} · {firm} shifts": "Home", "Open shifts",
+  "Urgent shifts", "My requests", "New request", "Tell the office what happened", "Messages", "Your
+  pay", "Raise a pay query", "My profile", "Your travel area", "Upload a certificate", "Your shift
+  record", "Help", "Booked shifts", "Log in" (`/login`), "Your login link" (`/l`), "Page not found".
+  A shift's page names the shift: "{Door supervisor}, {Sat 14 Nov}" ("Shift not available" when
+  she can't see it). The platform's own home keeps "ShiftDesk". Outside her app, "Confirm an email
+  address" (`/confirm-email`) and "Demo phone" (`/demo`) name themselves too.
+  (`tests/unit/casual.titles.test.ts` holds the pages to this list.)
 - The tab bar (12H.1, `src/app/tab-bar.tsx`): every logged-in casual page has it at the bottom,
   four large tabs with an icon and a word: "Home" (`/`), "Shifts" (`/shifts`, Booked; Open shifts,
   a shift's page and the urgent board count as Shifts), "Pay" (`/pay`) and "Profile" (`/profile`;
@@ -3171,18 +3189,29 @@ shows the way: each page still checks who can open it.
 - Every page opens with "{firm} office" above its title, then a line; status words carry a colour
   and a small icon, never the colour alone.
 - An office page that isn't for this role, or a shift, worker or offer that isn't there
-  (`src/app/office/not-found.tsx`), keeps the frame: "We can't find that page.", "The link may be
-  old or mistyped.", "Back to the office" (→ `/office`). Never "404". An address that matches no
-  page at all gets the staff not-found page. Checked in the browser
+  (`src/app/office/not-found.tsx`), keeps the frame: "We can't find that page.", "This page doesn't
+  exist, or your role can't open it." (true for both; Phase 37.6), "Back to the office" (→
+  `/office`). Never "404". Any /office address that matches no page
+  (`src/app/office/[...missing]`) gets this page too (Phase 37.6). Its tab reads
+  "Page not found · {firm} shifts", as does a page this role can't open, never that page's own
+  name; no "Updated" time. Checked in the browser
   (`tests/e2e/office.shifts.spec.ts`, payroll opening `/office/shifts`): those words, the link to
   `/office`, no "Go to my shifts" and no "404", and the office menu and the account menu's one
   "Log out" still there.
 - Browser tab titles read "{page} · {firm} shifts": "Dashboard", "Needs attention", "Pay
-  dashboard", "Events & sessions", "Cancellations", "Cancellation record", "Sessions", "New session", "Sessions for an event", "Import sessions from a file", "Offer this
+  dashboard", "Events & sessions", "Cancellations", "Sessions", "New session", "Sessions for an event", "Import sessions from a file", "Offer this
   session", "Enquiries", "Enquiry", "Strikes", "Casuals", "Action log", "Notice and cancellation report", "Pilot metrics",
   "Pay queries", "Import pay records", "Office team", "Settings", "Integrations", "Data requests",
   "How-to guide", "Customise" (Phase 26.3), "Updates" (Phase 26.4), "Automatic answers", "Add an
-  answer", "Edit an answer" (Phase 35.3), "Client requests", "A contract" (Phase 36.4, 36.3). A shift's, an event's, a casual's and a worker's data page keep "{firm} shifts".
+  answer", "Edit an answer" (Phase 35.3), "Client requests", "A contract" (Phase 36.4, 36.3),
+  "Office login", "Office login link", "Page not found" (Phase 37). Detail pages name what they
+  show: a casual "{Aled Adeyemi} · Casuals", their data "{Aled Adeyemi} · Data requests", an event
+  "{Northern Lights Live} · {Staffing}" (its tab: Staffing, Overview, Interested, Cancellations,
+  History), a session "{Door supervisor}, {Thu 12 Nov} · {Northern Lights Live}", a cancellation
+  "Cancellation {8CE76FA4} · {Ben Carter}" ("Cancellation {8CE76FA4}" when two records share the
+  reference). Each title runs the page's own access check first. A page this role can't open is
+  titled "Page not found", never its own name. Pages that only send you on (Requests, Today,
+  Workers) have none of their own. The PDF keeps "Cancellation record {ref}".
   `tests/unit/office.titles.test.ts` holds the pages to this list; the browser test checks "Events
   & sessions · Acme Events shifts".
 
@@ -3546,9 +3575,9 @@ staffing login or any other office login there); not logged in, the staffing log
 as {Zoe} sees it on a phone.", "Back to choose a view" and "Open full screen" (→ `/`), then the
 casual app (`/`) in a phone-sized frame, 390 by 844, centred, its corners rounded. On a phone (below
 640px) the browser goes straight to the app instead, and the frame isn't loaded. The frame is the
-same address, so it shares this browser's login. The app sends no header about framing at all, so
-nothing had to change to allow it; that also means any site can frame the app, as before this
-phase (the Parking lot has `frame-ancestors 'self'`, which this page needs instead of DENY).
+same address, so it shares this browser's login. The app allows framing only by its own pages
+(`frame-ancestors 'self'`, sent by Caddy since Phase 37.7), so this frame works and no other site
+can frame the app.
 
 The office and the casual app work exactly as before for everyone else.
 
@@ -4229,7 +4258,8 @@ sections.
   work email and we'll send you a login link." / "Your work email" / "Send me a link" / "Not set up
   yet? Ask your contact at {firm} to add you." Sent: "Check your email." / "If {firm} has set this
   address up, we've sent a login link. It works for 15 minutes." The same answer for any address.
-  The link page: "Tap the button to see your events with {firm}." / "Log me in" (a POST).
+  The link page: "Tap the button to see your events with {firm}." / "Log me in" (a POST). Tab
+  titles (Phase 37.6): "Client login" and "Client login link".
 - **What they see** (`clientEvents()`, `clientEvent()`): their contract's events to come (a session
   not yet ended, at one of the contract's venues: its own site, else its event's), soonest first;
   each session's role, location (post), times, places, booked and to fill; the chip "{n} to fill",

@@ -102,6 +102,19 @@ test("casuals ask, the office chooses: Not this time, then Book the best 1", asy
     // Each casual: "I can do this", never "Take shift"; then "Asked: we'll tell you".
     const asha = await casualLogin(browser, ASHA);
     const ben = await casualLogin(browser, BEN);
+    // Phase 37.7 (w1-10): before the page's scripts arrive (here, never), "I can do this" is
+    // disabled, so a tap can't do nothing. The click below proves it turns on once they have.
+    const plain = await browser.newContext({
+      storageState: await asha.context().storageState(),
+      javaScriptEnabled: false,
+    });
+    try {
+      const page = await plain.newPage();
+      await page.goto(`${acme}/shifts/${shiftId}`);
+      await expect(page.getByRole("button", { name: "I can do this" })).toBeDisabled();
+    } finally {
+      await plain.close();
+    }
     for (const page of [asha, ben]) {
       await page.goto(`${acme}/shifts/${shiftId}`);
       await expect(page.getByRole("button", { name: "Take shift" })).toHaveCount(0);

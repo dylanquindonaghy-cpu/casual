@@ -8,8 +8,11 @@ import { meta, notice, page } from "../../ui/classes";
 import { PageHeader } from "../../ui/page-header";
 import { officeFrame } from "../frame";
 import { AlsoNeedsYou, NeedsItems, needsPageLine } from "../needs-items";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Needs attention" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("dashboard", { title: "Needs attention" });
+}
 
 // Needs attention (docs/office-v2.md 3.2; docs/screens.md `/office/needs-attention`; Phases 18 and
 // 20): every to-do the dashboard counts, in full, each with what to do about it, the enquiries

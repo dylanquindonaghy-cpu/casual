@@ -150,6 +150,8 @@ test("counts open their tabs; Remind, a note and Mark as sorted on Need updating
 
   // Her page: her reliability and the note.
   await page.goto(`${acme}/office/casuals/${ruth}`);
+  // Her page names her in the tab (Phase 37.6, w1-09).
+  await expect(page).toHaveTitle("Ruth Reminder · Casuals · Acme Events shifts");
   await expect(page.getByRole("region", { name: "Reliability" })).toContainText(
     /New: \d+ shifts? so far/,
   );

@@ -7,8 +7,11 @@ import { listClientContacts } from "@/lib/client/contacts";
 import { lastInText, LOGINS_INTRO, LOGINS_TITLE } from "@/lib/client/office-copy";
 import { officeContracts } from "@/lib/office/contracts";
 import { ClientLogins } from "./client-logins";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "A contract" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("client_logins", { title: "A contract" });
+}
 
 // A contract's own page (Phase 36.3; the approved mock-up's "A contract's client logins"): its
 // name, "Client logins" (who at the client may log in and send requests: ./client-logins.tsx) and

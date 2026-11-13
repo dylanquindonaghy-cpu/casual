@@ -123,6 +123,8 @@ test("a resourcer opens a cancellation's record and downloads its PDF and the CS
     await record.click();
     await expect(page).toHaveURL(`${acme}/office/cancellations/${ref}`);
     await expect(page.getByRole("heading", { name: `Cancellation ${ref}` })).toBeVisible();
+    // Its tab names the record and the casual (Phase 37.6, w1-09); the PDF keeps its own title.
+    await expect(page).toHaveTitle(`Cancellation ${ref} · Rhona Record · Acme Events shifts`);
     const field = (label: string) =>
       page.locator("dt", { hasText: new RegExp(`^${label}$`) }).locator("+ dd");
     // can-5: notice, strike and reason first; then the rest in §3.4's order.

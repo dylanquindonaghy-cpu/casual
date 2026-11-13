@@ -338,7 +338,9 @@ export function OfferContent({
               {page.notOffered.map((n) => (
                 <li key={n.workerId} className="flex flex-wrap justify-between gap-x-3 leading-7">
                   <span className="font-medium text-ink">{n.name}</span>
-                  <span className="text-ink-muted">{notOfferedWhy(n.why, DAILY_OFFER_CAP)}</span>
+                  <span className="text-ink-muted">
+                    {notOfferedWhy(n.why, DAILY_OFFER_CAP, n.licence)}
+                  </span>
                 </li>
               ))}
             </ul>

@@ -328,6 +328,7 @@ test("a client logs in, asks for places and gets answers; the office accepts, de
     await client.getByRole("button", { name: "Log out" }).click();
     await expect(client).toHaveURL(`${acme}/client/login?out=1`);
     await expect(client.getByText("You're logged out.")).toBeVisible();
+    await expect(client).toHaveTitle("Client login · Acme Events shifts"); // Phase 37.6
     await client.goto(`${acme}/client`);
     await expect(client).toHaveURL(`${acme}/client/login`);
   } finally {

@@ -28,7 +28,11 @@ describe("office pages", () => {
     const without = pages.filter((page) => {
       if (usesPageHeader(page)) return false;
       // A page that hands its content to a view in its own folder (offer-view.tsx, guide-view.tsx).
-      const views = all.filter((p) => dirname(p) === dirname(page) && p.endsWith("-view.tsx"));
+      // The office's error view (Phase 37.6) is the error boundary's, not a page's.
+      const views = all.filter(
+        (p) =>
+          dirname(p) === dirname(page) && p.endsWith("-view.tsx") && !p.endsWith("/error-view.tsx"),
+      );
       return !views.some(usesPageHeader);
     });
     expect(without.map(rel).sort()).toEqual(
@@ -47,6 +51,11 @@ describe("office pages", () => {
         // over the rota board. Each has its one <h1> (below).
         "src/app/office/page.tsx",
         "src/app/office/events/page.tsx",
+        // Phase 37.6: any /office address that matches no page only calls notFound() (the office's
+        // not-found.tsx has the header), and the error boundary's browser-test page says only "It
+        // worked this time".
+        "src/app/office/[...missing]/page.tsx",
+        "src/app/office/e2e/fails-once/page.tsx",
       ].sort(),
     );
   });

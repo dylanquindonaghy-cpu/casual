@@ -14,8 +14,11 @@ import {
   enquiryTitle,
   MakeAnswerLink,
 } from "../enquiry-detail";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Enquiry" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("enquiries", { title: "Enquiry" });
+}
 
 // One message on the shifts line, on its own page (docs/office-v2.md 3.6; docs/screens.md
 // `/office/enquiries/[id]`; 12D.1): where a phone opens a message from Enquiries' list, and where

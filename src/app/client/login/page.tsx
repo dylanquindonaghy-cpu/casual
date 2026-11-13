@@ -5,7 +5,7 @@ import { getClientSession } from "@/lib/client/current-client";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 import { ClientLoginForm } from "./client-login-form";
 
-export const metadata: Metadata = { referrer: "no-referrer" };
+export const metadata: Metadata = { referrer: "no-referrer", title: "Client login" };
 
 // The client login (Phase 36.3; docs/screens.md "## Phase 36"): the office login's layout and
 // rules, in the mock-up's words. Someone already logged in goes to their events.

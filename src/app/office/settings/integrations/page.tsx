@@ -18,8 +18,11 @@ import { roleLabel } from "@/lib/portal/format";
 import { ConnectorCard } from "./connector-card";
 import { ApiKeyTable, CreateKeyForm } from "./key-forms";
 import { WebhookPanel } from "./webhook-forms";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Integrations" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("integrations", { title: "Integrations" });
+}
 
 // Integrations (docs/office-v2.md 5.3.4; docs/screens.md `/office/settings/integrations`; 12J.1).
 // Admins only (others: not found; checked here, in the loader and again in every change). How the

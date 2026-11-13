@@ -9,6 +9,7 @@ import {
   cancelOwnShift,
   comingUpScene,
   endComingUpScene,
+  removeWorker,
   setDashboardCards,
   setFirmSetting,
   unusedMobile,
@@ -356,6 +357,16 @@ test("the offer panel lists who can take it as the offer page does; Send offer, 
     lastName: "Example",
     mobileE164: "+447700900641",
   });
+  // A steward with no Level 2 spectator safety qualification on file (Phase 37.3): "Not offered,
+  // and why" names that card. The seed's stewards all hold one, so the spec adds her (first by
+  // surname, so she's inside the list's 20). She's taken away again at the end, so no other spec
+  // sees her.
+  const ninaId = await addSteward("acme", {
+    firstName: "Nina",
+    lastName: "Aardvark",
+    mobileE164: "+447700900642",
+    qualified: false,
+  });
   // Quiet hours off for Acme while the offer goes (an offer that isn't urgent waits for them to
   // end, 22:00 to 07:00, so at night it would never reach Offered), then put back as it was.
   const quietBefore = await setFirmSetting("acme", "quiet_hours", {
@@ -378,6 +389,11 @@ test("the offer panel lists who can take it as the offer page does; Send offer, 
     await expect(pippa.getByText("By text: no app notifications on their phone")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Not offered, and why" })).toBeVisible();
     await expect(page.getByRole("main").getByText(/WhatsApp/)).toHaveCount(0);
+    // The card the rules found, by the firm's own name for it (Phase 37.3).
+    const needs = "Needs Level 2 spectator safety qualification (none on file)";
+    const nina = page.getByRole("listitem").filter({ hasText: "Nina Aardvark" });
+    await expect(nina.getByText(needs, { exact: true })).toBeVisible();
+    await expect(page.getByText("No licence in date")).toHaveCount(0);
 
     // The dashboard, with the session picked; its paper plane opens the panel.
     await page.goto(`${acme}/office?session=${shiftId}`);
@@ -396,6 +412,13 @@ test("the offer panel lists who can take it as the offer page does; Send offer, 
       .getByRole("button", { name: /^Send offer to / })
       .evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
     expect(inPanel).toEqual(onPage);
+    // The same card named in the panel, and never "No licence in date" (Phase 37.3).
+    const ninaInPanel = panel
+      .getByRole("list", { name: "Not offered, and why" })
+      .getByRole("listitem")
+      .filter({ hasText: "Nina Aardvark" });
+    await expect(ninaInPanel.getByText(needs, { exact: true })).toBeVisible();
+    await expect(panel.getByText("No licence in date")).toHaveCount(0);
     // On a phone it comes up from the foot, the width of the screen (once it has slid up: 200ms).
     const view = page.viewportSize();
     await expect
@@ -432,6 +455,7 @@ test("the offer panel lists who can take it as the offer page does; Send offer, 
   } finally {
     await setFirmSetting("acme", "quiet_hours", quietBefore);
     await cancelOwnShift("acme", shiftId);
+    await removeWorker("acme", ninaId);
   }
 });
 

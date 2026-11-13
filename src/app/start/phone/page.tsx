@@ -13,10 +13,9 @@ export const metadata: Metadata = { title: PHONE_COPY.title };
 // The casual app in a phone-sized frame (Phase 31.2): on a laptop, the app (`/`) at a phone's size,
 // 390 by 844, centred, with "Open full screen" and the way back. On a phone (below 640px) the
 // browser goes straight to the app instead (PhoneOnly), and the frame isn't loaded (it's hidden
-// there, and loads lazily). Same address, so the frame shares this browser's login. The app sends
-// no header about framing at all (no X-Frame-Options, no CSP frame-ancestors), so nothing had to
-// change for this page; it also means any site can frame the app today, as before this phase
-// (docs/plan/parking-lot.md: frame-ancestors 'self', which this page needs instead of DENY).
+// there, and loads lazily). Same address, so the frame shares this browser's login. Caddy sends
+// `frame-ancestors 'self'` on every answer (deploy/Caddyfile, Phase 37.7), which lets this
+// same-address frame in and keeps every other site out. It must never become DENY.
 export default async function PhoneFramePage() {
   await staffDemoOffice();
   const casual = await getWorkerSession();

@@ -54,8 +54,11 @@ import { officeTravelText } from "@/lib/travel/copy";
 import { FindWorkerForm } from "../find-worker-form";
 import { findWorkersAction } from "./actions";
 import { PhotoCell, Tags } from "./casual-cells";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Casuals" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("casuals", { title: "Casuals" });
+}
 
 const isView = (v: unknown): v is CasualView =>
   typeof v === "string" && (CASUAL_VIEWS as readonly string[]).includes(v);

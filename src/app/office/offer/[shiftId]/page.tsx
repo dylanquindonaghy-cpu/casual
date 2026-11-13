@@ -6,8 +6,11 @@ import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { officeOfferPage } from "@/lib/office/offer-page";
 import { OfferView } from "./offer-view";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Offer this session" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("today", { title: "Offer this session" });
+}
 
 // "Offer to someone" for one shift (the dashboard's quick action). Admins and resourcers.
 export default async function OfferPage({ params }: { params: Promise<{ shiftId: string }> }) {

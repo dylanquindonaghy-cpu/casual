@@ -57,6 +57,7 @@ test("an admin downloads a worker's data, deletes their details, and downloads t
   await page.getByRole("link", { name: "Dana Erasure" }).click();
   await expect(page).toHaveURL(`${acme}/office/data/workers/${workerId}`);
   await expect(page.getByRole("heading", { name: "Dana Erasure" })).toBeVisible();
+  await expect(page).toHaveTitle("Dana Erasure · Data requests · Acme Events shifts"); // Phase 37.6
 
   const json = await download(page, "Download (JSON)");
   expect(json.file).toMatch(/^worker-[0-9a-f]{8}-data-\d{4}-\d{2}-\d{2}\.json$/);

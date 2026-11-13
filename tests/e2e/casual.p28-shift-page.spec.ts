@@ -78,7 +78,13 @@ test("the shift page: the urgent slip, the firm's name, working links to the off
     const page = await context.newPage();
 
     // The urgent open session.
+    // A shift she can't see names nothing in the tab (Phase 37.6, w1-09).
+    await page.goto(`${acme}/shifts/6f9619ff-8b86-4011-b42d-00c04fc964ff`);
+    await expect(page.getByText("This shift isn't available.")).toBeVisible();
+    await expect(page).toHaveTitle("Shift not available · Acme Events shifts");
     await page.goto(`${acme}/shifts/${scene.urgent}`);
+    // Its tab names the shift: role and day (Phase 37.6, w1-09).
+    await expect(page).toHaveTitle(/^[^·]+, \w{3} \d{1,2} \w{3} · Acme Events shifts$/);
     const bar = page.locator("[data-own-bar]");
     await expect(bar.getByRole("link", { name: "Open shifts" })).toBeVisible();
     // The firm's name, beside its initial tile (aria-hidden).

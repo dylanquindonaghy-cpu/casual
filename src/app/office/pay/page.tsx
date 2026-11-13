@@ -23,8 +23,11 @@ import { nextPayLines, payPeriodLabel } from "@/lib/pay/pay-week";
 import { ISSUE_LABELS } from "@/lib/portal/pay-query-kinds";
 import { dayLabel } from "@/lib/rules/reasons";
 import { SendDigestButton } from "../pay-queries/send-digest-button";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Pay dashboard" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("pay", { title: "Pay dashboard" });
+}
 
 // Payroll's home (docs/office-v2.md 3.8; docs/screens.md `/office/pay`); `/office` sends payroll
 // here. Admins and payroll. The pay period under the title (no shifts line: Phase 26.10, fix-1), the

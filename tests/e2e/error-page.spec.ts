@@ -1,5 +1,7 @@
 import { FRAME_FAILS_COOKIE } from "../../src/lib/e2e/fails-once";
-import { expect, test } from "./fixtures";
+import { addOfficeUser } from "./db";
+import { expect, menuLink, test } from "./fixtures";
+import { sentTo } from "./outbox";
 
 // Audit M4: "Try again" on the error screens must fetch the page again. A page that fails on the
 // server (a database timeout on My shifts, say) used to fail again on "Try again", because the
@@ -84,4 +86,45 @@ test("the test-only page is the only way to fail on purpose: a bad id is not fou
   const response = await page.goto(`${PORTAL}/e2e/fails-once?id=NOT_OK`);
   expect(response?.status()).toBe(404);
   await expect(page.getByRole("heading", { name: "We can't find that page." })).toBeVisible();
+});
+
+// Phase 37.6 (w1-09): the casual not-found names itself in the tab.
+test("an address that matches no page: the tab says Page not found", async ({ page }) => {
+  expect((await page.goto(`${PORTAL}/no-such-page`))?.status()).toBe(404);
+  await expect(page.getByRole("heading", { name: "We can't find that page." })).toBeVisible();
+  await expect(page).toHaveTitle("Page not found · Acme Events shifts");
+});
+
+// Phase 37.6 (w1-08): an office page that fails keeps the office frame and the office's words.
+test("an office page that failed once keeps the office frame; 'Try again' fetches it again", async ({
+  page,
+}, testInfo) => {
+  const email = `errorpage.admin${testInfo.retry || ""}@example.com`;
+  await addOfficeUser("acme", { email, name: "Error Admin", role: "admin" });
+  const asked = new Date(Date.now() - 1000);
+  await page.goto(`${PORTAL}/office/login`);
+  await page.getByLabel("Your work email").fill(email);
+  await page.getByRole("button", { name: "Send me a link" }).click();
+  await expect(page.getByText("Check your email.")).toBeVisible();
+  const link = await sentTo(email, asked, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/);
+  await page.goto(link);
+  await page.getByRole("button", { name: "Log me in" }).click();
+  await expect(page).toHaveURL(`${PORTAL}/office`);
+
+  await page.goto(`${PORTAL}/office/e2e/fails-once?id=${uniqueId()}`);
+  await expect(page.getByRole("heading", { name: "Something went wrong" })).toBeVisible();
+  await expect(page.getByText("It's not you. Try again in a moment.")).toBeVisible();
+  await expect(page.getByText("If it keeps happening, contact the office.")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Go to my shifts" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Back to the office" })).toHaveAttribute(
+    "href",
+    "/office",
+  );
+  await expect(page.locator("#main").getByText(/^Updated \d/)).toHaveCount(0);
+  // The office frame stays: its menu is there.
+  await expect(await menuLink(page, "Casuals")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("heading", { name: "It worked this time" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Something went wrong" })).toHaveCount(0);
 });

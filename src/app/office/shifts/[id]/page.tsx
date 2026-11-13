@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -34,7 +35,8 @@ import {
   type PanelKey,
   type SessionTab,
 } from "@/lib/office/session-page-copy";
-import { officeShiftDetail } from "@/lib/office/shift-pages";
+import { officeSessionTitle, officeShiftDetail } from "@/lib/office/shift-pages";
+import { sessionTabTitle } from "@/lib/office/tab-titles";
 import {
   FROM_PLANNER_WORDS,
   PLACE_FLAG_WORDS,
@@ -80,6 +82,24 @@ const PANELS = Object.keys(PANEL_WORDS) as PanelKey[];
 // switch and the rule that booking checks everything first). Admins and resourcers. A session from
 // the firm's planner keeps Assign and the cancelling of one booking, but its edit, details, move
 // and cancel are changed in the planner; a sheet's is changed in the sheet.
+// The tab names the session (Phase 37.6, w1-09): "Door supervisor, Thu 12 Nov · Northern Lights
+// Live". The page's own access check first (a role without "shifts" gets the not-found page and
+// its "Page not found", never the session), then one row (officeSessionTitle).
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { firm } = await requireOfficeArea("shifts");
+  const found = await officeSessionTitle(
+    { firm },
+    (await readSessionToken("office")) ?? "",
+    (await params).id,
+  );
+  if (!found) notFound();
+  return { title: sessionTabTitle(found) };
+}
+
 export default async function OfficeShiftPage({
   params,
   searchParams,

@@ -13,10 +13,13 @@ import {
 } from "@/lib/office/action-log";
 import { LOG_TYPE_KEYS, LOG_TYPES } from "@/lib/office/log-types";
 import { timeOnDay } from "@/lib/portal/format";
+import { areaMetadata } from "@/app/office/area-metadata";
 
 const select = `${field} w-full`;
 
-export const metadata: Metadata = { title: "Action log" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("log", { title: "Action log" });
+}
 
 // The link to the next page: the same filters, continuing after the last line shown.
 function olderHref(filters: LogFilters, before: string): string {

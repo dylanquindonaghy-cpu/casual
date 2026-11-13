@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { btn, card, count, h2, meta, page, sectionGap, textLink } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
@@ -6,6 +8,7 @@ import { StatusChip, type StatusTone } from "@/app/ui/status-chip";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { dayWithYear } from "@/lib/office/action-log";
 import { STATUS_WORDS } from "@/lib/office/worker-copy";
+import { casualTabTitle } from "@/lib/office/tab-titles";
 import { workerAccessView } from "@/lib/office/worker-access";
 import { STRIKES_PER_CASUAL } from "@/lib/office/strikes";
 import { liveCountText, strikeLine, strikeStatusText } from "@/lib/office/strikes-copy";
@@ -67,10 +70,28 @@ const STATUS_TONES: Record<"active" | "inactive" | "blocked", StatusTone> = {
 // at, logging them out everywhere: moved from `/office/workers/[id]`). "Booked ahead" sits beside
 // them on a wide screen (below them on a phone). Admins and resourcers (checked here and in every
 // function it calls).
-export default async function OfficeCasualPage({ params }: { params: Promise<{ id: string }> }) {
+// The casual, read once per request for the page and its tab title ("{name} · Casuals", Phase
+// 37.6, w1-09), after the page's own access check: a role without "casuals" gets the not-found
+// page, never the name. An erased casual's tab uses the name the headline shows.
+const load = cache(async (id: string) => {
   const { firm, officeUser } = await requireOfficeArea("casuals");
-  const { id } = await params;
   const worker = await workerAccessView({ firm, officeUserId: officeUser.id }, id);
+  return { firm, officeUser, worker };
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { worker } = await load((await params).id);
+  if (!worker) notFound();
+  return { title: casualTabTitle(worker.name) };
+}
+
+export default async function OfficeCasualPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const { firm, officeUser, worker } = await load(id);
   if (!worker) notFound();
   const extras = await casualPageExtras({ firm, officeUserId: officeUser.id }, id);
   const tz = firm.timezone;

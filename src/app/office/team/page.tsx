@@ -9,8 +9,11 @@ import { officeTeam } from "@/lib/auth/office-login";
 import { ROLE_LABELS } from "@/lib/auth/roles";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { MemberActions } from "./member-actions";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Office team" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("team", { title: "Office team" });
+}
 
 // Who has office access, their roles, and changing them (docs/screens.md `/office/team`). Admins
 // only (checked here, in officeTeam() and again in every change). Nobody changes their own access

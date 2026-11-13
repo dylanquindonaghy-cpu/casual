@@ -13,8 +13,11 @@ import {
   eventsLine,
 } from "@/lib/office/events-copy";
 import { EventCard } from "./event-card";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Events & sessions" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("shifts", { title: "Events & sessions" });
+}
 
 const isView = (v: unknown): v is EventView =>
   typeof v === "string" && (EVENT_VIEWS as readonly string[]).includes(v);

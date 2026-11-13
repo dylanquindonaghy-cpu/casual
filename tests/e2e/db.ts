@@ -258,9 +258,16 @@ export async function addEventWithSession(
 // own spec, tests/e2e/casual.tour.spec.ts).
 export async function addSteward(
   slug: string,
-  who: { firstName: string; lastName: string; mobileE164: string; tourSeen?: boolean },
+  who: {
+    firstName: string;
+    lastName: string;
+    mobileE164: string;
+    tourSeen?: boolean;
+    // false: no Level 2 spectator safety qualification on file (Phase 37.3's "Not offered, and why").
+    qualified?: boolean;
+  },
 ): Promise<string> {
-  const { tourSeen, ...o } = who;
+  const { tourSeen, qualified, ...o } = who;
   const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
   try {
     const { rows } = await pool.query<{ db: string }>("select current_database() as db");
@@ -278,9 +285,11 @@ export async function addSteward(
         .onConflictDoNothing()
         .returning({ id: workers.id });
       if (added) {
-        await tx
-          .insert(credentials)
-          .values({ firmId, workerId: added.id, type: "STEWARD_L2", status: "valid" });
+        if (qualified !== false) {
+          await tx
+            .insert(credentials)
+            .values({ firmId, workerId: added.id, type: "STEWARD_L2", status: "valid" });
+        }
         return added.id;
       }
       const [found] = await tx
@@ -289,6 +298,28 @@ export async function addSteward(
         .where(eq(workers.mobileE164, o.mobileE164));
       if (!found) throw new Error("worker neither added nor found");
       return found.id;
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
+// Takes away a worker a spec added for itself (and their cards), so later specs never see them: a
+// steward with no qualification would sit first in other sessions' "Not offered, and why". Fails
+// loudly if anything else now points at them (their history isn't the spec's to delete).
+export async function removeWorker(slug: string, workerId: string): Promise<void> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    await createWithFirm(pool)(firmId, async (tx) => {
+      await tx.delete(credentials).where(eq(credentials.workerId, workerId));
+      const gone = await tx
+        .delete(workers)
+        .where(eq(workers.id, workerId))
+        .returning({ id: workers.id });
+      if (gone.length !== 1) throw new Error(`worker ${workerId} not removed`);
     });
   } finally {
     await pool.end();

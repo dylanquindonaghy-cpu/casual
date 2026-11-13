@@ -33,8 +33,11 @@ import {
 } from "@/lib/client/words";
 import { updateWhen } from "@/lib/office/dashboard-map-copy";
 import { RequestActions, type AcceptOptions } from "./request-actions";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Client requests" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("client_requests", { title: "Client requests" });
+}
 
 // Client requests (Phase 36.4; the approved mock-up's "Client requests, laptop"; docs/screens.md
 // "## Phase 36", "36.3 and 36.4 screens"): what clients sent from their logins. Tabs Waiting

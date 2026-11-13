@@ -4,8 +4,11 @@ import { btn, page, sectionGap } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { PayImportForm } from "./import-form";
+import { areaMetadata } from "@/app/office/area-metadata";
 
-export const metadata: Metadata = { title: "Import pay records" };
+export async function generateMetadata(): Promise<Metadata> {
+  return areaMetadata("pay", { title: "Import pay records" });
+}
 
 // "Import pay records" (docs/screens.md `/office/pay/import`). Payroll and admins; the import checks
 // the office user again inside its transaction. The header says what the file needs; the form is

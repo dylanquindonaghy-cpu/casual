@@ -69,6 +69,7 @@ describe("Not offered, and why: a licence or card names the card", () => {
     ],
     [lic("out_of_date"), "SIA door supervisor licence out of date"],
     [lic("runs_out", [DS], "2026-11-14"), "SIA door supervisor licence runs out Sat 14 Nov"],
+    [lic("runs_out", [DS], "2027-01-08"), "SIA door supervisor licence runs out Fri 8 Jan 2027"],
     [lic("marked_expired"), "SIA door supervisor licence marked expired"],
     [lic("suspended"), "SIA door supervisor licence suspended"],
     [

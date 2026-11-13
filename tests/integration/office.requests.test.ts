@@ -388,6 +388,8 @@ describe("telling the worker (the request-update job)", () => {
       ["request.update_notice", "sending"],
       ["request.update_sent", "sms"],
     ]);
+    // The log names the words sent (the guardrails review of Phase 37): a declined swap's.
+    expect(logged[0]?.data.template).toBe("request_update");
     // No phone with notifications on: no push.
     expect(logged[1]?.data.pushes).toBe(0);
     expect(n.pushedInTransaction).toEqual([]);
@@ -426,6 +428,9 @@ describe("telling the worker (the request-update job)", () => {
     expect(bodies(n.sent)).toEqual([
       `The office said yes to your time change. Your shift changes when they update it. Ref ${ref(t.timeChange)}. — Booking Test ${n.slug} Shift Team`,
     ]);
+    // The log names the words sent: the agreed wording, not "approved".
+    const logged = await eventsOf(t.f.firmId, "request.update_notice");
+    expect(logged.map((e) => e.data.template)).toEqual(["request_change_agreed"]);
   });
 
   it("an approved swap with a note: request_change_agreed by email, with its subject", async () => {

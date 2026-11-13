@@ -74,7 +74,11 @@ export function licenceWhy(l: NotOfferedLicence): string {
     case "out_of_date":
       return l.date ? `${name} out of date (${shortDate(l.date, l.year)})` : `${name} out of date`;
     case "runs_out":
-      return l.date ? `${name} runs out ${dayLabel(l.date)}` : `${name} out of date`;
+      // The year too when the card runs out in another year than the session's (as "out of
+      // date" does).
+      return l.date
+        ? `${name} runs out ${dayLabel(l.date)}${Number(l.date.slice(0, 4)) === l.year ? "" : ` ${l.date.slice(0, 4)}`}`
+        : `${name} out of date`;
     case "marked_expired":
       return `${name} marked expired`;
     case "suspended":

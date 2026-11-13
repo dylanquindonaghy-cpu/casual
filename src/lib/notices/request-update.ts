@@ -185,7 +185,12 @@ async function claim(tx: FirmTx, payload: RequestUpdatePayload, now: Date): Prom
     action: "request.update_notice",
     entityType: "request",
     entityId: payload.requestId,
-    data: { workerId: row.workerId, status: "sending" },
+    // Which words the casual was sent: the log is the evidence of what they were told.
+    data: {
+      workerId: row.workerId,
+      status: "sending",
+      template: agreed ? "request_change_agreed" : "request_update",
+    },
   });
   return {
     status: "send",

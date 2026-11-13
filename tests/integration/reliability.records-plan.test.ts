@@ -102,6 +102,17 @@ const bookingReads = (plan: PlanNode) =>
     .filter((n) => n["Relation Name"] === "assignments" && n.Alias === "a")
     .reduce((sum, n) => sum + (n["Actual Loops"] ?? 0), 0);
 
+// Whether the bookings are added up by casual before the casuals are joined, whatever the join
+// order: every Aggregate that reads the bookings has no scan of the casuals (workers) under it. The
+// old query grouped the join of casuals, bookings and sessions, so its one Aggregate had both, and
+// this catches it even on a plan that happened to read the bookings first.
+const addedUpBeforeCasuals = (plan: PlanNode) => {
+  const reads = (n: PlanNode, relation: string) =>
+    nodes(n).some((m) => m["Relation Name"] === relation);
+  const sums = nodes(plan).filter((n) => n["Node Type"] === "Aggregate" && reads(n, "assignments"));
+  return sums.length > 0 && sums.every((n) => !reads(n, "workers"));
+};
+
 describe("each casual's record, added up once", () => {
   it("reads the bookings once (not once per casual) whatever the join, with the same records", async () => {
     const { f, ids } = await crew();
@@ -110,6 +121,7 @@ describe("each casual's record, added up once", () => {
     // Before: a nested loop over the casuals read the bookings once for each of the 12 casuals.
     // Now at most once per session (2), whichever side of their join the planner puts them.
     expect(bookingReads(plans[0]!)).toBeLessThanOrEqual(2);
+    expect(addedUpBeforeCasuals(plans[0]!)).toBe(true);
 
     // The records themselves, as before.
     expect([...result.keys()].sort()).toEqual([...ids].sort());
@@ -130,6 +142,7 @@ describe("each casual's record, added up once", () => {
     const some = ids.slice(0, 3);
     const { plans, result } = await plansOf(f.firmId, (tx) => loadCasualRecords(tx, NOW, some));
     expect(bookingReads(plans[0]!)).toBeLessThanOrEqual(2);
+    expect(addedUpBeforeCasuals(plans[0]!)).toBe(true);
     expect([...result.keys()].sort()).toEqual([...some].sort());
     expect(result.get(ids[1]!)?.reliability.counts).toEqual({
       worked: 2,

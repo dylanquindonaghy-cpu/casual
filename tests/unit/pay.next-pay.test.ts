@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { payCalendar } from "@/lib/pay/calendar";
 import { nextPayFor, recordWindow } from "@/lib/pay/next-pay";
-import { nextPayLines } from "@/lib/pay/pay-week";
+import { nextPayLines, shiftDatesText } from "@/lib/pay/pay-week";
 
 // The pay dashboard's next pay day (Phase 26.10, fix-1; docs/screens.md "Fixes and words"): the
 // first pay day not yet past. The review found the dashboard saying Fri 13 Nov on Monday 2 Nov
@@ -19,6 +19,7 @@ describe("the next pay day", () => {
         day: "2026-11-06",
         from: "pay calendar",
         periodStart: "2026-10-26",
+        periodEnd: "2026-11-01",
         thisPeriodPaid: "2026-11-13",
       });
     }
@@ -27,6 +28,7 @@ describe("the next pay day", () => {
       day: "2026-11-13",
       from: "pay calendar",
       periodStart: "2026-11-02",
+      periodEnd: "2026-11-08",
       thisPeriodPaid: null,
     });
   });
@@ -37,6 +39,7 @@ describe("the next pay day", () => {
       day: "2026-11-05",
       from: "pay records",
       periodStart: "2026-10-26",
+      periodEnd: "2026-11-01",
       thisPeriodPaid: "2026-11-13",
     });
     // Or late, on the Monday after: still last week's, from the records.
@@ -44,6 +47,7 @@ describe("the next pay day", () => {
       day: "2026-11-09",
       from: "pay records",
       periodStart: "2026-10-26",
+      periodEnd: "2026-11-01",
       thisPeriodPaid: "2026-11-13",
     });
   });
@@ -54,6 +58,7 @@ describe("the next pay day", () => {
       day: "2026-11-13",
       from: "pay calendar",
       periodStart: "2026-11-02",
+      periodEnd: "2026-11-08",
       thisPeriodPaid: null,
     });
   });
@@ -63,6 +68,7 @@ describe("the next pay day", () => {
       day: "2026-11-03",
       from: "pay records",
       periodStart: "2026-10-19",
+      periodEnd: "2026-10-25",
       thisPeriodPaid: "2026-11-13",
     });
   });
@@ -72,6 +78,7 @@ describe("the next pay day", () => {
       day: "2026-11-06",
       from: "pay records",
       periodStart: "2026-10-26",
+      periodEnd: "2026-11-01",
       thisPeriodPaid: "2026-11-13",
     });
   });
@@ -81,6 +88,7 @@ describe("the next pay day", () => {
       day: "2026-11-12",
       from: "pay records",
       periodStart: "2026-11-02",
+      periodEnd: "2026-11-08",
       thisPeriodPaid: null,
     });
   });
@@ -91,6 +99,7 @@ describe("the next pay day", () => {
       day: "2026-11-13",
       from: "pay calendar",
       periodStart: "2026-10-26",
+      periodEnd: "2026-11-08",
       thisPeriodPaid: null,
     });
     // In its first week, Cycle 21's Fri 30 Oct is still ahead.
@@ -98,6 +107,7 @@ describe("the next pay day", () => {
       day: "2026-10-30",
       from: "pay calendar",
       periodStart: "2026-10-12",
+      periodEnd: "2026-10-25",
       thisPeriodPaid: "2026-11-13",
     });
   });
@@ -109,28 +119,55 @@ describe("the next pay day", () => {
 });
 
 describe("its words", () => {
-  it("the week, this week's later pay day, and where the date came from", () => {
+  it("the shifts it pays, this week's later pay day, and where the date came from", () => {
     expect(
       nextPayLines(
-        { from: "pay calendar", periodStart: "2026-10-26", thisPeriodPaid: "2026-11-13" },
+        {
+          from: "pay calendar",
+          periodStart: "2026-10-26",
+          periodEnd: "2026-11-01",
+          thisPeriodPaid: "2026-11-13",
+        },
         "week",
       ),
-    ).toEqual(["For shifts in the week of 26 Oct.", "This week's shifts are paid Fri 13 Nov."]);
+    ).toEqual(["For shifts Mon 26 Oct to Sun 1 Nov.", "This week's shifts are paid Fri 13 Nov."]);
     expect(
       nextPayLines(
-        { from: "pay records", periodStart: "2026-10-26", thisPeriodPaid: null },
+        {
+          from: "pay records",
+          periodStart: "2026-11-02",
+          periodEnd: "2026-11-08",
+          thisPeriodPaid: null,
+        },
         "week",
       ),
-    ).toEqual(["For shifts in the week of 26 Oct.", "From your pay records."]);
+    ).toEqual(["For shifts Mon 2 to Sun 8 Nov.", "From your pay records."]);
+    // A cycle: the same formatter (Phase 37.1), never "in the cycle from 12 Oct".
     expect(
       nextPayLines(
-        { from: "pay records", periodStart: "2026-10-12", thisPeriodPaid: "2026-11-13" },
+        {
+          from: "pay records",
+          periodStart: "2026-10-12",
+          periodEnd: "2026-10-25",
+          thisPeriodPaid: "2026-11-13",
+        },
         "cycle",
       ),
     ).toEqual([
-      "For shifts in the cycle from 12 Oct.",
+      "For shifts Mon 12 to Sun 25 Oct.",
       "This cycle's shifts are paid Fri 13 Nov.",
       "From your pay records.",
     ]);
+  });
+});
+
+// One formatter for a pay period's shifts (Phase 37.1): the casual's Home and Pay, the office's pay
+// dashboard and the answer library's {pay_cycle} all write it this way.
+describe("shiftDatesText", () => {
+  it("one month, two months, New Year (no year) and a fortnight", () => {
+    expect(shiftDatesText("2026-11-02", "2026-11-08")).toBe("Mon 2 to Sun 8 Nov");
+    expect(shiftDatesText("2026-10-26", "2026-11-01")).toBe("Mon 26 Oct to Sun 1 Nov");
+    expect(shiftDatesText("2026-12-28", "2027-01-03")).toBe("Mon 28 Dec to Sun 3 Jan");
+    expect(shiftDatesText("2026-10-26", "2026-11-08")).toBe("Mon 26 Oct to Sun 8 Nov");
   });
 });

@@ -92,6 +92,7 @@ describe("the pay dashboard's data", () => {
       day: "2026-11-06",
       from: "pay records",
       periodStart: "2026-10-26",
+      periodEnd: "2026-11-01",
       thisPeriodPaid: "2026-11-13",
     });
     expect(d.groups.map((g) => g.queries.length)).toEqual([1, 1]);
@@ -160,6 +161,7 @@ describe("the pay dashboard's data", () => {
       day: "2026-11-13",
       from: "pay calendar",
       periodStart: "2026-10-26",
+      periodEnd: "2026-11-08",
       thisPeriodPaid: null,
     });
     expect(d.recentlySorted.map((r) => [r.firstDay, r.periodStart])).toEqual([
@@ -181,6 +183,7 @@ describe("the pay dashboard's data", () => {
       day: "2026-11-06",
       from: "pay calendar",
       periodStart: "2026-10-26",
+      periodEnd: "2026-11-01",
       thisPeriodPaid: "2026-11-13",
     });
     expect(d.sortedThisWeek).toBe(0);

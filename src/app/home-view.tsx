@@ -97,7 +97,7 @@ export interface HomeViewProps {
   needs: NeedsItem[];
   photo: StaffPhoto;
   open: OpenShiftsList; // the shifts she can take, urgent first (src/lib/portal/open-shifts.ts)
-  pay: MyPayDay; // the day this pay period's shifts are paid, on the firm's calendar (P3)
+  pay: MyPayDay; // the next pay day not yet past and the shifts it pays, as the office's (37.1)
   // Phase 28.7: nothing can reach her, or her open-shift alerts are off
   // (src/lib/portal/reach-me.ts). Online only.
   reach?: ReachPrompt[];
@@ -325,6 +325,7 @@ function Row({
         {plate && " "}
         <span className="block text-lg leading-snug font-medium text-ink">{text.title}</span>{" "}
         <span className="block text-base text-ink-muted">{text.sub}</span>
+        {text.note && <span className="block text-base text-ink-muted">{text.note}</span>}
       </span>
       {href && <Icon name="chevron" size={22} className="text-ink-muted" />}
     </>
@@ -458,7 +459,8 @@ function ShiftsYouCanTake({
   );
 }
 
-// "Pay": the Friday this week's shifts are paid (D8), to Pay.
+// "Pay": the next pay day, the shifts it pays and, when this period is paid later, that day (37.1),
+// to Pay.
 function PaySection({ pay }: { pay: MyPayDay }) {
   return (
     <Section id="pay" title="Pay" className="lg:col-span-6">

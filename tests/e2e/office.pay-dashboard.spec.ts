@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { addOfficeUser } from "./db";
 import { expect, menuLink, test } from "./fixtures";
-import { sentTo } from "./outbox";
+import { loginLinkSentTo, sentTo } from "./outbox";
 
 // Payroll's pay dashboard in a real browser (docs/office-v2.md 3.8; PLAN.md 12A.3), on the demo
 // seed: payroll lands there from /office; the title with the pay week under it (no shifts line:
@@ -30,19 +30,20 @@ test("payroll lands on the pay dashboard: the pay week, the counts and both sect
   await expect(page).toHaveTitle("Pay dashboard · Acme Events shifts");
   await expect(page.getByRole("heading", { name: "Pay dashboard", level: 1 })).toBeVisible();
   await expect(page.getByText(/^Your shifts line:/)).toHaveCount(0);
-  // The pay week and its pay day (Phase 24: from the top bar).
+  // The pay week and its dates (Phase 24: from the top bar; 37.1: no "(paid …)" beside the Next
+  // pay day, in the casual's words).
   await expect(
     page
       .getByRole("main")
-      .getByText(
-        /^Week \d{1,2} \(paid Fri \d{1,2} [A-Z][a-z]{2}\) · \d{1,2} [A-Z][a-z]{2} – \d{1,2} [A-Z][a-z]{2}$/,
-      ),
+      .getByText(/^Week \d{1,2} · Mon \d{1,2}( [A-Z][a-z]{2})? to Sun \d{1,2} [A-Z][a-z]{2}$/),
   ).toBeVisible();
   for (const name of ["Pay queries waiting", "Next digest", "Sorted this week", "Next pay day"]) {
     await expect(page.getByText(name, { exact: true })).toBeVisible();
   }
-  // Which shifts the next pay day pays (Phase 26.10, fix-1).
-  await expect(page.getByText(/^For shifts in the week of \d{1,2} [A-Z][a-z]{2}\.$/)).toBeVisible();
+  // Which shifts the next pay day pays (Phase 26.10, fix-1; 37.1's words).
+  await expect(
+    page.getByText(/^For shifts Mon \d{1,2}( [A-Z][a-z]{2})? to Sun \d{1,2} [A-Z][a-z]{2}\.$/),
+  ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Waiting, grouped by likely cause", exact: true }),
   ).toBeVisible();
@@ -89,4 +90,40 @@ test("resourcers can't open the pay dashboard", async ({ page }) => {
   await page.keyboard.press("Escape");
   const response = await page.goto(`${acme}/office/pay`);
   expect(response?.status()).toBe(404);
+});
+
+// One pay day everywhere (37.1): Zoe (whose seeded pay records are whole weeks on the calendar)
+// sees on /pay the same next pay day, and the same shifts, as payroll's dashboard.
+test("Zoe's pay day is the dashboard's Next pay day", async ({ page, browser }) => {
+  await officeLogin(page, "dash.payroll.agree@example.com", "payroll");
+  await expect(page).toHaveURL(`${acme}/office/pay`);
+  const tile = page.getByText("Next pay day", { exact: true }).locator("xpath=..");
+  const officeDay = (await tile.locator("p").first().textContent())?.trim() ?? "";
+  const officeShifts = (await tile.getByText(/^For shifts /).textContent())?.trim() ?? "";
+  expect(officeDay).toMatch(/^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}$/);
+
+  const zoe = await browser.newContext();
+  try {
+    const casual = await zoe.newPage();
+    const asked = new Date(Date.now() - 1000);
+    await casual.goto(`${acme}/login`);
+    await casual.getByLabel("Your mobile number").fill("07700 900400");
+    await casual.getByRole("button", { name: "Send me a link" }).click();
+    await casual.goto(await loginLinkSentTo("+447700900400", asked));
+    await casual.getByRole("button", { name: "Log me in" }).click();
+    await expect(casual).toHaveURL(`${acme}/`);
+    await casual.goto(`${acme}/pay`);
+    await expect(casual.getByRole("heading", { level: 2, name: /^Next pay day: / })).toHaveText(
+      `Next pay day: ${officeDay}`,
+    );
+    // The same shifts, the office's line ending in a full stop.
+    await expect(
+      casual
+        .getByRole("region", { name: /^Next pay day: / })
+        .getByText(/^For shifts /)
+        .first(),
+    ).toHaveText(officeShifts.replace(/\.$/, ""));
+  } finally {
+    await zoe.close();
+  }
 });

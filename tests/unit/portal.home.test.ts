@@ -54,7 +54,13 @@ const home = (shifts: OpenShift[]) => {
   return renderToStaticMarkup(
     createElement(HomeView, {
       firmName: "Acme Events",
-      pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
+      pay: {
+        payDay: "2026-11-13",
+        days: 7,
+        start: "2026-11-02",
+        end: "2026-11-08",
+        thisPeriodPaid: null,
+      },
       firstName: "Zoe",
       lastName: "Adeyemi",
       timeZone: TZ,
@@ -135,7 +141,7 @@ describe("Home's open shifts, in Shifts you can take", () => {
     // Pay day (Phase 20): the pay week's Friday, to the Pay tab, online and offline, its day the tile.
     expect(row("pay")).toContain('href="/pay"');
     expect(row("pay")).not.toMatch(/data-o(n|ff)line-only/);
-    expect(spoken(row("pay"))).toBe("Pay day: Fri 13 Nov For shifts Mon 2 to Sun 8 Nov");
+    expect(spoken(row("pay"))).toBe("Next pay day: Fri 13 Nov For shifts Mon 2 to Sun 8 Nov");
     expect(tileOf(row("pay"))?.slice(2)).toEqual(["Fri", "13"]);
     expect(html).not.toContain("data-requirements");
     expect(text(html)).not.toMatch(/SIA DS|CSAS/);
@@ -153,7 +159,13 @@ describe("Home with travel areas switched off for the firm (13.4)", () => {
     const html = renderToStaticMarkup(
       createElement(HomeView, {
         firmName: "Acme Events",
-        pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
+        pay: {
+          payDay: "2026-11-13",
+          days: 7,
+          start: "2026-11-02",
+          end: "2026-11-08",
+          thisPeriodPaid: null,
+        },
         firstName: "Zoe",
         lastName: "Adeyemi",
         timeZone: TZ,
@@ -192,7 +204,13 @@ describe("Home's rows, at most five", () => {
     const html = renderToStaticMarkup(
       createElement(HomeView, {
         firmName: "Acme Events",
-        pay: { payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" },
+        pay: {
+          payDay: "2026-11-13",
+          days: 7,
+          start: "2026-11-02",
+          end: "2026-11-08",
+          thisPeriodPaid: null,
+        },
         firstName: "Zoe",
         lastName: "Adeyemi",
         timeZone: TZ,

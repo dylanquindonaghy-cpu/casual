@@ -2669,3 +2669,14 @@ From builder C (37.3, 37.6, 37.7; 2026-11-13):
   own files never update themselves"); the rest of x6-features-08 (an outside pen test, Cyber
   Essentials, the Dependabot pass). Live on the server is its own step after the tick
   (`docs/runbooks.md` "A new Caddyfile").
+
+From builder A (37.1, 37.2, 37.8; 2026-11-13):
+
+- **The rest of the pay words (37.1, w1-01):** the unlocked Pay page's week headings and per-week
+  "Pay day: …" chips (`src/lib/portal/pay-format.ts`), "Recently sorted"'s "the week of {Mon 2
+  Nov}" and the dashboard head and top bar's "Week 46 (paid Fri 20 Nov)" (O3) keep their own
+  forms; they could use `shiftDatesText` too.
+- **The office and the casual read different pay records (37.1):** the office's Next pay day reads
+  the whole firm's records (a colleague's, or one for part of a period, can move it); the casual's
+  reads only her own whole-period ones. They agree whenever the records do (one calendar, one
+  payroll date per period), which is every firm today.

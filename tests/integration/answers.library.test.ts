@@ -76,6 +76,7 @@ async function libraryFirm(
   o: {
     settings?: Record<string, unknown>;
     answers?: { name: string; examples: string; body: string; on?: boolean }[];
+    clock?: Clock; // the job's "now" (the pay day answer's day, Phase 37.1)
   } = {},
 ) {
   const f = await bookingFirm(su, withFirm, {
@@ -112,6 +113,7 @@ async function libraryFirm(
     ai,
     baseDomain: "shiftdesk.test",
     aiTimeoutMs: 200,
+    ...(o.clock ? { clock: o.clock } : {}),
   });
   const run = (messageId: string, ai?: AiClient) =>
     runInboundMessage(
@@ -533,6 +535,26 @@ describe("texts to the shifts line", () => {
       matchedBy: "example",
       answerMissing: ["next_shift", "next_shift_instructions"],
     });
+  });
+
+  it("the pay day answer gives the office's next pay day: on Wed 11 Nov, Fri 13 Nov for Mon 2 to Sun 8 Nov (37.1)", async () => {
+    const t = await libraryFirm({
+      answers: [
+        {
+          name: "Pay day",
+          examples: "when do we get paid",
+          body: "Pay day is {next_pay_day}, for shifts {pay_cycle}",
+        },
+      ],
+      clock: { now: () => new Date("2026-11-11T12:00:00Z") },
+    });
+    const pay = await t.text("when do we get paid?");
+    expect(pay.result).toMatchObject({ status: "replied", intent: "answer" });
+    expect(
+      t.sent[0]?.body?.startsWith(
+        `Pay day is Friday 13 November, for shifts Mon 2 to Sun 8 Nov ${ANSWER_PAY_HINT} Automatic reply.`,
+      ),
+    ).toBe(true);
   });
 
   it("her own facts filled in by code: pay day, next shift and its instructions, licence expiry, links", async () => {

@@ -35,7 +35,7 @@ export const FILL_INS: readonly FillIn[] = [
     key: "next_pay_day",
     label: "Next pay day",
     example: "Friday 20 November",
-    hint: "The pay day for this pay period's shifts, from your pay calendar (or payroll's own date).",
+    hint: "The next pay day not yet past (last week's while it's still to come), from your pay calendar or payroll's own date.",
   },
   {
     key: "pay_cycle",

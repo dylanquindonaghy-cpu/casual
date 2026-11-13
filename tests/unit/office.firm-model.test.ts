@@ -32,13 +32,19 @@ describe("the pay cycle in the office", () => {
     expect(payPeriodName(cycle)).toBe("Cycle 22");
     expect(payPeriodName(payPeriod("2026-10-30", payCalendar({})))).toBe("Week 44");
     expect(payPeriodName(payPeriod("2026-01-02", fortnight))).toBe("Cycle"); // before the anchor
+    // Phase 37.1: no "(paid …)" beside the Next pay day tile, and the casual's formatter.
     expect(payPeriodLabel({ ...cycle, name: payPeriodName(cycle) })).toBe(
-      "Cycle 22 (paid Fri 13 Nov) · 26 Oct – 8 Nov",
+      "Cycle 22 · Mon 26 Oct to Sun 8 Nov",
     );
-    // The next pay day's lines (Phase 26.10, fix-1, in place of "The Friday after this week. …").
-    const next = { from: "pay calendar" as const, periodStart: "2026-10-12", thisPeriodPaid: null };
-    expect(nextPayLines(next, "week")).toEqual(["For shifts in the week of 12 Oct."]);
-    expect(nextPayLines(next, "cycle")).toEqual(["For shifts in the cycle from 12 Oct."]);
+    // The next pay day's lines (Phase 26.10, fix-1; Phase 37.1's words, the same for a cycle).
+    const next = {
+      from: "pay calendar" as const,
+      periodStart: "2026-10-12",
+      periodEnd: "2026-10-25",
+      thisPeriodPaid: null,
+    };
+    expect(nextPayLines(next, "week")).toEqual(["For shifts Mon 12 to Sun 25 Oct."]);
+    expect(nextPayLines(next, "cycle")).toEqual(["For shifts Mon 12 to Sun 25 Oct."]);
   });
 
   it("payroll's headings and the digest: the cycle of …; the AI is told it's a cycle", async () => {

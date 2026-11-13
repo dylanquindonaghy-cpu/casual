@@ -87,17 +87,43 @@ describe("the pay day card, before the code", () => {
     html(createElement(PayDayCard, { pay }));
 
   it("a week: the same words as Home's pay row, and nothing of her pay", () => {
-    const page = card({ payDay: "2026-11-13", days: 7, start: "2026-11-02", end: "2026-11-08" });
-    expect(strip(page)).toBe("Fri 13 Pay day: Fri 13 Nov For shifts Mon 2 to Sun 8 Nov");
-    expect(page).toMatch(/<h2 id="pay-day"[^>]*>Pay day: Fri 13 Nov<\/h2>/);
+    const page = card({
+      payDay: "2026-11-13",
+      days: 7,
+      start: "2026-11-02",
+      end: "2026-11-08",
+      thisPeriodPaid: null,
+    });
+    expect(strip(page)).toBe("Fri 13 Next pay day: Fri 13 Nov For shifts Mon 2 to Sun 8 Nov");
+    expect(page).toMatch(/<h2 id="pay-day"[^>]*>Next pay day: Fri 13 Nov<\/h2>/);
     expect(page).toContain('aria-labelledby="pay-day"');
     // A day and dates only: no amount, rate or hours (golden rule 9).
     expect(page).not.toMatch(/£|hour|Pay before tax/);
   });
 
   it("a fortnight names its first and last days", () => {
-    const page = card({ payDay: "2026-11-13", days: 14, start: "2026-10-26", end: "2026-11-08" });
-    expect(strip(page)).toContain("For shifts from Mon 26 Oct to Sun 8 Nov");
+    const page = card({
+      payDay: "2026-11-13",
+      days: 14,
+      start: "2026-10-26",
+      end: "2026-11-08",
+      thisPeriodPaid: null,
+    });
+    expect(strip(page)).toContain("For shifts Mon 26 Oct to Sun 8 Nov");
+  });
+
+  it("this week paid later: a second line with its day, still nothing of her pay (37.1)", () => {
+    const page = card({
+      payDay: "2026-11-13",
+      days: 7,
+      start: "2026-11-02",
+      end: "2026-11-08",
+      thisPeriodPaid: "2026-11-20",
+    });
+    expect(strip(page)).toBe(
+      "Fri 13 Next pay day: Fri 13 Nov For shifts Mon 2 to Sun 8 Nov This week's shifts are paid Fri 20 Nov.",
+    );
+    expect(page).not.toMatch(/£|hour|Pay before tax/);
   });
 
   it("is drawn before the code: the page renders it outside the code's branch", () => {

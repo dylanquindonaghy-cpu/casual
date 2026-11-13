@@ -8,6 +8,7 @@ import { loadDigestStatus, type DigestStatus } from "../pay/digest";
 import { digestSchedule, nextDigestAt, type DigestSchedule } from "../pay/digest-schedule";
 import { payCalendar, payPeriod, payPeriodName, payPeriodNow } from "../pay/calendar";
 import { nextPayFor, recordWindow, type NextPay } from "../pay/next-pay";
+import { readRecordedPayDates } from "../pay/recorded-pay-dates";
 import type { PayIssue } from "../portal/pay-query-kinds";
 import { localDateOf, zonedToUtc } from "../time/zoned";
 import { loadPayQueryGroups, type PayQueryGroup } from "./pay-query-groups";
@@ -75,16 +76,8 @@ export async function loadPayDashboard(tx: FirmTx, now: Date = new Date()): Prom
   const c = counts[0];
 
   // The pay records' pay dates the next pay day needs (src/lib/pay/next-pay.ts): last period's and
-  // this one's, and any from today on, per period start.
-  const window = recordWindow(today, calendar);
-  const { rows: recorded } = await tx.execute<{ start: string; next: string | null }>(sql`
-    select period_start::text as start,
-           (min(pay_date) filter (where pay_date >= ${today}::date))::text as next
-      from pay_records
-     where pay_date is not null
-       and (pay_date >= ${today}::date
-            or period_start between ${window.from}::date and ${window.to}::date)
-     group by period_start`);
+  // this one's, and any from today on, for the whole firm (the casual's own reads hers: 37.1).
+  const recorded = await readRecordedPayDates(tx, today, recordWindow(today, calendar));
 
   const { rows: sortings } = await tx.execute<{
     by_name: string | null;

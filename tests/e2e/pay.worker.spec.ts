@@ -33,7 +33,7 @@ test("pay needs a code: a wrong one counts down, the right one opens the page", 
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pay" }).click();
   await expect(page).toHaveURL(`${acme}/pay`);
   // The pay day first, before the code (Phase 28.10): a day, never a figure.
-  await expect(page.getByRole("heading", { level: 2, name: /^Pay day: / })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: /^Next pay day: / })).toBeVisible();
   await expect(
     page.getByText("To keep your pay private, we'll text you a 6‑digit code."),
   ).toBeVisible();

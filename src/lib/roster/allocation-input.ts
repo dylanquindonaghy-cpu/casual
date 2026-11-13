@@ -166,16 +166,16 @@ export function weekHoursQuery(q: {
     : sql``;
   return sql`
     with booked as materialized (
-      select a.worker_id, sum(extract(epoch from (s2.ends_at - s2.starts_at)) / 3600) as hours
+      select a.firm_id, a.worker_id, sum(extract(epoch from (s2.ends_at - s2.starts_at)) / 3600) as hours
         from assignments a
         join shifts s2 on s2.firm_id = a.firm_id and s2.id = a.shift_id
        where a.status in (${BOOKED}) and s2.status <> 'cancelled'
          and s2.starts_at >= ${new Date(q.week.from)} and s2.starts_at < ${new Date(q.week.to)}
-       group by a.worker_id
+       group by a.firm_id, a.worker_id
     )
     select w.id::text as worker_id, coalesce(booked.hours, 0) as hours
       from workers w
-      left join booked on booked.worker_id = w.id
+      left join booked on booked.firm_id = w.firm_id and booked.worker_id = w.id
      where w.id = ${q.workerId}
         or (w.status = 'active' and ${q.role} = any (w.roles) ${notOn})
   `;

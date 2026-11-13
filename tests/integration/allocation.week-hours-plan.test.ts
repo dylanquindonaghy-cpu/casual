@@ -70,19 +70,23 @@ async function plansOf<T>(
   return { plans, result };
 }
 
+const HOUR = 3_600_000;
+
 // A firm with `n` stewards, each booked on its own shift in the week, and the shift being offered.
 async function stewards(n: number) {
   const f = await bookingFirm(su, withFirm);
+  // Every shift in the middle of next week (London), so no run falls across a week's edge: from
+  // its Wednesday 00:00, one an hour, and the one offered at its Wednesday 06:00.
+  const week = weekOf(localDateOf(hoursFromNow(24 * 7), "Europe/London"), "Europe/London");
+  const at = (h: number) => new Date(week.from + (48 + h) * HOUR);
   const ids: string[] = [];
   for (let i = 0; i < n; i++) {
     const worker = await f.worker({ first: `W${i}`, roles: ["steward"] });
-    const shift = await f.shift({ role: "steward", startsAt: hoursFromNow(24 + i), hours: 4 });
+    const shift = await f.shift({ role: "steward", startsAt: at(i), hours: 4 });
     await f.booking(worker, shift, "confirmed");
     ids.push(worker);
   }
-  const target = await f.shift({ role: "steward", startsAt: hoursFromNow(30), hours: 6 });
-  const startsAt = hoursFromNow(30);
-  const week = weekOf(localDateOf(startsAt, "Europe/London"), "Europe/London");
+  const target = await f.shift({ role: "steward", startsAt: at(6), hours: 6 });
   return { f, ids, target, week };
 }
 

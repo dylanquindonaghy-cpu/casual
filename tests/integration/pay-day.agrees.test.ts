@@ -81,10 +81,12 @@ describe("the office and the casual give the same next pay day", () => {
     expect((await agree(f.firmId, worker, at("2026-11-11"))).payDay).toBe("2026-11-13");
   });
 
-  // The documented exception (docs/screens.md `/office/pay`, Phase 37.1): the office's tile is the
+  // Where they differ (docs/screens.md "One pay day everywhere (37.1)"): the office's tile is the
   // firm's, from every casual's records; hers reads only her own (a colleague's never moves her
-  // day). When payroll dates one period to two different days, the office shows the colleague's.
-  it("a colleague's whole-week record dated differently: the office shows it, her day doesn't move", async () => {
+  // day). The common case: payroll imports records only for casuals who worked, so a casual with no
+  // record for the period sees the calendar's day while the office shows payroll's imported date
+  // (decision waiting: docs/plan/decisions-waiting.md, Pay and payroll 11).
+  it("no record of hers for the period, payroll's date for it differs: the office shows payroll's, she sees the calendar's", async () => {
     const f = await bookingFirm(su, withFirm);
     const worker = await f.worker();
     const colleague = await f.worker();
@@ -107,6 +109,28 @@ describe("the office and the casual give the same next pay day", () => {
       office.nextPay.periodEnd,
     ]);
     // The colleague herself agrees with the office.
+    expect((await agree(f.firmId, colleague, now)).payDay).toBe("2026-11-12");
+  });
+
+  // The other case: payroll dates one period to two different days, hers and a colleague's.
+  it("her own whole-week record dated differently from a colleague's: the office shows the earlier, she keeps hers", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const worker = await f.worker();
+    const colleague = await f.worker();
+    await su.query(
+      `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence, pay_date)
+       values ($1, $2, '2026-11-02', '2026-11-08', 8, 1250, '2026-11-13'),
+              ($1, $3, '2026-11-02', '2026-11-08', 8, 1250, '2026-11-12')`,
+      [f.firmId, worker, colleague],
+    );
+    const now = at("2026-11-11");
+    const office = await withFirm(f.firmId, (tx) => loadPayDashboard(tx, now));
+    expect(office.nextPay).toMatchObject({ day: "2026-11-12", from: "pay records" });
+    const casual = await myPayDay(
+      { firm: { id: f.firmId }, clock: { now: () => now }, run: withFirm },
+      worker,
+    );
+    expect(casual.payDay).toBe("2026-11-13");
     expect((await agree(f.firmId, colleague, now)).payDay).toBe("2026-11-12");
   });
 

@@ -2679,11 +2679,15 @@ From builder A (37.1, 37.2, 37.8; 2026-11-13):
   Nov}" and the dashboard head and top bar's "Week 46 (paid Fri 20 Nov)" (O3) keep their own
   forms; they could use `shiftDatesText` too.
 - **The office's Next pay day reads every casual's records (37.1):** both sides read only
-  whole-period records (one read, `readRecordedPayDates`), but the office's tile is the firm's, so
-  where payroll dates one period to two different days a colleague's date shows there and not on
-  her Home (documented in `docs/screens.md` "One pay day everywhere (37.1)"; pinned in
-  `tests/integration/pay-day.agrees.test.ts`). They agree with one payroll date per period, which
-  is every firm today. If it ever matters: show "Fri 13 Nov (some casuals Thu 12 Nov)" there.
+  whole-period records (one read, `readRecordedPayDates`), but the office's tile is the firm's: it
+  shows payroll's imported date for a period, and a casual sees it only when her own record carries
+  it. She sees another day whenever payroll's date isn't hers: her own record dated differently,
+  or no record of hers for that period (she didn't work it), when she sees the pay calendar's. The
+  second is common, since payroll imports records only for casuals who worked (documented in
+  `docs/screens.md` "One pay day everywhere (37.1)"; pinned in
+  `tests/integration/pay-day.agrees.test.ts`). Waiting for Dylan (`docs/plan/decisions-waiting.md`,
+  Pay and payroll 11): should a casual with no record of her own take the firm's imported date? If
+  the tile ever needs to say so: "Fri 13 Nov (some casuals Thu 12 Nov)".
 - **A strike whose record was deleted, on the other screens (37.2, w1-02):** for a strike whose row
   the nightly purge deleted after the firm's keep time, the record's evidence field
   (`evidenceText`, `src/lib/office/cancellations-copy.ts`) says "No strike: nothing to send", and

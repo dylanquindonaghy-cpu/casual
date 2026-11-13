@@ -12,13 +12,18 @@ import type { PortalContext } from "./my-shifts";
 // day" answer and the office all give the same day and the shifts it pays: the first pay day not
 // yet past, last period's while it's still to come, else this period's, on the firm's own pay
 // calendar (a week, or a fortnight's cycle: src/lib/pay/calendar.ts), or payroll's own date where it
-// has imported one. Every casual sees the firm's next pay day, whether or not she worked that
-// period (Dylan, 2026-11-13). Only her own pay records count, and only those covering a whole firm
-// period (the office's read keeps the same ones: `readRecordedPayDates`): a record for other dates
-// (a week inside the fortnight) would put its day against shifts it doesn't cover (golden rule 9).
-// The one place the office can differ: its tile reads every casual's records, so a colleague's
-// record dating a period to another day moves the office's day and not hers (a colleague's records
-// never move her day: 37.1). With one payroll date per period, as every firm has, they agree.
+// has imported one for her. Every casual sees a next pay day, whether or not she worked that period
+// (Dylan, 2026-11-13): with no record of her own for it, the calendar's. Only her own pay records
+// count, and only those covering a whole firm period (the office's read keeps the same ones:
+// `readRecordedPayDates`): a record for other dates (a week inside the fortnight) would put its day
+// against shifts it doesn't cover (golden rule 9).
+// Where the office can differ: its tile reads every casual's records, so it shows payroll's imported
+// date for a period, the earliest when there are two. She sees that date only when her own record
+// carries it: with a record of hers dated differently she sees hers, and with none for that period
+// (she didn't work it, or payroll hasn't sent hers) she sees the calendar's. So whenever payroll's
+// date for a period isn't the calendar's, a casual with no record for it sees a different day from
+// the office's (a colleague's records never move her day: 37.1; docs/screens.md "One pay day
+// everywhere (37.1)"; decision waiting: docs/plan/decisions-waiting.md, Pay and payroll 11).
 
 export interface MyPayDay {
   payDay: string; // yyyy-mm-dd

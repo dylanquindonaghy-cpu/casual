@@ -262,8 +262,8 @@ describe("the demo server's services (deploy/docker-compose.demo.yml with docker
         "DATABASE_JOBS_URL",
         "DATABASE_URL",
         "DEMO_MODE",
-        // Phase 37.8: whether the seeded planner gets its webhook (its value is never read).
-        "INTEGRATIONS_SECRET",
+        // Phase 37.8: whether the seeded planner gets its webhook, a flag (never the secret).
+        "DEMO_PLANNER_WEBHOOK",
         "NODE_ENV",
       ].sort(),
     );
@@ -291,6 +291,18 @@ describe("the demo server's services (deploy/docker-compose.demo.yml with docker
     ]);
     expect(parseAdminEnv(env("migrate")).NODE_ENV).toBe("production");
     expect(parseDemoResetEnv(env("demo-reset")).DEMO_MODE).toBe("on");
+  });
+
+  it("the demo reset gets the planner webhook's flag, never INTEGRATIONS_SECRET (Phase 37.8)", () => {
+    // The example leaves the secret empty: no flag, so no seeded webhook.
+    const off = services["demo-reset"]?.environment ?? {};
+    expect(off.DEMO_PLANNER_WEBHOOK ?? "").toBe("");
+    expect(parseDemoResetEnv(off).DEMO_PLANNER_WEBHOOK).toBeUndefined();
+    const secret = "made-up-integrations-secret-for-this-test-0123";
+    const on = config(filledExample({ ...FILLED, INTEGRATIONS_SECRET: secret }))["demo-reset"];
+    expect(on?.environment?.DEMO_PLANNER_WEBHOOK).toBe("on");
+    expect(JSON.stringify(on?.environment)).not.toContain(secret);
+    expect(parseDemoResetEnv(on?.environment ?? {}).DEMO_PLANNER_WEBHOOK).toBe("on");
   });
 
   it("refuses to start without the demo's password or its database password", () => {

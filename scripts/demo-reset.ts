@@ -12,8 +12,9 @@ const summary = await demoReset({
   appUrl: env.DATABASE_URL,
   jobsUrl: env.DATABASE_JOBS_URL,
   ...(env.CONSOLE_OUTBOX_FILE ? { outboxFile: env.CONSOLE_OUTBOX_FILE } : {}),
-  // The seeded planner's webhook only when deliveries can be signed (Phase 37.8).
-  webhook: Boolean(env.INTEGRATIONS_SECRET),
+  // The seeded planner's webhook only when deliveries can be signed (Phase 37.8): the compose file
+  // turns the flag on when the server has INTEGRATIONS_SECRET.
+  webhook: env.DEMO_PLANNER_WEBHOOK === "on",
 });
 for (const f of summary.firms) {
   console.log(

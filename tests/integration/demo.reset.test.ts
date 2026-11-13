@@ -243,7 +243,8 @@ describe("the demo reset, run", () => {
   }, 180_000);
 
   // Phase 37.8: the demo server's planner (a "Demo planner" key, one event with its sessions and
-  // two bookings), its webhook only when INTEGRATIONS_SECRET is set on the demo-reset service, and
+  // two bookings), its webhook only when asked (the demo-reset's DEMO_PLANNER_WEBHOOK flag, on when
+  // the server has INTEGRATIONS_SECRET), and
   // the pilot's own figures.
   it("seeds the Demo planner, its webhook only when asked, and the pilot's figures; queues no delivery", async () => {
     const acme = seedId("firm/acme");
@@ -288,8 +289,13 @@ describe("the demo reset, run", () => {
         api_shifts: number;
         booked: number;
         jobs: number;
+        used_as_logged: boolean;
       }>(
         `select k.label, k.hint, f.settings #>> '{webhook,url}' as url,
+                -- Its last use is the last one the log shows (the planner's sessions sent).
+                k.last_used_at = (select max(created_at) from events
+                                   where firm_id = f.id and data ->> 'keyId' = k.id::text
+                                     and data ->> 'via' = 'api') as used_as_logged,
                 (select count(*)::int from shifts s join shift_events e on e.id = s.event_id
                   where s.firm_id = f.id and s.source = 'api' and e.source = 'api'
                     and e.planner_ref = 'DEMO-PLANNER-FUN-RUN') as api_shifts,
@@ -307,6 +313,7 @@ describe("the demo reset, run", () => {
       api_shifts: 3,
       booked: 2,
       jobs: 0,
+      used_as_logged: true,
     });
     expect(rows.rows[0]?.hint).toMatch(/^[A-Za-z0-9_-]{4}$/);
     // Each booking's delivery logged once, as the delivery job does (deliver.ts): delivered, or
@@ -327,6 +334,33 @@ describe("the demo reset, run", () => {
     const when = (a: string) =>
       new Date(hooks.rows.find((h) => h.actions[0] === a)?.at[0] ?? 0).getTime();
     expect(when("webhook.delivered")).toBeGreaterThan(when("webhook.failed"));
+    // L1: the planner's two bookings were ones the rules allowed when they were made (golden
+    // rule 6), as tests/integration/seed.test.ts checks the history's and Zoe's.
+    const planned = await asSuperuser((c) =>
+      c.query<{ shift_id: string; worker_id: string; confirmed_at: Date }>(
+        `select a.shift_id::text, a.worker_id::text, a.confirmed_at from assignments a
+           join shifts s on s.id = a.shift_id
+          where a.firm_id = $1 and s.source = 'api' and a.status = 'confirmed'`,
+        [acme],
+      ),
+    );
+    expect(planned.rows).toHaveLength(2);
+    const ruled = new Pool({ connectionString: at(urls.app), max: 1 });
+    try {
+      const withFirm = createWithFirm(ruled);
+      const { previewBooking } = await import("@/lib/roster/book");
+      for (const b of planned.rows) {
+        const verdict = await withFirm(acme, (tx) =>
+          previewBooking(tx, { shiftId: b.shift_id, workerId: b.worker_id, now: b.confirmed_at }),
+        );
+        expect({ shift: b.shift_id, reasons: verdict?.reasons }).toEqual({
+          shift: b.shift_id,
+          reasons: [],
+        });
+      }
+    } finally {
+      await ruled.end();
+    }
     // Still in time order, the webhook's entries included.
     const outOfOrder = await asSuperuser((c) =>
       c.query<{ n: number }>(

@@ -2,7 +2,6 @@ import { inArray, sql } from "drizzle-orm";
 import { groupFactsFor, payGroupKey } from "../../pay/grouping";
 import { hoursToStart } from "../../rules/urgent";
 import { strikeSettings } from "../../strikes/settings";
-import { STRIKE_WARNING_VERSION } from "../../strikes/words";
 import { fakePoint } from "../../travel/geocoder";
 import {
   assignments,
@@ -24,6 +23,7 @@ import type { SeedFirm } from "./seed-data";
 import type { SeedLog } from "./seed-log";
 import { STRIKES_TEAM } from "./seed-data";
 import type { MatchSeed } from "./seed-match";
+import { seedStrikeWarning } from "./seed-warning";
 
 // Loading the match day (seed-match.ts; Phase 36.5) inside Acme's transaction, as the app role,
 // the way the story is loaded (seed-story-load.ts): the stadium, its contract, the squad and their
@@ -225,9 +225,8 @@ export async function loadMatchDay(
               : null,
         cancelVia: b.cancelVia,
         bookedVia: "app" as const,
-        ...(b.status === "cancelled_worker"
-          ? { strikeWarningVersion: STRIKE_WARNING_VERSION, strikeWarningShownAt: b.cancelledAt }
-          : {}),
+        // The warning she saw: only on her own cancellation in the app, as the app (L8).
+        ...seedStrikeWarning(b),
         createdAt: b.confirmedAt,
       })),
     );

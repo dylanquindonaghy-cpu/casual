@@ -13,7 +13,7 @@ import { seedFirms, weekOffers } from "@/lib/db/admin/seed-data";
 import { acmeSaturday } from "@/lib/db/admin/seed-saturday";
 import { acmeHistory, HISTORY_WORKERS, LATE_CANCELLERS } from "@/lib/db/admin/seed-history";
 import { acmeMatchDay } from "@/lib/db/admin/seed-match";
-import { acmeStory } from "@/lib/db/admin/seed-story";
+import { acmeStory, ZOE_WEEKS } from "@/lib/db/admin/seed-story";
 import { DAILY_OFFER_CAP } from "@/lib/rules/offer-cap";
 import { mayMessageNow, quietHours, quietUntil } from "@/lib/rules/quiet-hours";
 import { localDateOf, mondayOf, startOfDay } from "@/lib/time/zoned";
@@ -41,6 +41,13 @@ const HISTORY = acmeHistory(
   new Date(),
   ACME_FIRM.settings,
 );
+// The Saturday dropout's strike, when the rules give one on the day the tests run (37.2).
+const SATURDAY_STRIKES = acmeSaturday(
+  ACME_FIRM.workers,
+  ACME_FIRM.sites,
+  new Date(),
+  ACME_FIRM.settings,
+).strikes;
 const STORY_SHIFTS = [...STORY.sessions, ...MATCH.sessions, ...HISTORY.sessions].map((x) => x.id);
 const STORY_PAY = [...STORY.payQueries.map((x) => x.id), MATCH.payQuery.id];
 const LONDON = "Europe/London";
@@ -1026,13 +1033,109 @@ describe("Acme's Saturday event day", () => {
   it("every history booking is one the rules allowed when it was made (golden rule 6)", async () => {
     const { previewBooking } = await import("@/lib/roster/book");
     const { withFirm: run } = await import("@/lib/db/scoped");
-    for (const b of HISTORY.bookings) {
+    // The history's, and Zoe's worked weeks (seed-story.ts ZOE_WEEKS, 37.8). The demo planner's
+    // two bookings are checked where they're seeded (tests/integration/demo.reset.test.ts).
+    const zoeWeeks = new Set(
+      ZOE_WEEKS.flatMap(({ week, sessions }) =>
+        sessions.map((_, n) => seedId(`acme/story/session/zoe-week-${week}-${n}`)),
+      ),
+    );
+    const zoe = STORY.bookings.filter((b) => zoeWeeks.has(b.shiftId));
+    expect(zoe).toHaveLength(zoeWeeks.size);
+    expect(zoe.length).toBe(11);
+    for (const b of [...HISTORY.bookings, ...zoe]) {
       const verdict = await run(ACME, (tx) =>
         previewBooking(tx, { shiftId: b.shiftId, workerId: b.workerId, now: b.confirmedAt }),
       );
       expect({ booking: b.id, reasons: verdict?.reasons }).toEqual({ booking: b.id, reasons: [] });
     }
   }, 180_000); // one rules check per history booking (about 350)
+
+  // A booking's live window: from its booking to its cancellation (never, if it wasn't). No history
+  // booking, a late canceller's cancelled one included, shares hours with another booking of the
+  // same casual live at the same moment (L2: the rules would have refused it).
+  it("no history booking clashed with another of hers while it was live", async () => {
+    const { rows } = await su.query<{ a: string; b: string }>(
+      `select x.id::text as a, y.id::text as b
+         from assignments x join shifts xs on xs.id = x.shift_id
+         join assignments y on y.firm_id = x.firm_id and y.worker_id = x.worker_id and y.id <> x.id
+         join shifts ys on ys.id = y.shift_id
+        where x.firm_id = $1 and x.id = any($2::uuid[])
+          and ys.starts_at < xs.ends_at and ys.ends_at > xs.starts_at
+          and coalesce(y.confirmed_at, '-infinity') < coalesce(x.cancelled_at, 'infinity')
+          and coalesce(x.confirmed_at, '-infinity') < coalesce(y.cancelled_at, 'infinity')`,
+      [ACME, HISTORY.bookings.map((b) => b.id)],
+    );
+    expect(rows).toEqual([]);
+    // The late cancellers' own cancelled bookings are among those checked.
+    expect(HISTORY.bookings.filter((b) => b.status === "cancelled_worker")).toHaveLength(9);
+  });
+
+  // L3: a seeded strike's evidence trail is the job's (src/lib/strikes/evidence.ts): the claim,
+  // then the outcome, each with the attempt's key naming the strike, its series (the strike.issued
+  // entry) and attempt 1, the key the job's payload schema accepts.
+  it("each seeded strike's evidence was claimed, then sent, under the app's request key", async () => {
+    const { strikeEvidencePayload } = await import("@/lib/strikes/evidence-queue");
+    const { rows } = await su.query<{
+      strike: string;
+      series: string;
+      actions: string[];
+      requests: string[];
+      attempts: string[];
+    }>(
+      `select k.id::text as strike,
+              (select e.id::text from events e where e.firm_id = k.firm_id and e.entity_id = k.id
+                 and e.action = 'strike.issued') as series,
+              array_agg(v.action order by v.id) as actions,
+              array_agg(v.data ->> 'request' order by v.id) as requests,
+              array_agg(v.data ->> 'attempt' order by v.id) as attempts
+         from strikes k
+         join events v on v.firm_id = k.firm_id and v.entity_id = k.id
+                      and v.action in ('strike.evidence_sending', 'strike.evidence_sent')
+        where k.firm_id = $1 and k.id = any($2::uuid[])
+        group by k.id`,
+      [ACME, [...HISTORY.strikes, ...SATURDAY_STRIKES].map((k) => k.id)],
+    );
+    expect(rows).toHaveLength(HISTORY.strikes.length + SATURDAY_STRIKES.length);
+    for (const r of rows) {
+      const key = `strike-evidence:${r.strike}:${Number(r.series).toString(36)}:1`;
+      expect(r).toEqual({
+        strike: r.strike,
+        series: r.series,
+        actions: ["strike.evidence_sending", "strike.evidence_sent"],
+        requests: [key, key],
+        attempts: ["1", "1"],
+      });
+      const payload = {
+        firmId: ACME,
+        idempotencyKey: key,
+        strikeId: r.strike,
+        series: Number(r.series),
+        attempt: 1,
+      };
+      expect(strikeEvidencePayload.safeParse(payload).success).toBe(true);
+    }
+  });
+
+  // L8: the strike warning is stamped as the app stamps it (src/lib/roster/cancel.ts): only on a
+  // casual's own cancellation in the app, at its time; never on the office's, the firm's or a
+  // planner's.
+  it("only a casual's own cancellation in the app records the strike warning she saw", async () => {
+    const [row] = await acmeRows<{ wrong: number; app: number }>(
+      `select count(*) filter (where (strike_warning_version is not null)
+                                 <> coalesce(status = 'cancelled_worker' and cancel_via = 'app', false))::int as wrong,
+              count(*) filter (where status = 'cancelled_worker' and cancel_via = 'app')::int as app
+         from assignments where firm_id = $1`,
+    );
+    expect(row?.wrong).toBe(0);
+    expect(row?.app).toBeGreaterThan(0);
+    const [at] = await acmeRows<{ bad: number }>(
+      `select count(*)::int as bad from assignments where firm_id = $1
+          and strike_warning_version is not null
+          and strike_warning_shown_at is distinct from cancelled_at`,
+    );
+    expect(at?.bad).toBe(0);
+  });
 
   it("the casuals' counts: regulars, three who cancel often, worker 0 new", async () => {
     const { loadCasualRecords } = await import("@/lib/office/reliability");

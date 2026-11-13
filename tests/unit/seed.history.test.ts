@@ -140,16 +140,42 @@ describe("acmeHistory", () => {
   }
 
   it("a week's draws and ids are the same whatever day the seed runs", () => {
-    const a = build(new Date("2026-11-10T10:00:00Z")).history;
-    const b = build(new Date("2026-11-17T10:00:00Z")).history;
-    // Weeks before the earlier run's last complete week (that one is always paid).
+    const a = build(new Date("2026-11-10T10:00:00Z")).history; // a Tuesday
+    const b = build(new Date("2026-11-17T10:00:00Z")).history; // a week later, a Tuesday
+    const c = build(new Date("2026-11-20T10:00:00Z")).history; // a Friday
+    // The weeks all three runs cover: from the latest run's oldest pay week (Mon 21 Sep) to before
+    // the earliest run's last complete week (Mon 2 Nov: the rate queries' week, its rate differs).
+    const from = new Date("2026-09-21T00:00:00Z");
+    const to = new Date("2026-11-02T00:00:00Z");
+    const shared = (h: typeof a) => h.sessions.filter((s) => s.startsAt >= from && s.startsAt < to);
     const ids = (h: typeof a) =>
+      shared(h)
+        .map((s) => s.id)
+        .sort();
+    // The same sessions in every run, the no-shows' included.
+    expect(ids(a).length).toBeGreaterThan(100);
+    expect(ids(b)).toEqual(ids(a));
+    expect(ids(c)).toEqual(ids(a));
+    // On the same weekday a week later: the same days, hours and rates.
+    const exact = (h: typeof a) =>
       new Map(
-        h.sessions
-          .filter((s) => s.startsAt < new Date("2026-11-02T00:00:00Z"))
-          .map((s) => [s.id, [s.startsAt.getTime(), s.endsAt.getTime(), s.payRatePence]]),
+        shared(h).map((s) => [s.id, [s.startsAt.getTime(), s.endsAt.getTime(), s.payRatePence]]),
       );
-    const later = ids(b);
-    for (const [id, v] of ids(a)) expect(later.get(id) ?? v).toEqual(v);
+    expect(exact(b)).toEqual(exact(a));
+    // On another weekday the days can move (never yesterday's weekday), the hours and rates don't.
+    const drawn = (h: typeof a) =>
+      new Map(
+        shared(h).map((s) => [s.id, [s.endsAt.getTime() - s.startsAt.getTime(), s.payRatePence]]),
+      );
+    expect(drawn(c)).toEqual(drawn(a));
+    // And each booking is the same worker's, with the same outcome where both runs book it.
+    const outcome = (h: typeof a) =>
+      new Map(
+        h.bookings
+          .filter((x) => x.status !== "cancelled_worker" && ids(a).includes(x.shiftId))
+          .map((x) => [x.id, [x.shiftId, x.workerId, x.status]]),
+      );
+    expect(outcome(b)).toEqual(outcome(a));
+    expect(outcome(c)).toEqual(outcome(a));
   });
 });

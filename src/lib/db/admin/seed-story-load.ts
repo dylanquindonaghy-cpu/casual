@@ -8,7 +8,6 @@ import { TRAVEL_NOTICE_VERSION } from "../../portal/travel";
 import { automaticEventId } from "../../roster/shift-events";
 import { hoursToStart } from "../../rules/urgent";
 import { strikeSettings } from "../../strikes/settings";
-import { STRIKE_WARNING_VERSION } from "../../strikes/words";
 import { fakePoint } from "../../travel/geocoder";
 import {
   assignments,
@@ -36,6 +35,7 @@ import {
   STRIKES_TEAM,
   type StorySeed,
 } from "./seed-story";
+import { seedStrikeWarning } from "./seed-warning";
 
 // Loading the demo's story (seed-story.ts; 12I.1) inside Acme's transaction, as the app role. The
 // people, their qualifications and travel areas are put back as seeded on every run (like the
@@ -412,9 +412,8 @@ export async function loadStory(
               : null,
         cancelVia: b.cancelVia,
         bookedVia: "app" as const, // logged below as the worker's own booking (P2.2)
-        ...(b.status === "cancelled_worker"
-          ? { strikeWarningVersion: STRIKE_WARNING_VERSION, strikeWarningShownAt: b.cancelledAt }
-          : {}),
+        // The warning she saw: only on her own cancellation in the app, as the app (L8).
+        ...seedStrikeWarning(b),
         createdAt: b.confirmedAt,
       })),
     );

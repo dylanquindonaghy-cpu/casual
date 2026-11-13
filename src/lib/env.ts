@@ -576,13 +576,14 @@ export const parseConnectorOwnerEnv = (source: Source) =>
 
 // A demo server's reset (16.2; scripts/demo-reset.ts): the owner's settings, plus demo mode and the
 // outbox it empties.
-// The demo reset (Phase 37.8): INTEGRATIONS_SECRET only says whether the demo's seeded planner gets
-// its webhook (a webhook can't sign without it); the reset never reads its value.
+// The demo reset (Phase 37.8): DEMO_PLANNER_WEBHOOK "on" says the demo's seeded planner gets its
+// webhook. A flag, not the secret: deploy/docker-compose.demo.yml sets it "on" when the server's
+// INTEGRATIONS_SECRET is set (a webhook can't sign without it), so the reset never holds the secret.
 export const demoResetEnvSchema = adminEnvSchema.and(
   z.object({
     DEMO_MODE: appFields.DEMO_MODE,
     CONSOLE_OUTBOX_FILE: appFields.CONSOLE_OUTBOX_FILE,
-    INTEGRATIONS_SECRET: appFields.INTEGRATIONS_SECRET,
+    DEMO_PLANNER_WEBHOOK: unsetIfEmpty(z.enum(["on"]).optional()),
   }),
 );
 

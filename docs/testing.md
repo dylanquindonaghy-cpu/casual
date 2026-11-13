@@ -811,10 +811,21 @@ group falls in "Recently sorted"'s 7 days. On a demo server only (`seed({ demoMo
 four weekly tallies (`src/lib/db/admin/seed-pilot.ts`), saved by Acme's admin (the e2e seed has
 none: `office.pilot.spec.ts` enters its own); a "Demo planner"
 API key (random, never stored), its event "Northgate Demo Fun Run" 9 days ahead with three sessions
-("· From your planner") and two bookings, and, when the demo-reset service has
-`INTEGRATIONS_SECRET`, its webhook (`https://planner.example/…k3F9`, working); each change logged as
-the office and the planner API log it. The local, e2e and walkthrough seeds have no planner and
-no pilot figures.
+("· From your planner") and two bookings, and, when the server has `INTEGRATIONS_SECRET` (the
+demo-reset service then gets the flag `DEMO_PLANNER_WEBHOOK=on`, never the secret), its webhook
+(`https://planner.example/…k3F9`, working); each change logged as the office and the planner API
+log it. The local, e2e and walkthrough seeds have no planner and no pilot figures.
+
+- **The history's logins have no `sessions` row.** Each seeded `auth.login` entry names a session
+  id (`acme/history/{worker}/{week}/login`) that isn't in `sessions`: a login's row is deleted 30
+  days after it ends (the keep times on `/office/data`), so a real firm's log names sessions long
+  gone too, and a seeded row would be a live login nobody made. What reads them (Pilot metrics'
+  worker logins, the action log) reads the log only.
+- **A dev database from before Phase 37.8 needs `npm run db:reset`.** The pay lines keep their
+  ids (`acme/pay/{worker}/{week}`) while their hours are now drawn per worker and week
+  (`weekDraw`), and the seed adds by id and never changes a row: re-seeding an older database keeps
+  the old pay lines (and pay for the 30 casuals who now have none) beside the new worked sessions,
+  so pay and work disagree. Reset rebuilds it; the demo server's nightly reset already does.
 
 **Northline Rail Labour (rail):** 30 workers with PTS/Sentinel/D&A dates, tomorrow night's
 possession with one short-notice firm cancellation. (Its mocked rota sheet is still to come: no

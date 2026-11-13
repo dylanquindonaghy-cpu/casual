@@ -1548,6 +1548,153 @@ its line says, as the approved mock-up shows; `RUN_E2E=1 ./scripts/verify.sh` pr
 `guardrails-reviewer` has no open findings; the `claims-auditor` checks each task against its line
 and this one.
 
+## Phase 37 — Wave 1 of the build audit: every screen tells the truth (go-ahead: Dylan, 2026-11-12/13; A, M, R, UI)
+
+Asked, 2026-11-12 (Dylan, in chat, word for word): "start wave 1 after phase 36 is done". Wave 1 is
+the first wave of `docs/audit-2026-11-11.md` ("Wave 1: make every screen tell the truth"): twelve
+fixes, each traced to its root cause in the code, where a screen, a message or the demo's data
+says something that isn't true. Nothing here starts until all five Phase 36 tasks are ticked. Each
+task is built on Phase 36's final commit, and the docs are re-read there first (`docs/screens.md`
+and `docs/messaging-templates.md` moved under Phase 36). The mock-up came first (CLAUDE.md step
+2): one before-and-after page for a phone (390px) and a laptop at 150% (about 1,280px), covering
+every screen below: https://claude.ai/artifact/HFpNeQUr99QZ7sqwrYBQT9. Approved 2026-11-13 (Dylan,
+in chat): "Approve all six (Recommended)", so its six decisions stand as recommended: (1) every
+casual sees the firm's next pay day, whether or not she worked that week; (2) an unanswered
+shifts-line message needs a person after 10 minutes; (3) the "New: not worked yet" split of the
+casuals list waits (Parking lot); (4) a page this role can't open reads "This page doesn't exist,
+or your role can't open it."; (5) casuals' names in office tab titles are fine; (6) the live
+server's new headers go on straight after the tick, outside 05:30 to 09:00. Expected values in tests change only where a rule in this phase changes,
+and each commit says which, for the `claims-auditor`. Anything left out goes to the Parking lot
+(golden rule 10), as each task lists. Words in `docs/screens.md`, `docs/messaging-templates.md`
+and the audit's specs.
+
+Docs: `docs/audit-2026-11-11.md` (Wave 1), `docs/screens.md`, `docs/messaging-templates.md`,
+`docs/api-and-jobs.md`, `docs/rules-and-credentials.md`, `docs/testing.md`, `docs/runbooks.md`,
+`docs/ui-design.md`, `docs/office-v2.md`.
+
+- [ ] One pay day everywhere (M; UI): the casual's Home, her Pay page, the shifts line's "Pay day"
+      answer and the office's Pay dashboard all give the same next pay day and the shifts it pays.
+      `src/lib/portal/pay-day.ts` uses the office's rule (`nextPayFor`, `src/lib/pay/next-pay.ts`)
+      on her own whole-period pay records, read through one shared `readRecordedPayDates` inside
+      `withFirm`. One formatter, `shiftDatesText`, writes "Mon 2 to Sun 8 Nov" for the casual,
+      the office and the answer library. On Wed 11 Nov: Home's date line "· Next pay day Fri 13
+      Nov", the Pay row and the Pay card "Next pay day: Fri 13 Nov" / "For shifts Mon 2 to Sun 8
+      Nov" / "This week's shifts are paid Fri 20 Nov." ("This cycle's" on a fortnight); the office
+      subtitle "Week 46 · Mon 9 to Sun 15 Nov" (no "(paid …)"), its tile "For shifts Mon 2 to Sun
+      8 Nov."; the {next_pay_day} fill-in hint in `src/lib/answers/fill-ins.ts` describes the new
+      rule, and its made-up examples stay. A new `tests/integration/pay-day.agrees.test.ts` shows
+      the office and the casual give the same day, start and end (Wed 11 Nov, Sat 14 Nov, a
+      fortnight firm); a colleague's and another firm's records never move her day; the e2e
+      step as Zoe compares /pay's day with the dashboard's. `guardrails-reviewer` (the shifts
+      line's live answer changes). Out of scope, parked: Pay's week headings, "Recently sorted",
+      the dashboard head and top bar's "Week 46 (paid …)" (w1-01) (37.1)
+- [ ] Strikes say what is known (UI; seed): a cancellation's Strike never reads "No strike:
+      cancelled before strikes were turned on". In `src/lib/office/cancellations-copy.ts` a null
+      code reads "No strike recorded" (list) / "Not recorded" (record page and PDF); code "issued"
+      whose strike row was deleted after the firm's keep time reads "Strike issued · its record was
+      deleted" / "Issued (its record was deleted)", and the CSV says "yes". The demo seed stores the
+      code the rules give (`strikeDecision`) for the Saturday dropout, decided in the pure builder
+      (`seed-saturday.ts`, as `seed-match.ts` does), with its strike row, ids scoped to the
+      Saturday's day, whenever the code is "issued"; the extras office cancellation logs
+      "by_firm". Tests: every StrikeCode and null gives no "before strikes"; a purged strike keeps
+      code "issued"; the seed's code and strike row agree on any day, including a re-run a week
+      later; the e2e Acme list has no "before strikes". `docs/screens.md` lists the new words at
+      the Strike column and the record page. Parked: the evidence, event page, dashboard map,
+      casual record and planner API words for a purged strike (w1-02) (37.2)
+- [ ] "Not offered, and why" names the card (R; UI): on an offer page and the dashboard's offer
+      panel, "No licence in date" becomes the first card the rules found, by the firm's own name,
+      in the office's existing words: "Needs {manual handling certificate} (none on file)", "Needs
+      {A} or {B} (none on file)", "{Name} out of date ({7 Oct})" ("({7 Oct 2025})" in another
+      year), "{Name} runs out {Sat 14 Nov}", "{Name} marked expired", "{Name} suspended", "{Name}
+      applied for, not counted", "{Name} applied for, over the allowance"; fallback "A licence or
+      card missing or out of date". `src/lib/office/not-offered.ts` reads the rules' own checks
+      (`licenceOf`, pure) and names from `credential_types` inside `withFirm`; it changes no
+      decision (golden rule 1) and states only what the record shows ("runs out" only for a valid
+      card, "marked expired" only for one marked expired). Tests drive `licenceOf` with real
+      `checkEligibility` results for every state; a second firm's name for the same code never
+      shows; the e2e page and panel have no "No licence in date". `guardrails-reviewer` (reads the
+      rules' checks). Parked: linking each name, "And {n} more", the rota sheet's Needs attention
+      lines (w1-03) (37.3)
+- [ ] Enquiries count what is waiting (M, R; UI): a shifts-line message still unsorted 10
+      minutes after it came in (`UNSORTED_FOR_PERSON_MINUTES`) needs a person: counted in Enquiries'
+      head, Need a person, the menu badge, Needs attention and Updates, with "Answer it". Its chip
+      reads "Not answered yet" before then (not "Not understood") and "Passed to a person, waiting"
+      after; its page names the casual whose number it came from and plans the reply for them; the
+      Sorted line has no double colon ("Sorted: Not yet. The shifts line hasn't answered it."). The
+      office's reply or close first marks the message for a person through one shared
+      `markForAPerson` (the job's last try, factored out, under the same row lock): logged as
+      `message.received` with `late: true`, a STOP or START applied with no confirmation, and the
+      shifts line never answers it afterwards. Requests casuals made in the app and still waiting
+      (`requestWaiting`) are counted in the frame: the top bar's Needs attention, a "Requests from
+      the app" item linking to `/office/enquiries?view=app`, and the Enquiries badge ("Enquiries, 2
+      need a person, 1 request to answer"; "1 needs a person"), never counted twice. Tests: 9m59s
+      and 10m boundaries; reply, close, STOP and a refused reply each mark and log; the job then
+      returns 'already' with one outbound row; email is not counted; another firm's rows and
+      workers never show; the email summary's query still runs; the app-request count equals
+      Enquiries' head; the e2e badge reads the rail tip, not the link name.
+      `guardrails-reviewer` (messaging and rules) (w1-04, w1-07) (37.4)
+- [ ] Casuals' messages and Automatic answers say what happens (M; UI): an approved time change
+      or swap goes as a new `request_change_agreed` (`_no_note`): "The office said yes to your
+      {type}. Your shift changes when they update it. Ref {ref}. The office says: {note} — {firm}
+      Shift Team", push "The office said yes" / "{Type}: your shift hasn't changed yet. Tap to
+      view.", email subject "The office said yes to your {type}"; no promise of a later message
+      (a rota-sheet change sends none); every other answer, and the Enquiries reply, still use
+      `request_update` unchanged; both pack entries are in `whatsapp-templates.ts` and the doc.
+      On `/office/settings/answers`, an answer's switch and the save Slip say "is on, but it
+      doesn't go out yet. See Answer casuals automatically." when nothing can carry it
+      (`answersCanGo`, mirroring `recheckAnswer`); a banner shows while App messages, Texts and
+      Emails are all off; Built in says "These still answer with the three switches off.". Tests
+      pin every string against the docs. `guardrails-reviewer` (messaging). Parked: an approved
+      review's text, My requests' "Approved" chip, approve applying the change, a rota-sheet time
+      change telling no one, the channel confirmation's words (w1-05, w1-06) (37.5)
+- [ ] The office keeps its frame, and every page names itself (A; UI): any `/office` address that
+      matches no page (`src/app/office/[...missing]`) gets the office's not-found inside the office
+      frame with "Back to the office"; an office page that fails keeps the frame
+      (`src/app/office/error.tsx`, `error-view.tsx`; root `error.tsx` uses the office words on
+      `/office` paths) with "Try again" / "Back to the office" and no "contact the office"; no
+      "Updated hh:mm" on either. A page this role can't open is titled "Page not found", never its
+      own name (`areaMetadata`, a display-only read that never throws). Every page type that showed
+      only "{firm} shifts" names itself: "Home", "{Door supervisor}, {Sat 14 Nov}" ("Shift not
+      available"), "Log in", "Your login link", "Office login", "Office login link", "Client
+      login", "Client login link", "Page not found", "{name} · Casuals", "{name} · Data requests",
+      "{event} · {Staffing}" (each tab), "{Role}, {Thu 12 Nov} · {event}", "Cancellation {REF} ·
+      {casual}"; each title runs the page's own access check first. `tests/unit/office.titles.test.ts`
+      and a new casual titles test hold every page to the lists in `docs/screens.md`; a
+      cross-tenant test for the session title read; the e2e checks status 404, the frame and the
+      titles. The PDF's "Cancellation record {ref}" is unchanged. `guardrails-reviewer` (session
+      reads in metadata). Parked: `global-error.tsx`, `/client/*` not-found, error page titles
+      (w1-08, w1-09) (37.6)
+- [ ] Buttons wait for the page, and the server sends safe headers (UI; infra): "Take shift", "I
+      can do this" and "Log out" are disabled until the page is ready (`useHydrated`), and
+      `tests/unit/forms.hydration.test.ts` fails on any new casual `onClick` button that doesn't
+      wait (per-file allowances for buttons that appear only after the page is ready). Caddy's
+      `(app)` snippet sends `Content-Security-Policy: frame-ancestors 'self'` (only when absent;
+      never DENY), nosniff, `Referrer-Policy: strict-origin-when-cross-origin`, a
+      Permissions-Policy, removes `X-Powered-By` (and `next.config.ts` sets `poweredByHeader:
+      false`), compresses everything but `/maps/*` (glyphs as octet-stream) and caches glyphs a
+      week and tour files a day, on 2xx and 304 only; `tests/integration/deploy.caddy.test.ts`
+      checks the adapted JSON. `docs/runbooks.md` gives the server step: `docker compose up -d
+      --force-recreate caddy` (not `caddy reload`), then the curl checks with the demo password.
+      Live on the server is a separate step after this tick (w1-10, w1-11) (37.7)
+- [ ] Demo data that agrees with itself (seed; infra): after 37.2. Zoe's eleven worked sessions
+      add up to her five pay weeks (her Profile reads "11 shifts worked", Booked's Past 90 days
+      lists them, the pay query picker offers them); about 30 of Acme's casuals have the worked
+      sessions behind their pay (`seed-history.ts`, every booking one the rules allowed at its
+      time: golden rule 6), 3 of them late cancellers with their strikes; worker 0 stays a new
+      starter; pay-query texts name the real weekday and the seven rate queries read differently;
+      one pay group was sorted in the last 7 days. On the demo server only: a "Demo planner" API
+      key (random, never stored), one event from it ("· From your planner") and, when
+      `INTEGRATIONS_SECRET` is set on the demo-reset service, its webhook, each change logged as
+      the office would log it. Pilot metrics get a baseline, four weekly tallies and worker logins.
+      Re-runs a week later still agree (draws per worker and week); the action log stays in time
+      order; the e2e and walkthrough seeds are unchanged apart from the counts the tests read by
+      pattern (w1-12) (37.8)
+
+Done when: all eight tasks are ticked with a stamp that includes the browser tests; each built what
+its line says, as the approved mock-up shows; `RUN_E2E=1 ./scripts/verify.sh` prints VERIFIED; the
+`guardrails-reviewer` has no open findings; the `claims-auditor` checks each task against its line
+and this one.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

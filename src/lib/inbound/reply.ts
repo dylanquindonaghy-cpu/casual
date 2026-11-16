@@ -1186,7 +1186,8 @@ export async function runInboundWithLastTry(
 // An error's code as the log and the office see it: a Postgres SQLSTATE (5 characters) or an error
 // class's name (a letter first), never anything longer or stranger (a run of digits could read as
 // a phone number, which the log refuses).
-const safeCode = (code: string) =>
+// An error code fit for the log: a Postgres code or an error's name, never free text.
+export const safeCode = (code: string) =>
   /^[0-9A-Z]{5}$/.test(code) || /^[A-Za-z][A-Za-z0-9_]{0,59}$/.test(code) ? code : "unknown";
 
 // The last try's mark for a person, shared with the office's reply or close on Enquiries

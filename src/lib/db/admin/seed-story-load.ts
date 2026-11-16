@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import { and, inArray, isNull, sql } from "drizzle-orm";
 import { noAi } from "../../ai/client";
-import { runInboundMessage } from "../../inbound/reply";
+import { queueInboundMessage } from "../../inbound/job";
+import { runInboundMessage, safeCode } from "../../inbound/reply";
+import { errorCode } from "../../jobs/firm-job";
+import { log } from "../../log";
 import type { MessagingTransport } from "../../messaging/transport";
 import { groupFactsFor, payGroupKey } from "../../pay/grouping";
 import { TRAVEL_NOTICE_VERSION } from "../../portal/travel";
@@ -733,26 +736,83 @@ const seedTransport: MessagingTransport = {
 // keywords anyway, Zoe's message in the app an answer's example question, and Priya's goes to the
 // office as it would with the AI off) and nothing sent (seedTransport). Only those not answered yet, so a re-run
 // changes nothing.
+//
+// One try each, oldest first (16 Nov 2026: on the demo server all five once stayed "Passed to a
+// person, waiting" with nothing to say why). Each result goes to the log, ids and codes only; one
+// that throws is logged and the rest still run. Any still unanswered afterwards is queued for the
+// shifts line's job (queueInboundMessage), the way a real text is, so the job worker answers it with
+// its own retries and its own settings: on the demo server AI off and the console outbox
+// (deploy/docker-compose.demo.yml), so such a reply shows on the Demo phone. The job claims a message
+// before answering (lockUnhandled), so one the seed did answer is never answered twice. If even the
+// queueing fails, the database itself is in trouble: that is logged and the reset stops.
+export interface StoryAnswers {
+  answered: { messageId: string; status: string }[];
+  failed: { messageId: string; code: string }[];
+  queued: string[];
+}
+
 export async function answerStoryMessages(
   run: WithFirm,
   firmId: string,
   story: StorySeed,
   o: { baseDomain: string; now: Date },
-): Promise<void> {
+  answer: typeof runInboundMessage = runInboundMessage,
+): Promise<StoryAnswers> {
   const ids = story.messages.map((m) => m.id);
-  const open = await run(firmId, (tx) =>
+  const unanswered = (tx: FirmTx) =>
     tx
       .select({ id: messages.id })
       .from(messages)
-      .where(and(inArray(messages.id, ids), isNull(messages.handledAt))),
-  );
+      .where(and(inArray(messages.id, ids), isNull(messages.handledAt)))
+      .orderBy(messages.createdAt, messages.id);
+  const out: StoryAnswers = { answered: [], failed: [], queued: [] };
+  const open = await run(firmId, unanswered);
   for (const { id } of open) {
-    await runInboundMessage(
-      { firmId, messageId: id, idempotencyKey: `inbound-message:${id}` },
-      run,
-      { transport: seedTransport, ai: noAi, baseDomain: o.baseDomain, clock: { now: () => o.now } },
-    );
+    try {
+      const result = await answer(
+        { firmId, messageId: id, idempotencyKey: `inbound-message:${id}` },
+        run,
+        {
+          transport: seedTransport,
+          ai: noAi,
+          baseDomain: o.baseDomain,
+          clock: { now: () => o.now },
+        },
+      );
+      out.answered.push({ messageId: id, status: result.status });
+      log.info("seed: story message answered", { firmId, messageId: id, status: result.status });
+    } catch (err) {
+      const code = safeCode(errorCode(err));
+      out.failed.push({ messageId: id, code });
+      log.error("seed: story message not answered; queued for the shifts line's job", {
+        firmId,
+        messageId: id,
+        code,
+      });
+    }
   }
+  if (open.length === 0) return out;
+  try {
+    out.queued = await run(firmId, async (tx) => {
+      const left = await unanswered(tx);
+      for (const { id } of left) await queueInboundMessage(tx, id);
+      return left.map((m) => m.id);
+    });
+  } catch (err) {
+    log.error("seed: story messages left unanswered and could not be queued", {
+      firmId,
+      code: safeCode(errorCode(err)),
+    });
+    throw err;
+  }
+  if (out.queued.length > 0) {
+    log.warn("seed: story messages left to the shifts line's job", {
+      firmId,
+      count: out.queued.length,
+      messageIds: out.queued,
+    });
+  }
+  return out;
 }
 
 function officeId(firm: SeedFirm, role: "admin" | "resourcer" | "payroll"): string {
